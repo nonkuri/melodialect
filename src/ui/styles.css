@@ -1,0 +1,225 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  background: #1b1e26;
+  color: #d8dce6;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #232734;
+  border-bottom: 1px solid #363b48;
+}
+
+.header h1 {
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
+.tagline {
+  color: #6d7688;
+  font-size: 12px;
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  background: #363b48;
+  color: #d8dce6;
+  border: 1px solid #4a4f5e;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #414659;
+}
+
+button.primary {
+  background: #3b62c4;
+  border-color: #4a74dd;
+}
+
+button.primary:hover {
+  background: #4a74dd;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: #8fa2d8;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.settings {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 14px;
+  background: #20242e;
+  border-right: 1px solid #363b48;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: #aeb6c8;
+}
+
+.settings select,
+.settings input {
+  background: #2a2e39;
+  color: #d8dce6;
+  border: 1px solid #4a4f5e;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.seed-row {
+  display: flex;
+  gap: 6px;
+}
+
+.seed-row button {
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.piano-roll-scroll {
+  overflow-x: auto;
+  border: 1px solid #363b48;
+  border-radius: 8px;
+  background: #22252e;
+}
+
+.annotations ul {
+  list-style: none;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.annotations li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.annotation-loc {
+  color: #6d7688;
+  flex-shrink: 0;
+  width: 130px;
+}
+
+.annotation-tag {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: #363b48;
+  color: #aeb6c8;
+}
+
+.tag-chromatic-cliche {
+  background: #4a3a63;
+  color: #c9b3ee;
+}
+
+.tag-modal-interchange {
+  background: #59402e;
+  color: #eec9a8;
+}
+
+.tag-melodic-leap {
+  background: #2e4a59;
+  color: #a8d5ee;
+}
+
+.tag-melodic-bass {
+  background: #2e5940;
+  color: #a8eec2;
+}
+
+.timeline {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #20242e;
+  border-top: 1px solid #363b48;
+}
+
+.timeline-block {
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.timeline-block small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+}
+
+.block-verse {
+  background: #33508f;
+}
+
+.block-chorus {
+  background: #8f5033;
+}
+
+.block-bridge {
+  background: #50338f;
+}
+
+.block-intro,
+.block-outro {
+  background: #3d4351;
+}
