@@ -1,0 +1,19 @@
+{
+  "name": "melodialect",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "作曲家の「音楽的方言」をルールベースで再現する楽曲ジェネレーター",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "generate": "tsx scripts/generate.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

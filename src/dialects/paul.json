@@ -1,0 +1,30 @@
+{
+  "id": "paul-classic",
+  "name": "Paul (半音階クリシェ+メロディックベース)",
+  "defaults": { "key": "C", "mode": "major", "bpm": 96 },
+  "chord": {
+    "vocabulary": ["I", "ii7", "iii", "IV", "V7", "vi", "♭VII"],
+    "transitions": {
+      "I": { "IV": 0.3, "vi": 0.25, "ii7": 0.2, "V7": 0.15, "♭VII": 0.1 },
+      "ii7": { "V7": 0.6, "IV": 0.2, "iii": 0.2 },
+      "iii": { "vi": 0.5, "IV": 0.3, "ii7": 0.2 },
+      "IV": { "V7": 0.4, "I": 0.3, "ii7": 0.15, "♭VII": 0.15 },
+      "V7": { "I": 0.6, "vi": 0.3, "IV": 0.1 },
+      "vi": { "IV": 0.4, "ii7": 0.3, "V7": 0.3 },
+      "♭VII": { "IV": 0.5, "I": 0.5 }
+    },
+    "cliches": ["descending-bass"],
+    "borrowedChords": true
+  },
+  "melody": {
+    "leapProbability": { "default": 0.12, "chorusHead": 0.5 },
+    "leapRangeSemitones": [5, 9],
+    "afterLeapBias": "down",
+    "contour": "stepwise",
+    "pedalPoint": false
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  }
+}
