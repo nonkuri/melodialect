@@ -1,0 +1,30 @@
+{
+  "id": "yuming-twilight",
+  "name": "Yuming (黄昏バラード)",
+  "defaults": { "key": "F", "mode": "major", "bpm": 72 },
+  "chord": {
+    "vocabulary": ["I△7", "IV△7", "III7", "vi", "ii7", "V7", "♭VII"],
+    "transitions": {
+      "I△7": { "IV△7": 0.35, "vi": 0.2, "ii7": 0.2, "III7": 0.15, "♭VII": 0.1 },
+      "IV△7": { "III7": 0.4, "I△7": 0.25, "ii7": 0.2, "V7": 0.15 },
+      "III7": { "vi": 0.7, "IV△7": 0.3 },
+      "vi": { "ii7": 0.35, "IV△7": 0.35, "V7": 0.3 },
+      "ii7": { "V7": 0.6, "III7": 0.2, "I△7": 0.2 },
+      "V7": { "I△7": 0.65, "vi": 0.2, "IV△7": 0.15 },
+      "♭VII": { "IV△7": 0.5, "I△7": 0.5 }
+    },
+    "cliches": [],
+    "borrowedChords": true
+  },
+  "melody": {
+    "leapProbability": { "default": 0.28, "chorusHead": 0.95 },
+    "leapRangeSemitones": [7, 10],
+    "afterLeapBias": "down",
+    "contour": "leap-then-descend",
+    "pedalPoint": false
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.0
+  }
+}

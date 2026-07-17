@@ -32,6 +32,7 @@ const song = generateSong({
   keyName: arg("key", dialect.defaults.key),
   bpm: Number(arg("bpm", String(dialect.defaults.bpm))),
   form: parseForm(formStr),
+  resolveDialect: (name) => dialects[name],
 });
 
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];

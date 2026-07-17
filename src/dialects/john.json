@@ -1,0 +1,32 @@
+{
+  "id": "john-modal",
+  "name": "John (モーダル・インターチェンジ+変則フレーズ)",
+  "defaults": { "key": "G", "mode": "major", "bpm": 104 },
+  "chord": {
+    "vocabulary": ["I", "♭VII", "♭VI", "iv", "IV", "V7", "vi", "ii7"],
+    "transitions": {
+      "I": { "♭VII": 0.3, "IV": 0.2, "vi": 0.15, "♭VI": 0.1, "iv": 0.1, "V7": 0.15 },
+      "♭VII": { "I": 0.45, "♭VI": 0.25, "IV": 0.3 },
+      "♭VI": { "♭VII": 0.5, "I": 0.3, "V7": 0.2 },
+      "iv": { "I": 0.6, "V7": 0.4 },
+      "IV": { "I": 0.35, "iv": 0.25, "V7": 0.25, "ii7": 0.15 },
+      "V7": { "I": 0.6, "vi": 0.25, "♭VI": 0.15 },
+      "vi": { "IV": 0.4, "♭VII": 0.3, "ii7": 0.3 },
+      "ii7": { "V7": 0.6, "♭VII": 0.4 }
+    },
+    "cliches": [],
+    "borrowedChords": true
+  },
+  "melody": {
+    "leapProbability": { "default": 0.08, "chorusHead": 0.3 },
+    "leapRangeSemitones": [5, 8],
+    "afterLeapBias": "down",
+    "contour": "repetitive",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.4
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.3
+  }
+}

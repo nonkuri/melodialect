@@ -1,0 +1,30 @@
+{
+  "id": "george-pedal",
+  "name": "George (逆ペダルポイント)",
+  "defaults": { "key": "D", "mode": "major", "bpm": 88 },
+  "chord": {
+    "vocabulary": ["I", "♭VII", "IV", "II7", "V7", "vi", "ii7"],
+    "transitions": {
+      "I": { "♭VII": 0.25, "IV": 0.25, "II7": 0.2, "vi": 0.15, "V7": 0.15 },
+      "♭VII": { "IV": 0.4, "I": 0.6 },
+      "IV": { "I": 0.4, "V7": 0.3, "♭VII": 0.3 },
+      "II7": { "V7": 0.6, "IV": 0.4 },
+      "V7": { "I": 0.7, "vi": 0.3 },
+      "vi": { "II7": 0.3, "IV": 0.4, "ii7": 0.3 },
+      "ii7": { "V7": 0.7, "I": 0.3 }
+    },
+    "cliches": [],
+    "borrowedChords": true
+  },
+  "melody": {
+    "leapProbability": { "default": 0.06, "chorusHead": 0.25 },
+    "leapRangeSemitones": [5, 9],
+    "afterLeapBias": "none",
+    "contour": "pedal",
+    "pedalPoint": true
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.1
+  }
+}

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Song } from "../engine/types.js";
 import { generateSong } from "../engine/song.js";
 import { parseForm } from "../engine/structure.js";
-import { dialects } from "../dialects/index.js";
+import { dialects, shortName } from "../dialects/index.js";
 import { SongPlayer } from "../audio/player.js";
 import { downloadMidi } from "../export/download.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { PianoRoll } from "./PianoRoll.js";
+import { ScoreView } from "./ScoreView.js";
 
 const SECTION_LABELS: Record<string, string> = {
   intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
@@ -15,24 +16,37 @@ const SECTION_LABELS: Record<string, string> = {
 function buildSong(settings: Settings): Song {
   const dialect = dialects[settings.dialectId];
   if (!dialect) throw new Error(`unknown dialect: ${settings.dialectId}`);
+  const entries = parseForm(settings.form).map((entry, i) => ({
+    ...entry,
+    dialectName: settings.sectionDialects[i] || undefined,
+  }));
   return generateSong({
     dialect,
     seed: settings.seed,
     keyName: settings.keyName,
     bpm: settings.bpm,
-    form: parseForm(settings.form),
+    form: entries,
+    resolveDialect: (name) => dialects[name],
   });
 }
 
 export function App() {
   const [settings, setSettings] = useState<Settings>(() => {
     const d = dialects["paul"]!;
-    return { dialectId: d.id, keyName: d.defaults.key, bpm: d.defaults.bpm, seed: 42, form: "v,c,v,c" };
+    return {
+      dialectId: d.id,
+      keyName: d.defaults.key,
+      bpm: d.defaults.bpm,
+      seed: 42,
+      form: "v,c,v,c",
+      sectionDialects: ["", "", "", ""],
+    };
   });
   const [song, setSong] = useState<Song>(() => buildSong(settings));
   const [playing, setPlaying] = useState(false);
   const [playheadBeat, setPlayheadBeat] = useState<number | null>(null);
   const [showAnnotations, setShowAnnotations] = useState(false);
+  const [view, setView] = useState<"roll" | "score">("roll");
 
   const playerRef = useRef<SongPlayer>(null);
   if (playerRef.current === null) playerRef.current = new SongPlayer();
@@ -87,11 +101,27 @@ export function App() {
     [song],
   );
 
+  const mainDialectId = song.dialectId;
+
   return (
     <div className="app">
       <header className="header">
         <h1>Melodialect</h1>
         <span className="tagline">作曲家の「音楽的方言」をルールベースで再現</span>
+        <div className="view-toggle">
+          <button
+            className={view === "roll" ? "active" : ""}
+            onClick={() => setView("roll")}
+          >
+            ピアノロール
+          </button>
+          <button
+            className={view === "score" ? "active" : ""}
+            onClick={() => setView("score")}
+          >
+            譜面
+          </button>
+        </div>
         <div className="header-actions">
           <button className="primary" onClick={regenerate}>
             ♪ 生成
@@ -105,7 +135,11 @@ export function App() {
         <SettingsPanel settings={settings} onChange={setSettings} />
 
         <main className="main">
-          <PianoRoll song={song} playheadBeat={playheadBeat} />
+          {view === "roll" ? (
+            <PianoRoll song={song} playheadBeat={playheadBeat} />
+          ) : (
+            <ScoreView song={song} />
+          )}
 
           <div className="annotations">
             <button className="link" onClick={() => setShowAnnotations((v) => !v)}>
@@ -129,16 +163,23 @@ export function App() {
       </div>
 
       <footer className="timeline">
-        {song.sections.map((section, i) => (
-          <div
-            key={i}
-            className={`timeline-block block-${section.plan.type}`}
-            style={{ flexGrow: section.plan.bars }}
-          >
-            {SECTION_LABELS[section.plan.type] ?? section.plan.type}
-            <small>{section.plan.bars} 小節</small>
-          </div>
-        ))}
+        {song.sections.map((section, i) => {
+          const d = dialects[section.dialectId];
+          const isGuest = section.dialectId !== mainDialectId;
+          return (
+            <div
+              key={i}
+              className={`timeline-block block-${section.plan.type}`}
+              style={{ flexGrow: section.plan.bars }}
+            >
+              {SECTION_LABELS[section.plan.type] ?? section.plan.type}
+              <small>
+                {section.plan.bars} 小節
+                {isGuest && d ? ` · ${shortName(d)}` : ""}
+              </small>
+            </div>
+          );
+        })}
       </footer>
     </div>
   );

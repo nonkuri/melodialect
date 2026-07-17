@@ -1,6 +1,6 @@
 import type { Dialect, GeneratedSection, KeySignature, SectionType, Song } from "./types.js";
 import { createRng } from "./rng.js";
-import { planStructure } from "./structure.js";
+import { planSection, type FormEntry } from "./structure.js";
 import { generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment } from "./accompaniment.js";
@@ -17,33 +17,53 @@ export function parseKeyName(name: string): number {
 }
 
 export interface GenerateOptions {
+  /** メインのダイアレクト。セクション別割り当てのないセクションに使われる */
   dialect: Dialect;
   seed: number;
   /** 例: "C", "F#"。省略時はダイアレクトのデフォルト */
   keyName?: string;
   bpm?: number;
-  /** セクション構成。省略時は Verse-Chorus-Verse-Chorus */
-  form?: SectionType[];
+  /**
+   * セクション構成。省略時は Verse-Chorus-Verse-Chorus。
+   * FormEntry.dialectName または resolveDialect で合作モード (§4.2) になる
+   */
+  form?: Array<SectionType | FormEntry>;
+  /** 合作モード用: dialectName の解決。省略時はメインのみ */
+  resolveDialect?: (name: string) => Dialect | undefined;
 }
 
 /** 生成パイプライン全体 (§4.2)。同じオプション+シードなら常に同じ曲を返す。 */
 export function generateSong(options: GenerateOptions): Song {
-  const { dialect, seed } = options;
+  const { dialect: mainDialect, seed } = options;
   const rng = createRng(seed);
+  const keyName = options.keyName ?? mainDialect.defaults.key;
   const key: KeySignature = {
-    tonic: parseKeyName(options.keyName ?? dialect.defaults.key),
-    mode: dialect.defaults.mode,
+    tonic: parseKeyName(keyName),
+    mode: mainDialect.defaults.mode,
   };
-  const bpm = options.bpm ?? dialect.defaults.bpm;
-  const form = options.form ?? ["verse", "chorus", "verse", "chorus"];
+  const bpm = options.bpm ?? mainDialect.defaults.bpm;
+  const form: Array<SectionType | FormEntry> =
+    options.form ?? ["verse", "chorus", "verse", "chorus"];
 
-  const plans = planStructure(form, dialect, rng);
+  // 各セクションのダイアレクトを解決 (合作モード §4.2)
+  const entries = form.map((e) => {
+    const entry: FormEntry = typeof e === "string" ? { type: e } : e;
+    let sectionDialect = mainDialect;
+    if (entry.dialectName) {
+      const resolved = options.resolveDialect?.(entry.dialectName);
+      if (!resolved) throw new Error(`unknown dialect in form: ${entry.dialectName}`);
+      sectionDialect = resolved;
+    }
+    return { type: entry.type, dialect: sectionDialect };
+  });
+
   const sections: GeneratedSection[] = [];
   let startBar = 0;
   let prevMelodyEnd: number | undefined;
 
-  plans.forEach((plan, i) => {
-    const isFinalSection = i === plans.length - 1;
+  entries.forEach(({ type, dialect }, i) => {
+    const isFinalSection = i === entries.length - 1;
+    const plan = planSection(type, dialect, rng);
     const { chords, annotations: harmonyNotes } = generateProgression(
       plan, dialect, key, rng, { isFinalSection },
     );
@@ -56,6 +76,7 @@ export function generateSong(options: GenerateOptions): Song {
     sections.push({
       plan,
       startBar,
+      dialectId: dialect.id,
       chords,
       melody: melody.notes,
       piano: accomp.piano,
@@ -68,9 +89,10 @@ export function generateSong(options: GenerateOptions): Song {
   });
 
   return {
-    dialectId: dialect.id,
+    dialectId: mainDialect.id,
     seed,
     key,
+    keyName,
     bpm,
     sections,
     totalBars: startBar,

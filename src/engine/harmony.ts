@@ -75,6 +75,35 @@ export function chordFromRoman(symbol: string, bar: number, key: KeySignature): 
   return { bar, symbol, rootPc, quality: parsed.quality, pitches, bassPitch };
 }
 
+const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT_NAMES = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"];
+
+const QUALITY_SUFFIX: Record<ChordQuality, string> = {
+  maj: "", min: "m", dom7: "7", maj7: "△7", min7: "m7", dim: "dim",
+};
+
+/**
+ * 実音のコードネーム表示 (譜面用 §4.4)。例: "C", "Am7", "F/A", "B♭"。
+ * scalePcs を渡すと、スケール外のスラッシュベース音は下降半音階の慣例に
+ * 従ってフラットで綴る (例: C メジャーで C/A# ではなく C/B♭)
+ */
+export function chordDisplayName(
+  chord: ChordEvent,
+  useFlats: boolean,
+  scalePcs?: number[],
+): string {
+  const names = useFlats ? FLAT_NAMES : SHARP_NAMES;
+  const root = names[chord.rootPc]!;
+  let name = root + QUALITY_SUFFIX[chord.quality];
+  const bassPc = ((chord.bassPitch % 12) + 12) % 12;
+  if (bassPc !== chord.rootPc) {
+    const bassNames =
+      scalePcs && !scalePcs.includes(bassPc) ? FLAT_NAMES : names;
+    name += `/${bassNames[bassPc]}`;
+  }
+  return name;
+}
+
 export interface ProgressionResult {
   chords: ChordEvent[];
   annotations: Annotation[];

@@ -61,6 +61,8 @@ export interface GeneratedSection {
   plan: SectionPlan;
   /** 曲頭からの開始小節番号 */
   startBar: number;
+  /** このセクションの生成に使われたダイアレクト (合作モード §4.2) */
+  dialectId: string;
   chords: ChordEvent[];
   melody: NoteEvent[];
   piano: NoteEvent[];
@@ -72,6 +74,8 @@ export interface Song {
   dialectId: string;
   seed: number;
   key: KeySignature;
+  /** 表示用のキー名 (例: "C", "Bb")。譜面の調号・音名の綴りに使う */
+  keyName: string;
   bpm: number;
   sections: GeneratedSection[];
   totalBars: number;
@@ -90,11 +94,18 @@ export interface Dialect {
     borrowedChords: boolean;
   };
   melody: {
+    /**
+     * 跳躍確率。default はフレーズ頭、chorusHead はサビ (chorus) セクション頭。
+     * フレーズ途中の跳躍確率は default の 35% (エンジン内ヒューリスティック)
+     */
     leapProbability: { default: number; chorusHead: number };
     leapRangeSemitones: [number, number];
     afterLeapBias: "down" | "up" | "none";
     contour: string;
+    /** 逆ペダルポイント (George §4.1 D3): メロディを固定音に留めコードのみ変化させる */
     pedalPoint: boolean;
+    /** 同音連打の確率 (John §4.1 D1)。省略時 0 */
+    repeatNoteProbability?: number;
   };
   structure: {
     phraseLengths: number[];
