@@ -3,7 +3,6 @@ import { createRng } from "../src/engine/rng.js";
 import { parseRoman, romanRootPc, chordFromRoman, scaleOf } from "../src/engine/harmony.js";
 import { generateSong } from "../src/engine/song.js";
 import { paul } from "../src/dialects/index.js";
-import { BEATS_PER_BAR } from "../src/engine/types.js";
 
 describe("rng", () => {
   it("同じシードなら同じ系列を返す", () => {
@@ -83,7 +82,7 @@ describe("generateSong (Paul, seed 固定)", () => {
       for (const n of sec.melody) {
         expect(n.pitch).toBeGreaterThanOrEqual(60);
         expect(n.pitch).toBeLessThanOrEqual(81);
-        const bar = Math.floor(n.start / BEATS_PER_BAR);
+        const bar = Math.floor(n.start / song.meter.barBeats);
         const chordPcs = sec.chords[bar]!.pitches.map((p) => p % 12);
         const pc = ((n.pitch % 12) + 12) % 12;
         expect(scalePcs.includes(pc) || chordPcs.includes(pc)).toBe(true);
@@ -91,15 +90,37 @@ describe("generateSong (Paul, seed 固定)", () => {
     }
   });
 
-  it("各小節のメロディの長さの合計は 4 拍", () => {
+  it("各小節のメロディの長さの合計は 1 小節分", () => {
     for (const sec of song.sections) {
       const byBar = new Map<number, number>();
       for (const n of sec.melody) {
-        const bar = Math.floor(n.start / BEATS_PER_BAR);
+        const bar = Math.floor(n.start / song.meter.barBeats);
         byBar.set(bar, (byBar.get(bar) ?? 0) + n.duration);
       }
-      for (const [, total] of byBar) expect(total).toBeCloseTo(4);
+      for (const [, total] of byBar) expect(total).toBeCloseTo(song.meter.barBeats);
     }
+  });
+
+  it.each(["3/4", "6/8"] as const)("拍子 %s でも各小節が正しい長さになる", (meterName) => {
+    const metered = generateSong({ dialect: paul, seed: 42, meterName });
+    expect(metered.meter.name).toBe(meterName);
+    for (const sec of metered.sections) {
+      const byBar = new Map<number, number>();
+      for (const n of sec.melody) {
+        const bar = Math.floor(n.start / metered.meter.barBeats);
+        byBar.set(bar, (byBar.get(bar) ?? 0) + n.duration);
+      }
+      for (const [, total] of byBar) expect(total).toBeCloseTo(metered.meter.barBeats);
+      // 伴奏も小節内に収まっている
+      for (const n of [...sec.piano, ...sec.bass]) {
+        const bar = Math.floor(n.start / metered.meter.barBeats);
+        expect(n.start + n.duration).toBeLessThanOrEqual(
+          (bar + 1) * metered.meter.barBeats + 1e-9,
+        );
+      }
+    }
+    // 同一シードでも 4/4 とは別の曲になるが決定的
+    expect(generateSong({ dialect: paul, seed: 42, meterName })).toEqual(metered);
   });
 
   it("半音階クリシェが適用された場合はベースが半音下降する", () => {

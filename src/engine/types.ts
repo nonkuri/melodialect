@@ -1,4 +1,6 @@
-/** 拍単位はすべて 4 分音符 = 1 beat、4/4 固定(M1)。ピッチは MIDI ノート番号。 */
+/** 拍単位はすべて 4 分音符 = 1 beat。ピッチは MIDI ノート番号。拍子は meter.ts 参照。 */
+
+import type { Meter } from "./meter.js";
 
 export type Mode = "major" | "minor";
 
@@ -77,6 +79,7 @@ export interface Song {
   /** 表示用のキー名 (例: "C", "Bb")。譜面の調号・音名の綴りに使う */
   keyName: string;
   bpm: number;
+  meter: Meter;
   sections: GeneratedSection[];
   totalBars: number;
 }
@@ -115,4 +118,3 @@ export interface Dialect {
   };
 }
 
-export const BEATS_PER_BAR = 4;

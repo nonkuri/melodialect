@@ -8,7 +8,6 @@ import { dialects } from "../src/dialects/index.js";
 import { generateSong } from "../src/engine/song.js";
 import { parseForm } from "../src/engine/structure.js";
 import { encodeSongToMidi } from "../src/export/midi.js";
-import { BEATS_PER_BAR } from "../src/engine/types.js";
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -31,13 +30,16 @@ const song = generateSong({
   seed,
   keyName: arg("key", dialect.defaults.key),
   bpm: Number(arg("bpm", String(dialect.defaults.bpm))),
+  meterName: arg("meter", "4/4"),
   form: parseForm(formStr),
   resolveDialect: (name) => dialects[name],
 });
 
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 console.log(`=== melodialect: ${dialect.name} ===`);
-console.log(`key: ${NOTE_NAMES[song.key.tonic]} ${song.key.mode} / bpm: ${song.bpm} / seed: ${song.seed}`);
+console.log(
+  `key: ${NOTE_NAMES[song.key.tonic]} ${song.key.mode} / ${song.meter.name} / bpm: ${song.bpm} / seed: ${song.seed}`,
+);
 console.log(`total: ${song.totalBars} bars\n`);
 
 for (const section of song.sections) {
@@ -55,6 +57,6 @@ const fileName = `melodialect-${dialectName}-seed${seed}.mid`;
 const outPath = join(outDir, fileName);
 writeFileSync(outPath, encodeSongToMidi(song));
 
-const totalBeats = song.totalBars * BEATS_PER_BAR;
+const totalBeats = song.totalBars * song.meter.barBeats;
 const durationSec = (totalBeats / song.bpm) * 60;
 console.log(`wrote ${outPath} (${song.totalBars} bars, ${durationSec.toFixed(1)} sec)`);

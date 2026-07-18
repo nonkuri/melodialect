@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { Song } from "../engine/types.js";
-import { BEATS_PER_BAR } from "../engine/types.js";
 
 const PX_PER_BEAT = 26;
 const ROW_H = 7;
@@ -25,10 +24,11 @@ interface FlatNote {
 
 /** メロディ+伴奏をトラック色分けで表示するピアノロール (§4.4)。 */
 export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: number | null }) {
+  const barBeats = song.meter.barBeats;
   const { notes, minPitch, maxPitch, totalBeats } = useMemo(() => {
     const flat: FlatNote[] = [];
     for (const section of song.sections) {
-      const offset = section.startBar * BEATS_PER_BAR;
+      const offset = section.startBar * barBeats;
       for (const [part, list] of [
         ["melody", section.melody],
         ["piano", section.piano],
@@ -44,9 +44,9 @@ export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: nu
       notes: flat,
       minPitch: Math.min(...pitches) - 2,
       maxPitch: Math.max(...pitches) + 2,
-      totalBeats: song.totalBars * BEATS_PER_BAR,
+      totalBeats: song.totalBars * barBeats,
     };
-  }, [song]);
+  }, [song, barBeats]);
 
   const width = totalBeats * PX_PER_BEAT;
   const rollH = (maxPitch - minPitch + 1) * ROW_H;
@@ -75,9 +75,9 @@ export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: nu
         {Array.from({ length: song.totalBars + 1 }, (_, bar) => (
           <line
             key={bar}
-            x1={bar * BEATS_PER_BAR * PX_PER_BEAT}
+            x1={bar * barBeats * PX_PER_BEAT}
             y1={LABEL_H}
-            x2={bar * BEATS_PER_BAR * PX_PER_BEAT}
+            x2={bar * barBeats * PX_PER_BEAT}
             y2={height}
             stroke={bar % 4 === 0 ? "#4a4f5e" : "#363b48"}
             strokeWidth={1}
@@ -85,7 +85,7 @@ export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: nu
         ))}
         {/* セクション境界とラベル・コードネーム */}
         {song.sections.map((section, i) => {
-          const x = section.startBar * BEATS_PER_BAR * PX_PER_BEAT;
+          const x = section.startBar * barBeats * PX_PER_BEAT;
           return (
             <g key={i}>
               <line x1={x} y1={0} x2={x} y2={height} stroke="#8891a8" strokeWidth={1.5} />
@@ -95,7 +95,7 @@ export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: nu
               {section.chords.map((chord) => (
                 <text
                   key={chord.bar}
-                  x={(section.startBar + chord.bar) * BEATS_PER_BAR * PX_PER_BEAT + 46}
+                  x={(section.startBar + chord.bar) * barBeats * PX_PER_BEAT + 46}
                   y={14}
                   fill="#6d7688"
                   fontSize={10}

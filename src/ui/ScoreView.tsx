@@ -12,7 +12,6 @@ import {
   Voice,
 } from "vexflow";
 import type { NoteEvent, Song } from "../engine/types.js";
-import { BEATS_PER_BAR } from "../engine/types.js";
 import { chordDisplayName, scaleOf } from "../engine/harmony.js";
 import type { SectionLyrics } from "../engine/lyrics.js";
 
@@ -31,9 +30,10 @@ function pitchToVexKey(pitch: number, useFlats: boolean): string {
   return `${names[pitch % 12]}/${octave}`;
 }
 
-/** 拍数 → VexFlow の音価。リズムテンプレートの値 (4, 2, 1.5, 1, 0.5) に対応 */
+/** 拍数 → VexFlow の音価。リズムテンプレートの値 (4, 3, 2, 1.5, 1, 0.5) に対応 */
 function durationOf(beats: number): { duration: string; dotted: boolean } {
   if (beats === 4) return { duration: "w", dotted: false };
+  if (beats === 3) return { duration: "h", dotted: true };
   if (beats === 2) return { duration: "h", dotted: false };
   if (beats === 1.5) return { duration: "q", dotted: true };
   if (beats === 1) return { duration: "q", dotted: false };
@@ -60,13 +60,14 @@ function flattenBars(song: Song, useFlats: boolean, lyrics?: SectionLyrics[]): B
   const SECTION_LABELS: Record<string, string> = {
     intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
   };
+  const barBeats = song.meter.barBeats;
   song.sections.forEach((section, sectionIndex) => {
     const syllables = lyrics?.[sectionIndex]?.syllables;
     for (let bar = 0; bar < section.plan.bars; bar++) {
       const chord = section.chords[bar]!;
       const notes: ScoredNote[] = [];
       section.melody.forEach((n, noteIndex) => {
-        if (Math.floor(n.start / BEATS_PER_BAR) === bar) {
+        if (Math.floor(n.start / barBeats) === bar) {
           notes.push({ note: n, syllable: syllables?.[noteIndex] });
         }
       });
@@ -111,6 +112,7 @@ export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics
       if (isLineHead) {
         stave.addClef("treble");
         stave.addKeySignature(song.keyName);
+        if (barIndex === 0) stave.addTimeSignature(song.meter.name);
       }
       if (barData.sectionLabel) {
         stave.setSection(barData.sectionLabel, 0);
@@ -143,7 +145,10 @@ export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics
         return note;
       });
 
-      const voice = new Voice({ numBeats: BEATS_PER_BAR, beatValue: 4 }).setStrict(false);
+      const voice = new Voice({
+        numBeats: song.meter.midiNumerator,
+        beatValue: song.meter.midiDenominator,
+      }).setStrict(false);
       voice.addTickables(staveNotes);
       Accidental.applyAccidentals([voice], song.keyName);
       const beams = Beam.generateBeams(staveNotes);

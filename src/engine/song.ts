@@ -1,5 +1,6 @@
 import type { Dialect, GeneratedSection, KeySignature, SectionType, Song } from "./types.js";
 import { createRng } from "./rng.js";
+import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
 import { generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
@@ -23,6 +24,8 @@ export interface GenerateOptions {
   /** 例: "C", "F#"。省略時はダイアレクトのデフォルト */
   keyName?: string;
   bpm?: number;
+  /** 拍子 ("4/4" | "3/4" | "6/8")。省略時は 4/4 */
+  meterName?: string;
   /**
    * セクション構成。省略時は Verse-Chorus-Verse-Chorus。
    * FormEntry.dialectName または resolveDialect で合作モード (§4.2) になる
@@ -42,6 +45,7 @@ export function generateSong(options: GenerateOptions): Song {
     mode: mainDialect.defaults.mode,
   };
   const bpm = options.bpm ?? mainDialect.defaults.bpm;
+  const meter: Meter = options.meterName ? meterOf(options.meterName) : DEFAULT_METER;
   const form: Array<SectionType | FormEntry> =
     options.form ?? ["verse", "chorus", "verse", "chorus"];
 
@@ -67,10 +71,10 @@ export function generateSong(options: GenerateOptions): Song {
     const { chords, annotations: harmonyNotes } = generateProgression(
       plan, dialect, key, rng, { isFinalSection },
     );
-    const melody = generateMelody(plan, chords, dialect, key, rng, {
+    const melody = generateMelody(plan, chords, dialect, key, meter, rng, {
       startPitch: prevMelodyEnd,
     });
-    const accomp = generateAccompaniment(plan, chords, dialect, key, rng);
+    const accomp = generateAccompaniment(plan, chords, dialect, key, meter, rng);
 
     prevMelodyEnd = melody.notes.at(-1)?.pitch;
     sections.push({
@@ -94,6 +98,7 @@ export function generateSong(options: GenerateOptions): Song {
     key,
     keyName,
     bpm,
+    meter,
     sections,
     totalBars: startBar,
   };

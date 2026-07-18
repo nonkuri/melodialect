@@ -1,25 +1,27 @@
+import { useState } from "react";
 import type { SectionType } from "../engine/types.js";
 import { parseForm } from "../engine/structure.js";
+import { METERS } from "../engine/meter.js";
 import { dialects, dialectList, shortName } from "../dialects/index.js";
+import {
+  STANDARD_FORMS,
+  loadCustomForms,
+  saveCustomForms,
+  validateForm,
+} from "./formPresets.js";
 
 export interface Settings {
   dialectId: string;
   keyName: string;
   bpm: number;
   seed: number;
+  meterName: string;
   form: string;
   /** 合作モード (§4.2): 構成の各セクションに割り当てるダイアレクト id。"" はメイン */
   sectionDialects: string[];
 }
 
 const KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-
-const FORM_PRESETS: Array<{ label: string; value: string }> = [
-  { label: "Verse-Chorus ×2", value: "v,c,v,c" },
-  { label: "V-C-V-C-B-C", value: "v,c,v,c,b,c" },
-  { label: "Verse ×2", value: "v,v" },
-  { label: "Chorus のみ", value: "c" },
-];
 
 const SECTION_LABELS: Record<SectionType, string> = {
   intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
@@ -36,7 +38,43 @@ export function SettingsPanel({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
+  const [customForms, setCustomForms] = useState<string[]>(() => loadCustomForms());
+  const [draftForm, setDraftForm] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
   const formSections = parseForm(settings.form);
+  const isCustomSelected = customForms.includes(settings.form);
+
+  const selectForm = (value: string) => {
+    onChange({
+      ...settings,
+      form: value,
+      sectionDialects: parseForm(value).map(() => ""),
+    });
+  };
+
+  const addCustomForm = () => {
+    const normalized = validateForm(draftForm);
+    if (!normalized) {
+      setFormError("形式が不正です (例: i,v,c,b,c,o)");
+      return;
+    }
+    setFormError(null);
+    setDraftForm("");
+    if (!customForms.includes(normalized)) {
+      const next = [...customForms, normalized];
+      setCustomForms(next);
+      saveCustomForms(next);
+    }
+    selectForm(normalized);
+  };
+
+  const removeCustomForm = (value: string) => {
+    const next = customForms.filter((f) => f !== value);
+    setCustomForms(next);
+    saveCustomForms(next);
+    if (settings.form === value) selectForm(STANDARD_FORMS[0]!.value);
+  };
 
   return (
     <aside className="settings">
@@ -73,6 +111,17 @@ export function SettingsPanel({
       </label>
 
       <label>
+        拍子
+        <select value={settings.meterName} onChange={(e) => set("meterName", e.target.value)}>
+          {Object.keys(METERS).map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
         テンポ (BPM)
         <input
           type="number"
@@ -85,23 +134,53 @@ export function SettingsPanel({
 
       <label>
         構成
-        <select
-          value={settings.form}
-          onChange={(e) =>
-            onChange({
-              ...settings,
-              form: e.target.value,
-              sectionDialects: parseForm(e.target.value).map(() => ""),
-            })
-          }
-        >
-          {FORM_PRESETS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
+        <select value={settings.form} onChange={(e) => selectForm(e.target.value)}>
+          <optgroup label="標準">
+            {STANDARD_FORMS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </optgroup>
+          {customForms.length > 0 && (
+            <optgroup label="カスタム">
+              {customForms.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </label>
+
+      <div className="custom-form">
+        <span className="custom-form-title">カスタム構成を追加</span>
+        <div className="seed-row">
+          <input
+            type="text"
+            placeholder="例: i,v,c,b,c,o"
+            value={draftForm}
+            onChange={(e) => setDraftForm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addCustomForm();
+            }}
+          />
+          <button type="button" onClick={addCustomForm}>
+            追加
+          </button>
+        </div>
+        {formError && <span className="form-error">{formError}</span>}
+        {isCustomSelected && (
+          <button
+            type="button"
+            className="link"
+            onClick={() => removeCustomForm(settings.form)}
+          >
+            選択中のカスタム構成を削除
+          </button>
+        )}
+      </div>
 
       <div className="cowrite">
         <span className="cowrite-title">セクション別ダイアレクト (合作モード)</span>

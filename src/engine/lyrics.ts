@@ -1,5 +1,4 @@
 import type { Song } from "./types.js";
-import { BEATS_PER_BAR } from "./types.js";
 import { createRng } from "./rng.js";
 
 /**
@@ -37,7 +36,7 @@ export function generateLyrics(song: Song): SectionLyrics[] {
     const phraseStartBeats: number[] = [];
     let bar = 0;
     for (const len of section.plan.phraseLengths) {
-      phraseStartBeats.push(bar * BEATS_PER_BAR);
+      phraseStartBeats.push(bar * song.meter.barBeats);
       bar += len;
     }
 

@@ -1,5 +1,4 @@
 import type { NoteEvent, Song } from "../engine/types.js";
-import { BEATS_PER_BAR } from "../engine/types.js";
 
 /**
  * SMF (Standard MIDI File) Format 1 エンコーダ (§4.5)。
@@ -74,7 +73,8 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 export function encodeSongToMidi(song: Song): Uint8Array {
-  const sectionOffset = (i: number): number => song.sections[i]!.startBar * BEATS_PER_BAR;
+  const barBeats = song.meter.barBeats;
+  const sectionOffset = (i: number): number => song.sections[i]!.startBar * barBeats;
 
   // トラック 0: メタ情報
   const meta: MidiEvent[] = [];
@@ -83,7 +83,15 @@ export function encodeSongToMidi(song: Song): Uint8Array {
     tick: 0, order: 0,
     bytes: metaEvent(0x51, [(usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff]),
   });
-  meta.push({ tick: 0, order: 0, bytes: metaEvent(0x58, [4, 2, 24, 8]) }); // 4/4
+  meta.push({
+    tick: 0, order: 0,
+    bytes: metaEvent(0x58, [
+      song.meter.midiNumerator,
+      Math.log2(song.meter.midiDenominator),
+      song.meter.midiClocks,
+      8,
+    ]),
+  });
   meta.push({ tick: 0, order: 0, bytes: metaEvent(0x03, textBytes("melodialect")) });
 
   const sectionCounts: Record<string, number> = {};
@@ -97,7 +105,7 @@ export function encodeSongToMidi(song: Song): Uint8Array {
     });
     for (const chord of section.chords) {
       meta.push({
-        tick: (sectionOffset(i) + chord.bar * BEATS_PER_BAR) * TICKS_PER_BEAT,
+        tick: (sectionOffset(i) + chord.bar * barBeats) * TICKS_PER_BEAT,
         order: 3,
         bytes: metaEvent(0x01, textBytes(chord.symbol)), // コードシンボル (テキスト)
       });

@@ -1,5 +1,4 @@
 import type { NoteEvent, Song } from "../engine/types.js";
-import { BEATS_PER_BAR } from "../engine/types.js";
 
 /**
  * Web Audio API による再生 (§4.4)。M2 は軽量な自前シンセ
@@ -125,7 +124,7 @@ export function scheduleSong(ctx: BaseAudioContext, song: Song, startTime: numbe
 
   const secPerBeat = 60 / song.bpm;
   for (const section of song.sections) {
-    const offsetBeats = section.startBar * BEATS_PER_BAR;
+    const offsetBeats = section.startBar * song.meter.barBeats;
     const parts: Array<[Part, NoteEvent[]]> = [
       ["melody", section.melody],
       ["piano", section.piano],
@@ -148,7 +147,7 @@ export function scheduleSong(ctx: BaseAudioContext, song: Song, startTime: numbe
       }
     }
   }
-  return song.totalBars * BEATS_PER_BAR * secPerBeat;
+  return song.totalBars * song.meter.barBeats * secPerBeat;
 }
 
 export class SongPlayer {
@@ -174,7 +173,7 @@ export class SongPlayer {
     const ctx = new AudioContext();
     this.ctx = ctx;
     this.bpm = song.bpm;
-    this.totalBeats = song.totalBars * BEATS_PER_BAR;
+    this.totalBeats = song.totalBars * song.meter.barBeats;
 
     // AudioContext 起動直後のスケジューリング余裕
     this.startTime = ctx.currentTime + 0.1;

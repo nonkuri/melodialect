@@ -6,7 +6,7 @@ import type {
   NoteEvent,
   SectionPlan,
 } from "./types.js";
-import { BEATS_PER_BAR } from "./types.js";
+import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
 import { scaleOf } from "./harmony.js";
 
@@ -16,16 +16,36 @@ const MELODY_CENTER = 67; // G4
 /** フレーズ途中の跳躍確率は default に対するこの倍率 (§6.2 の意味付け) */
 const WITHIN_PHRASE_LEAP_FACTOR = 0.35;
 
-/** 1 小節分のリズムテンプレート (合計 4 拍) */
-const RHYTHM_TEMPLATES: number[][] = [
-  [1, 1, 1, 1],
-  [2, 1, 1],
-  [1, 1, 2],
-  [2, 2],
-  [1.5, 0.5, 1, 1],
-  [1, 0.5, 0.5, 1, 1],
-];
-const FINAL_BAR_TEMPLATES: number[][] = [[4], [2, 2]];
+/** 拍子ごとの 1 小節分リズムテンプレート (合計 = meter.barBeats) */
+const RHYTHM_TEMPLATES: Record<string, number[][]> = {
+  "4/4": [
+    [1, 1, 1, 1],
+    [2, 1, 1],
+    [1, 1, 2],
+    [2, 2],
+    [1.5, 0.5, 1, 1],
+    [1, 0.5, 0.5, 1, 1],
+  ],
+  "3/4": [
+    [1, 1, 1],
+    [2, 1],
+    [1, 2],
+    [1.5, 1.5],
+    [1, 0.5, 0.5, 1],
+  ],
+  "6/8": [
+    [1.5, 1.5],
+    [0.5, 0.5, 0.5, 1.5],
+    [1, 0.5, 1.5],
+    [1.5, 0.5, 0.5, 0.5],
+    [1.5, 1, 0.5],
+  ],
+};
+const FINAL_BAR_TEMPLATES: Record<string, number[][]> = {
+  "4/4": [[4], [2, 2]],
+  "3/4": [[3], [2, 1]],
+  "6/8": [[3], [1.5, 1.5]],
+};
 
 export interface MelodyResult {
   notes: NoteEvent[];
@@ -102,6 +122,7 @@ export function generateMelody(
   chords: ChordEvent[],
   dialect: Dialect,
   key: KeySignature,
+  meter: Meter,
   rng: Rng,
   opts: { startPitch?: number } = {},
 ): MelodyResult {
@@ -130,15 +151,18 @@ export function generateMelody(
   let biasRemaining = 0;
   let isFirstNote = true;
 
+  const templates = RHYTHM_TEMPLATES[meter.name] ?? RHYTHM_TEMPLATES["4/4"]!;
+  const finalTemplates = FINAL_BAR_TEMPLATES[meter.name] ?? FINAL_BAR_TEMPLATES["4/4"]!;
+
   for (let bar = 0; bar < plan.bars; bar++) {
     const chord = chords[bar]!;
     const isLastBar = bar === plan.bars - 1;
-    const template = rng.pick(isLastBar ? FINAL_BAR_TEMPLATES : RHYTHM_TEMPLATES);
+    const template = rng.pick(isLastBar ? finalTemplates : templates);
 
     let beatInBar = 0;
     let isFirstNoteOfBar = true;
     for (const duration of template) {
-      const isStrongBeat = beatInBar === 0 || beatInBar === 2;
+      const isStrongBeat = meter.strongBeats.includes(beatInBar);
       const isPhraseHead = isFirstNoteOfBar && phraseStarts.has(bar);
 
       // 跳躍確率: サビ頭 > フレーズ頭 > フレーズ途中 (§4.1 D4)
@@ -204,7 +228,7 @@ export function generateMelody(
       pitch = clampReflect(pitch, scalePcs);
 
       notes.push({
-        start: bar * BEATS_PER_BAR + beatInBar,
+        start: bar * meter.barBeats + beatInBar,
         duration,
         pitch,
         velocity: plan.type === "chorus" ? 100 : 90,

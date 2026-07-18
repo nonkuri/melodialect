@@ -19,15 +19,17 @@ const SECTION_LABELS: Record<string, string> = {
 function buildSong(settings: Settings): Song {
   const dialect = dialects[settings.dialectId];
   if (!dialect) throw new Error(`unknown dialect: ${settings.dialectId}`);
+  // 合作モードのセレクトが優先。未指定なら構成文字列の v:john 記法に従う
   const entries = parseForm(settings.form).map((entry, i) => ({
     ...entry,
-    dialectName: settings.sectionDialects[i] || undefined,
+    dialectName: settings.sectionDialects[i] || entry.dialectName,
   }));
   return generateSong({
     dialect,
     seed: settings.seed,
     keyName: settings.keyName,
     bpm: settings.bpm,
+    meterName: settings.meterName,
     form: entries,
     resolveDialect: (name) => dialects[name],
   });
@@ -41,6 +43,7 @@ export function App() {
       keyName: d.defaults.key,
       bpm: d.defaults.bpm,
       seed: 42,
+      meterName: "4/4",
       form: "v,c,v,c",
       sectionDialects: ["", "", "", ""],
     };
@@ -52,6 +55,27 @@ export function App() {
   const [view, setView] = useState<"roll" | "score">("roll");
   const [showLyrics, setShowLyrics] = useState(false);
   const [renderingWav, setRenderingWav] = useState(false);
+  /** 表示エリア (譜面/ピアノロール) の高さ。スプリッターのドラッグで変更 */
+  const [viewHeight, setViewHeight] = useState(420);
+
+  const onSplitterDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = viewHeight;
+      const move = (ev: PointerEvent) => {
+        const next = startHeight + (ev.clientY - startY);
+        setViewHeight(Math.min(Math.max(next, 120), window.innerHeight - 220));
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    [viewHeight],
+  );
 
   const playerRef = useRef<SongPlayer>(null);
   if (playerRef.current === null) playerRef.current = new SongPlayer();
@@ -159,21 +183,29 @@ export function App() {
         <SettingsPanel settings={settings} onChange={setSettings} />
 
         <main className="main">
-          {view === "roll" ? (
-            <PianoRoll song={song} playheadBeat={playheadBeat} />
-          ) : (
-            <>
-              <label className="lyrics-toggle">
-                <input
-                  type="checkbox"
-                  checked={showLyrics}
-                  onChange={(e) => setShowLyrics(e.target.checked)}
-                />
-                仮歌詞を表示
-              </label>
-              <ScoreView song={song} lyrics={showLyrics ? lyrics : undefined} />
-            </>
-          )}
+          <div className="view-area" style={{ height: viewHeight }}>
+            {view === "roll" ? (
+              <PianoRoll song={song} playheadBeat={playheadBeat} />
+            ) : (
+              <>
+                <label className="lyrics-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showLyrics}
+                    onChange={(e) => setShowLyrics(e.target.checked)}
+                  />
+                  仮歌詞を表示
+                </label>
+                <ScoreView song={song} lyrics={showLyrics ? lyrics : undefined} />
+              </>
+            )}
+          </div>
+
+          <div
+            className="splitter"
+            title="ドラッグで表示エリアの高さを変更"
+            onPointerDown={onSplitterDown}
+          />
 
           <div className="annotations">
             <button className="link" onClick={() => setShowAnnotations((v) => !v)}>
