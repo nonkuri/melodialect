@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { generateSong } from "../src/engine/song.js";
-import { paul } from "../src/dialects/index.js";
+import { chromatic } from "../src/dialects/index.js";
 import { encodeSongToMidi } from "../src/export/midi.js";
 
 describe("MIDI (SMF) エクスポート", () => {
-  const song = generateSong({ dialect: paul, seed: 42 });
+  const song = generateSong({ dialect: chromatic, seed: 42 });
   const bytes = encodeSongToMidi(song);
 
   it("MThd ヘッダー: Format 1 / 4 トラック / 480 ticks", () => {
@@ -43,6 +43,6 @@ describe("MIDI (SMF) エクスポート", () => {
   });
 
   it("同じ曲からは同じバイト列が生成される", () => {
-    expect(encodeSongToMidi(generateSong({ dialect: paul, seed: 42 }))).toEqual(bytes);
+    expect(encodeSongToMidi(generateSong({ dialect: chromatic, seed: 42 }))).toEqual(bytes);
   });
 });

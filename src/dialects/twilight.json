@@ -1,6 +1,6 @@
 {
-  "id": "yuming-twilight",
-  "name": "Yuming (黄昏バラード)",
+  "id": "twilight-ballad",
+  "name": "Twilight (黄昏バラード)",
   "stylePrompt": "1970s Japanese city pop ballad, twilight mood, electric piano and soft strings, wide upward melodic leaps that gently descend, wistful female vocal, slow tempo",
   "defaults": { "key": "F", "mode": "major", "bpm": 72 },
   "chord": {

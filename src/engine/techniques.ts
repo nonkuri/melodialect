@@ -35,7 +35,7 @@ export function applyCliche(
 }
 
 /**
- * 半音階クリシェ (Paul / §4.1 D2):
+ * 半音階クリシェ (Chromatic / §4.1 D2):
  * ベースラインが半音ずつ下降する 4 小節 (例: C → C/B → C/B♭ → F/A)。
  * フレーズ頭に確率的に挿入する。
  */

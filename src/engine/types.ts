@@ -107,9 +107,9 @@ export interface Dialect {
     leapRangeSemitones: [number, number];
     afterLeapBias: "down" | "up" | "none";
     contour: string;
-    /** 逆ペダルポイント (George §4.1 D3): メロディを固定音に留めコードのみ変化させる */
+    /** 逆ペダルポイント (Pedal §4.1 D3): メロディを固定音に留めコードのみ変化させる */
     pedalPoint: boolean;
-    /** 同音連打の確率 (John §4.1 D1)。省略時 0 */
+    /** 同音連打の確率 (Modal §4.1 D1)。省略時 0 */
     repeatNoteProbability?: number;
   };
   structure: {

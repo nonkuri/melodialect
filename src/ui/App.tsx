@@ -19,7 +19,7 @@ const SECTION_LABELS: Record<string, string> = {
 function buildSong(settings: Settings): Song {
   const dialect = dialects[settings.dialectId];
   if (!dialect) throw new Error(`unknown dialect: ${settings.dialectId}`);
-  // 合作モードのセレクトが優先。未指定なら構成文字列の v:john 記法に従う
+  // 合作モードのセレクトが優先。未指定なら構成文字列の v:modal 記法に従う
   const entries = parseForm(settings.form).map((entry, i) => ({
     ...entry,
     dialectName: settings.sectionDialects[i] || entry.dialectName,
@@ -37,7 +37,7 @@ function buildSong(settings: Settings): Song {
 
 export function App() {
   const [settings, setSettings] = useState<Settings>(() => {
-    const d = dialects["paul"]!;
+    const d = dialects["chromatic"]!;
     return {
       dialectId: d.id,
       keyName: d.defaults.key,

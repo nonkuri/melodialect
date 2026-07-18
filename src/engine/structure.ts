@@ -4,7 +4,7 @@ import type { Rng } from "./rng.js";
 /**
  * 構成生成 (§4.2 手順 1)。
  * セクションに対しフレーズ長を決定する。irregularPhraseProbability により
- * フレーズを 1 小節削って 7 小節構成などの変則化を行う (John / §4.1 D1)。
+ * フレーズを 1 小節削って 7 小節構成などの変則化を行う (Modal / §4.1 D1)。
  */
 export function planSection(type: SectionType, dialect: Dialect, rng: Rng): SectionPlan {
   const phraseLengths = dialect.structure.phraseLengths.map((len) => {
@@ -30,7 +30,7 @@ const TYPE_MAP: Record<string, SectionType> = {
 
 /**
  * 構成文字列のパース。"v,c,v,c" のほか、セクション別ダイアレクト割り当て
- * "v:john,c:paul" (合作モード) をサポートする。
+ * "v:modal,c:chromatic" (合作モード) をサポートする。
  */
 export function parseForm(formStr: string): FormEntry[] {
   return formStr

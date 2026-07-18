@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../src/engine/rng.js";
 import { parseRoman, romanRootPc, chordFromRoman, scaleOf } from "../src/engine/harmony.js";
 import { generateSong } from "../src/engine/song.js";
-import { paul } from "../src/dialects/index.js";
+import { chromatic } from "../src/dialects/index.js";
 
 describe("rng", () => {
   it("同じシードなら同じ系列を返す", () => {
@@ -46,16 +46,16 @@ describe("harmony: ローマ数字パース", () => {
   });
 });
 
-describe("generateSong (Paul, seed 固定)", () => {
-  const song = generateSong({ dialect: paul, seed: 42 });
+describe("generateSong (Chromatic, seed 固定)", () => {
+  const song = generateSong({ dialect: chromatic, seed: 42 });
 
   it("同じシードなら同一の曲を生成する (再現性 §4.2)", () => {
-    const again = generateSong({ dialect: paul, seed: 42 });
+    const again = generateSong({ dialect: chromatic, seed: 42 });
     expect(again).toEqual(song);
   });
 
   it("異なるシードでは異なる曲になる", () => {
-    const other = generateSong({ dialect: paul, seed: 43 });
+    const other = generateSong({ dialect: chromatic, seed: 43 });
     const symbols = (s: typeof song) =>
       s.sections.flatMap((sec) => sec.chords.map((c) => c.symbol)).join(",");
     const melodyPitches = (s: typeof song) =>
@@ -63,7 +63,7 @@ describe("generateSong (Paul, seed 固定)", () => {
     expect(symbols(other) + melodyPitches(other)).not.toBe(symbols(song) + melodyPitches(song));
   });
 
-  it("構成は V-C-V-C で各 8 小節 (Paul は変則フレーズなし)", () => {
+  it("構成は V-C-V-C で各 8 小節 (Chromatic は変則フレーズなし)", () => {
     expect(song.sections.map((s) => s.plan.type)).toEqual(["verse", "chorus", "verse", "chorus"]);
     for (const s of song.sections) expect(s.plan.bars).toBe(8);
     expect(song.totalBars).toBe(32);
@@ -102,7 +102,7 @@ describe("generateSong (Paul, seed 固定)", () => {
   });
 
   it.each(["3/4", "6/8"] as const)("拍子 %s でも各小節が正しい長さになる", (meterName) => {
-    const metered = generateSong({ dialect: paul, seed: 42, meterName });
+    const metered = generateSong({ dialect: chromatic, seed: 42, meterName });
     expect(metered.meter.name).toBe(meterName);
     for (const sec of metered.sections) {
       const byBar = new Map<number, number>();
@@ -120,14 +120,14 @@ describe("generateSong (Paul, seed 固定)", () => {
       }
     }
     // 同一シードでも 4/4 とは別の曲になるが決定的
-    expect(generateSong({ dialect: paul, seed: 42, meterName })).toEqual(metered);
+    expect(generateSong({ dialect: chromatic, seed: 42, meterName })).toEqual(metered);
   });
 
   it("半音階クリシェが適用された場合はベースが半音下降する", () => {
     // 複数シードのどれかでクリシェが出ることを確認 (確率 0.6)
     let found = false;
     for (let seed = 1; seed <= 10 && !found; seed++) {
-      const s = generateSong({ dialect: paul, seed });
+      const s = generateSong({ dialect: chromatic, seed });
       for (const sec of s.sections) {
         const cliche = sec.annotations.filter((a) => a.ruleId === "chromatic-cliche");
         if (cliche.length > 0) {

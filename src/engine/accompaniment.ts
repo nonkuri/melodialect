@@ -26,7 +26,7 @@ export function generateAccompaniment(
   const bass: NoteEvent[] = [];
   const annotations: Annotation[] = [];
   const scalePcs = scaleOf(key);
-  const melodicBass = dialect.melody.contour === "stepwise"; // Paul: メロディックベース (§4.1 D2)
+  const melodicBass = dialect.melody.contour === "stepwise"; // Chromatic: メロディックベース (§4.1 D2)
 
   for (let bar = 0; bar < plan.bars; bar++) {
     const chord = chords[bar]!;

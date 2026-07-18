@@ -1,6 +1,6 @@
 {
-  "id": "john-modal",
-  "name": "John (モーダル・インターチェンジ+変則フレーズ)",
+  "id": "modal-irregular",
+  "name": "Modal (モーダル・インターチェンジ+変則フレーズ)",
   "stylePrompt": "1960s British rock, modal borrowed chords, raw and honest male vocal, repetitive hypnotic melody, irregular phrase lengths, mid-tempo",
   "defaults": { "key": "G", "mode": "major", "bpm": 104 },
   "chord": {

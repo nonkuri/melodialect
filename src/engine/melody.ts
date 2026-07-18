@@ -136,7 +136,7 @@ export function generateMelody(
   // 前セクションの最終音から続ける (サビ頭の跳躍はここからの跳躍として表現される)
   let prevPitch = opts.startPitch ?? snapToChordTone(MELODY_CENTER, chords[0]!);
 
-  // 逆ペダルポイント (George): セクション最初のコードの上位コードトーン (B4 付近) に固定
+  // 逆ペダルポイント (Pedal): セクション最初のコードの上位コードトーン (B4 付近) に固定
   let pedalPitch: number | null = null;
   if (pedalPoint) {
     pedalPitch = clampReflect(snapToChordTone(71, chords[0]!), scalePcs);
@@ -182,7 +182,7 @@ export function generateMelody(
         pitch = pedalPitch;
         skipChordSnap = true;
       } else if (!isFirstNote && repeatProb > 0 && rng.chance(repeatProb)) {
-        // 同音連打 (John): 直前の音を繰り返す
+        // 同音連打 (Modal): 直前の音を繰り返す
         pitch = prevPitch;
         skipChordSnap = true;
       } else if (rng.chance(leapP)) {

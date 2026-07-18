@@ -15,7 +15,7 @@ function arg(name: string, fallback: string): string {
 }
 
 const seed = Number(arg("seed", "42"));
-const dialectName = arg("dialect", "paul");
+const dialectName = arg("dialect", "chromatic");
 const outDir = arg("out", "out");
 const formStr = arg("form", "v,c,v,c");
 

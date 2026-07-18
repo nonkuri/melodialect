@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSong } from "../src/engine/song.js";
 import { generateLyrics } from "../src/engine/lyrics.js";
-import { paul, yuming } from "../src/dialects/index.js";
+import { chromatic, twilight } from "../src/dialects/index.js";
 import { encodeWav, type AudioBufferLike } from "../src/export/wav.js";
 import { buildSunoText } from "../src/export/text.js";
 
@@ -43,7 +43,7 @@ describe("WAV エンコード (§4.5)", () => {
 });
 
 describe("仮歌詞 (§4.2 手順 5)", () => {
-  const song = generateSong({ dialect: paul, seed: 42 });
+  const song = generateSong({ dialect: chromatic, seed: 42 });
 
   it("メロディの音数と音節数が一致する", () => {
     const lyrics = generateLyrics(song);
@@ -67,8 +67,8 @@ describe("仮歌詞 (§4.2 手順 5)", () => {
 
 describe("Suno 用テキスト出力 (§4.5)", () => {
   it("スタイル・歌詞・コード進行を含む", () => {
-    const song = generateSong({ dialect: yuming, seed: 7 });
-    const text = buildSunoText(song, yuming);
+    const song = generateSong({ dialect: twilight, seed: 7 });
+    const text = buildSunoText(song, twilight);
     expect(text).toContain("Style Prompt");
     expect(text).toContain("city pop ballad");
     expect(text).toContain("Key: F major, Tempo: 72 BPM");

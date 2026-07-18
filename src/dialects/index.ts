@@ -1,8 +1,8 @@
 import type { Dialect } from "../engine/types.js";
-import paulJson from "./paul.json" with { type: "json" };
-import johnJson from "./john.json" with { type: "json" };
-import georgeJson from "./george.json" with { type: "json" };
-import yumingJson from "./yuming.json" with { type: "json" };
+import chromaticJson from "./chromatic.json" with { type: "json" };
+import modalJson from "./modal.json" with { type: "json" };
+import pedalJson from "./pedal.json" with { type: "json" };
+import twilightJson from "./twilight.json" with { type: "json" };
 
 /** ダイアレクト JSON の読み込みと軽量バリデーション (§6.2) */
 export function loadDialect(data: unknown): Dialect {
@@ -16,27 +16,27 @@ export function loadDialect(data: unknown): Dialect {
   return d;
 }
 
-export const paul: Dialect = loadDialect(paulJson);
-export const john: Dialect = loadDialect(johnJson);
-export const george: Dialect = loadDialect(georgeJson);
-export const yuming: Dialect = loadDialect(yumingJson);
+export const chromatic: Dialect = loadDialect(chromaticJson);
+export const modal: Dialect = loadDialect(modalJson);
+export const pedal: Dialect = loadDialect(pedalJson);
+export const twilight: Dialect = loadDialect(twilightJson);
 
 /** id と短縮名の両方で引ける */
 export const dialects: Record<string, Dialect> = {
-  [paul.id]: paul,
-  [john.id]: john,
-  [george.id]: george,
-  [yuming.id]: yuming,
-  paul,
-  john,
-  george,
-  yuming,
+  [chromatic.id]: chromatic,
+  [modal.id]: modal,
+  [pedal.id]: pedal,
+  [twilight.id]: twilight,
+  chromatic,
+  modal,
+  pedal,
+  twilight,
 };
 
 /** UI 表示用の重複なしリスト */
-export const dialectList: Dialect[] = [paul, john, george, yuming];
+export const dialectList: Dialect[] = [chromatic, modal, pedal, twilight];
 
-/** "Paul (〜)" → "Paul" のような短縮表示名 */
+/** "Chromatic (〜)" → "Chromatic" のような短縮表示名 */
 export function shortName(dialect: Dialect): string {
   return dialect.name.split(" ")[0] ?? dialect.name;
 }

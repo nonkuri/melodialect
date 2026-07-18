@@ -2,23 +2,23 @@ import { describe, expect, it } from "vitest";
 import { parseRoman, romanRootPc, chordDisplayName, chordFromRoman } from "../src/engine/harmony.js";
 import { generateSong } from "../src/engine/song.js";
 import { parseForm } from "../src/engine/structure.js";
-import { dialects, paul, john, george, yuming } from "../src/dialects/index.js";
+import { dialects, chromatic, modal, pedal, twilight } from "../src/dialects/index.js";
 
 describe("新ダイアレクトのコード語彙", () => {
   const keyC = { tonic: 0, mode: "major" as const };
 
-  it("John の借用和音: ♭VI (pc=8), iv (マイナー)", () => {
+  it("Modal の借用和音: ♭VI (pc=8), iv (マイナー)", () => {
     expect(romanRootPc(parseRoman("♭VI"), keyC)).toBe(8); // A♭
     expect(parseRoman("iv")).toEqual({ degree: 4, flat: false, quality: "min" });
   });
 
-  it("George の II7 はドッペルドミナント (D7 in C)", () => {
+  it("Pedal の II7 はドッペルドミナント (D7 in C)", () => {
     const p = parseRoman("II7");
     expect(p).toEqual({ degree: 2, flat: false, quality: "dom7" });
     expect(romanRootPc(p, keyC)).toBe(2);
   });
 
-  it("Yuming の I△7 / III7", () => {
+  it("Twilight の I△7 / III7", () => {
     expect(parseRoman("I△7")).toEqual({ degree: 1, flat: false, quality: "maj7" });
     expect(parseRoman("III7")).toEqual({ degree: 3, flat: false, quality: "dom7" });
   });
@@ -32,7 +32,7 @@ describe("新ダイアレクトのコード語彙", () => {
 });
 
 describe("各ダイアレクトの生成", () => {
-  for (const dialect of [john, george, yuming]) {
+  for (const dialect of [modal, pedal, twilight]) {
     it(`${dialect.id}: シード固定で決定的に生成できる`, () => {
       const a = generateSong({ dialect, seed: 7 });
       const b = generateSong({ dialect, seed: 7 });
@@ -45,17 +45,17 @@ describe("各ダイアレクトの生成", () => {
     });
   }
 
-  it("John: 変則フレーズ長 (7 小節セクション) がいずれかのシードで出る", () => {
+  it("Modal: 変則フレーズ長 (7 小節セクション) がいずれかのシードで出る", () => {
     let found = false;
     for (let seed = 1; seed <= 15 && !found; seed++) {
-      const song = generateSong({ dialect: john, seed });
+      const song = generateSong({ dialect: modal, seed });
       found = song.sections.some((s) => s.plan.bars === 7);
     }
     expect(found).toBe(true);
   });
 
-  it("John: 同音連打が多い (隣接音の反復率が Paul より高い)", () => {
-    const repeatRate = (dialectId: "john" | "paul") => {
+  it("Modal: 同音連打が多い (隣接音の反復率が Chromatic より高い)", () => {
+    const repeatRate = (dialectId: "modal" | "chromatic") => {
       let repeats = 0;
       let total = 0;
       for (let seed = 1; seed <= 10; seed++) {
@@ -69,16 +69,16 @@ describe("各ダイアレクトの生成", () => {
       }
       return repeats / total;
     };
-    const johnRate = repeatRate("john");
-    expect(johnRate).toBeGreaterThan(0.25);
-    expect(johnRate).toBeGreaterThan(repeatRate("paul"));
+    const modalRate = repeatRate("modal");
+    expect(modalRate).toBeGreaterThan(0.25);
+    expect(modalRate).toBeGreaterThan(repeatRate("chromatic"));
   });
 
-  it("George: 逆ペダルポイント (最頻メロディ音の占有率が高い)", () => {
+  it("Pedal: 逆ペダルポイント (最頻メロディ音の占有率が高い)", () => {
     let dominant = 0;
     let sections = 0;
     for (let seed = 1; seed <= 5; seed++) {
-      const song = generateSong({ dialect: george, seed });
+      const song = generateSong({ dialect: pedal, seed });
       for (const sec of song.sections) {
         sections++;
         const counts = new Map<number, number>();
@@ -90,15 +90,15 @@ describe("各ダイアレクトの生成", () => {
       }
     }
     expect(dominant / sections).toBeGreaterThan(0.6);
-    const song = generateSong({ dialect: george, seed: 1 });
+    const song = generateSong({ dialect: pedal, seed: 1 });
     expect(song.sections[0]!.annotations.some((a) => a.ruleId === "inverted-pedal")).toBe(true);
   });
 
-  it("Yuming: サビ頭で大きく跳躍する (7 半音以上が高頻度)", () => {
+  it("Twilight: サビ頭で大きく跳躍する (7 半音以上が高頻度)", () => {
     let bigLeaps = 0;
     let choruses = 0;
     for (let seed = 1; seed <= 20; seed++) {
-      const song = generateSong({ dialect: yuming, seed });
+      const song = generateSong({ dialect: twilight, seed });
       for (let i = 1; i < song.sections.length; i++) {
         const sec = song.sections[i]!;
         if (sec.plan.type !== "chorus") continue;
@@ -116,33 +116,33 @@ describe("各ダイアレクトの生成", () => {
 describe("合作モード (§4.2)", () => {
   it("セクション別にダイアレクトを割り当てられる", () => {
     const song = generateSong({
-      dialect: paul,
+      dialect: chromatic,
       seed: 42,
       form: [
-        { type: "verse", dialectName: "john" },
+        { type: "verse", dialectName: "modal" },
         { type: "chorus" },
-        { type: "verse", dialectName: "john" },
-        { type: "chorus", dialectName: "yuming" },
+        { type: "verse", dialectName: "modal" },
+        { type: "chorus", dialectName: "twilight" },
       ],
       resolveDialect: (name) => dialects[name],
     });
     expect(song.sections.map((s) => s.dialectId)).toEqual([
-      "john-modal", "paul-classic", "john-modal", "yuming-twilight",
+      "modal-irregular", "chromatic-cliche", "modal-irregular", "twilight-ballad",
     ]);
   });
 
-  it("parseForm は v:john 記法を解釈する", () => {
-    expect(parseForm("v:john,c,b:yuming")).toEqual([
-      { type: "verse", dialectName: "john" },
+  it("parseForm は v:modal 記法を解釈する", () => {
+    expect(parseForm("v:modal,c,b:twilight")).toEqual([
+      { type: "verse", dialectName: "modal" },
       { type: "chorus" },
-      { type: "bridge", dialectName: "yuming" },
+      { type: "bridge", dialectName: "twilight" },
     ]);
   });
 
   it("未知のダイアレクト名はエラー", () => {
     expect(() =>
       generateSong({
-        dialect: paul,
+        dialect: chromatic,
         seed: 1,
         form: [{ type: "verse", dialectName: "nobody" }],
         resolveDialect: (name) => dialects[name],
