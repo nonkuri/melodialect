@@ -8,7 +8,7 @@
 
 ## 特徴
 
-- **4 つのダイアレクト** — Chromatic(半音階クリシェ+歌心のモチーフ反復)、Modal(モーダル進行+語りの同音連打)、Pedal(逆ペダル+掛留のドローン)、Twilight(哀愁進行+大跳躍シンコペーション)
+- **9 つのダイアレクト** — Chromatic(半音階クリシェ+歌心のモチーフ反復)、Modal(モーダル進行+語りの同音連打)、Pedal(逆ペダル+掛留のドローン)、Twilight(哀愁進行+大跳躍シンコペーション)、Angular(七の和音+変則フレーズの跳躍ポップ)、Orchestral(転回ベース+浮遊和声のポップ)、Bossa(シンコペ和声+ささやきの同音連打)、Ostinato(機械的リフレイン+ミニマル短調)、Serene(揺れる△7+静謐な 3 拍子)
 - **6 層の作曲分析** — 各ダイアレクトはコード進行 (定型句・カデンツ・ハーモニックリズム)、リズム語彙 (シンコペーション・休符・アウフタクト)、モチーフ反復 (シークエンス)、非和声音 (倚音・掛留・半音階経過音)、セクション対比 (音域・音数)、転調傾向まで定義
 - **合作モード** — 「Verse は Modal、Chorus は Twilight」のようにセクション別へダイアレクトを割り当て可能
 - **拍子対応** — 4/4 / 3/4(ワルツ伴奏)/ 6/8(複合2拍子)
@@ -72,8 +72,8 @@ npm run generate -- --seed 123 --key G --bpm 110 --form v,c,b,c
 | `--key` | キー(C, Db, D, ... B) | ダイアレクトの推奨キー |
 | `--bpm` | テンポ(40〜200) | ダイアレクトの推奨値 |
 | `--form` | 構成(v=Verse, c=Chorus, b=Bridge, i=Intro, o=Outro をカンマ区切り)。`v:modal,c:twilight` でセクション別ダイアレクト指定(合作モード) | v,c,v,c |
-| `--meter` | 拍子(4/4, 3/4, 6/8) | 4/4 |
-| `--dialect` | ダイアレクト名(chromatic / modal / pedal / twilight) | chromatic |
+| `--meter` | 拍子(4/4, 3/4, 6/8) | ダイアレクトの推奨拍子 (通常 4/4、serene は 3/4) |
+| `--dialect` | ダイアレクト名(chromatic / modal / pedal / twilight / angular / orchestral / bossa / ostinato / serene) | chromatic |
 | `--out` | 出力先フォルダ | out |
 
 生成された .mid は Windows Media Player や DAW で再生できます。

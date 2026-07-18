@@ -30,7 +30,7 @@ const song = generateSong({
   seed,
   keyName: arg("key", dialect.defaults.key),
   bpm: Number(arg("bpm", String(dialect.defaults.bpm))),
-  meterName: arg("meter", "4/4"),
+  meterName: arg("meter", dialect.defaults.meter ?? "4/4"),
   form: parseForm(formStr),
   resolveDialect: (name) => dialects[name],
 });

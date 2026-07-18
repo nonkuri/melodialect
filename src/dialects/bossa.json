@@ -1,0 +1,80 @@
+{
+  "id": "bossa-syncopation",
+  "name": "Bossa (シンコペ和声+ささやきの同音連打)",
+  "stylePrompt": "bossa nova, soft nylon guitar syncopation, subtle jazz seventh chords, intimate hushed vocal, gentle samba sway, warm night mood",
+  "defaults": { "key": "F", "mode": "major", "bpm": 116 },
+  "chord": {
+    "vocabulary": ["I△7", "ii7", "II7", "iii7", "IV△7", "V7", "vi", "♭VII"],
+    "transitions": {
+      "I△7": { "ii7": 0.25, "IV△7": 0.2, "iii7": 0.2, "II7": 0.15, "vi": 0.2 },
+      "ii7": { "V7": 0.55, "II7": 0.15, "iii7": 0.3 },
+      "II7": { "ii7": 0.5, "V7": 0.5 },
+      "iii7": { "vi": 0.45, "ii7": 0.3, "IV△7": 0.25 },
+      "IV△7": { "iii7": 0.3, "ii7": 0.3, "♭VII": 0.2, "I△7": 0.2 },
+      "V7": { "I△7": 0.55, "iii7": 0.25, "vi": 0.2 },
+      "vi": { "ii7": 0.45, "IV△7": 0.3, "II7": 0.25 },
+      "♭VII": { "I△7": 0.5, "IV△7": 0.5 }
+    },
+    "idioms": [
+      { "symbols": ["ii7", "V7", "I△7"], "weight": 3 },
+      { "symbols": ["iii7", "vi", "ii7", "V7"], "weight": 2 },
+      { "symbols": ["I△7", "II7", "ii7", "V7"], "weight": 1 }
+    ],
+    "idiomProbability": 0.45,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "I△7"], "weight": 2 },
+        { "symbols": ["IV△7", "I△7"], "weight": 1 },
+        { "symbols": ["♭VII", "I△7"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 2 },
+        { "symbols": ["ii7"], "weight": 1 },
+        { "symbols": ["II7"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "1": 0.6, "2": 0.4 }
+    },
+    "cliches": [],
+    "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [1.5, 1.5, 1], "weight": 3 },
+        { "beats": [0.5, 1, 1.5, 1], "weight": 2 },
+        { "beats": [0.5, 0.5, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [-0.5, 0.5, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [1, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [1.5, 1, 1.5], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.3,
+    "chorusDensityBias": 0.1
+  },
+  "melody": {
+    "leapProbability": { "default": 0.08, "chorusHead": 0.3 },
+    "leapRangeSemitones": [5, 8],
+    "afterLeapBias": "none",
+    "contour": "syncopated-narrow",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.35,
+    "motif": { "repeatProbability": 0.65 },
+    "nonChordTones": { "appoggiatura": 0.1, "suspension": 0.1, "chromaticPassing": 0.15 },
+    "registerShift": { "chorus": 2 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  },
+  "modulation": {
+    "bridge": {
+      "probability": 0.35,
+      "intervals": [
+        { "semitones": -2, "weight": 1 },
+        { "semitones": 5, "weight": 1 }
+      ]
+    }
+  }
+}

@@ -87,7 +87,13 @@ export function SettingsPanel({
             onChange({
               ...settings,
               dialectId: e.target.value,
-              ...(d ? { keyName: d.defaults.key, bpm: d.defaults.bpm } : {}),
+              ...(d
+                ? {
+                    keyName: d.defaults.key,
+                    bpm: d.defaults.bpm,
+                    meterName: d.defaults.meter ?? "4/4",
+                  }
+                : {}),
             });
           }}
         >

@@ -1,0 +1,66 @@
+{
+  "id": "ostinato-minimal",
+  "name": "Ostinato (機械的リフレイン+ミニマル短調)",
+  "stylePrompt": "late 1970s electronic pop, robotic synthesizer ostinato, minor key minimal chords, precise sequenced eighth notes, vocoder-like deadpan vocal, steady motorik pulse",
+  "defaults": { "key": "A", "mode": "minor", "bpm": 120 },
+  "chord": {
+    "vocabulary": ["i", "III", "iv", "v", "VI", "VII"],
+    "transitions": {
+      "i": { "VI": 0.3, "VII": 0.3, "iv": 0.2, "III": 0.2 },
+      "III": { "VII": 0.4, "VI": 0.3, "i": 0.3 },
+      "iv": { "i": 0.4, "VII": 0.3, "VI": 0.3 },
+      "v": { "i": 0.6, "VI": 0.4 },
+      "VI": { "VII": 0.5, "i": 0.3, "III": 0.2 },
+      "VII": { "i": 0.6, "VI": 0.4 }
+    },
+    "idioms": [
+      { "symbols": ["i", "VI", "VII", "i"], "weight": 2 },
+      { "symbols": ["i", "VII", "VI", "VII"], "weight": 1 },
+      { "symbols": ["i", "iv", "i"], "weight": 1 }
+    ],
+    "idiomProbability": 0.4,
+    "cadences": {
+      "final": [
+        { "symbols": ["VII", "i"], "weight": 2 },
+        { "symbols": ["v", "i"], "weight": 1 },
+        { "symbols": ["VI", "i"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["VII"], "weight": 2 },
+        { "symbols": ["VI"], "weight": 1 },
+        { "symbols": ["v"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.4, "1": 0.6 }
+    },
+    "cliches": [],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], "weight": 3 },
+        { "beats": [1, 1, 1, 1], "weight": 3 },
+        { "beats": [0.5, 0.5, 1, 0.5, 0.5, 1], "weight": 2 },
+        { "beats": [0.5, 0.5, 0.5, 0.5, 2], "weight": 1 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0,
+    "chorusDensityBias": 0
+  },
+  "melody": {
+    "leapProbability": { "default": 0.05, "chorusHead": 0.15 },
+    "leapRangeSemitones": [5, 7],
+    "afterLeapBias": "none",
+    "contour": "ostinato",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.5,
+    "motif": { "repeatProbability": 0.85 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  }
+}

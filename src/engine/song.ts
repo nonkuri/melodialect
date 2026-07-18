@@ -55,7 +55,11 @@ export function generateSong(options: GenerateOptions): Song {
     mode: mainDialect.defaults.mode,
   };
   const bpm = options.bpm ?? mainDialect.defaults.bpm;
-  const meter: Meter = options.meterName ? meterOf(options.meterName) : DEFAULT_METER;
+  const meter: Meter = options.meterName
+    ? meterOf(options.meterName)
+    : mainDialect.defaults.meter
+      ? meterOf(mainDialect.defaults.meter)
+      : DEFAULT_METER;
   const form: Array<SectionType | FormEntry> =
     options.form ?? ["verse", "chorus", "verse", "chorus"];
 

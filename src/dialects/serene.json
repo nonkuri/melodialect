@@ -1,0 +1,67 @@
+{
+  "id": "serene-waltz",
+  "name": "Serene (揺れる△7+静謐な 3 拍子)",
+  "stylePrompt": "slow French impressionist waltz, dreamy major seventh chords rocking gently, sparse solo piano, melancholy floating melody, quiet and still, late night salon",
+  "defaults": { "key": "D", "mode": "major", "bpm": 66, "meter": "3/4" },
+  "chord": {
+    "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi"],
+    "transitions": {
+      "I△7": { "IV△7": 0.55, "ii7": 0.2, "vi": 0.25 },
+      "ii7": { "I△7": 0.4, "IV△7": 0.3, "vi": 0.3 },
+      "iii7": { "IV△7": 0.5, "vi": 0.5 },
+      "IV△7": { "I△7": 0.65, "iii7": 0.2, "ii7": 0.15 },
+      "V7": { "I△7": 0.6, "vi": 0.4 },
+      "vi": { "ii7": 0.4, "IV△7": 0.35, "iii7": 0.25 }
+    },
+    "idioms": [
+      { "symbols": ["I△7", "IV△7", "I△7", "IV△7"], "weight": 3 },
+      { "symbols": ["vi", "iii7", "IV△7"], "weight": 1 },
+      { "symbols": ["ii7", "I△7"], "weight": 1 }
+    ],
+    "idiomProbability": 0.45,
+    "cadences": {
+      "final": [
+        { "symbols": ["IV△7", "I△7"], "weight": 2 },
+        { "symbols": ["ii7", "I△7"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["IV△7"], "weight": 2 },
+        { "symbols": ["ii7"], "weight": 1 },
+        { "symbols": ["vi"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.35, "1": 0.65 }
+    },
+    "cliches": [],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "templates": {
+      "3/4": [
+        { "beats": [-1, 2], "weight": 3 },
+        { "beats": [3], "weight": 2 },
+        { "beats": [2, 1], "weight": 2 },
+        { "beats": [-1, 1, 1], "weight": 2 },
+        { "beats": [1, 2], "weight": 1 },
+        { "beats": [1.5, 1.5], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.05,
+    "chorusDensityBias": 0
+  },
+  "melody": {
+    "leapProbability": { "default": 0.1, "chorusHead": 0.2 },
+    "leapRangeSemitones": [5, 8],
+    "afterLeapBias": "down",
+    "contour": "floating",
+    "pedalPoint": false,
+    "motif": { "repeatProbability": 0.7 },
+    "nonChordTones": { "appoggiatura": 0.12, "suspension": 0.18 },
+    "registerShift": { "chorus": 1 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.15
+  }
+}

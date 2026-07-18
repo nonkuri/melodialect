@@ -108,7 +108,8 @@ export interface Dialect {
   name: string;
   /** Suno 等の外部サービスに渡すスタイル記述 (§4.5 テキスト出力) */
   stylePrompt?: string;
-  defaults: { key: string; mode: Mode; bpm: number };
+  /** meter はダイアレクトの推奨拍子 ("3/4" 等)。省略時 4/4 */
+  defaults: { key: string; mode: Mode; bpm: number; meter?: string };
   chord: {
     vocabulary: string[];
     transitions: Record<string, Record<string, number>>;

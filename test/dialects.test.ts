@@ -2,7 +2,18 @@ import { describe, expect, it } from "vitest";
 import { parseRoman, romanRootPc, chordDisplayName, chordFromRoman } from "../src/engine/harmony.js";
 import { generateSong } from "../src/engine/song.js";
 import { parseForm } from "../src/engine/structure.js";
-import { dialects, chromatic, modal, pedal, twilight } from "../src/dialects/index.js";
+import {
+  dialects,
+  chromatic,
+  modal,
+  pedal,
+  twilight,
+  angular,
+  orchestral,
+  bossa,
+  ostinato,
+  serene,
+} from "../src/dialects/index.js";
 
 describe("新ダイアレクトのコード語彙", () => {
   const keyC = { tonic: 0, mode: "major" as const };
@@ -32,7 +43,7 @@ describe("新ダイアレクトのコード語彙", () => {
 });
 
 describe("各ダイアレクトの生成", () => {
-  for (const dialect of [modal, pedal, twilight]) {
+  for (const dialect of [modal, pedal, twilight, angular, orchestral, bossa, ostinato, serene]) {
     it(`${dialect.id}: シード固定で決定的に生成できる`, () => {
       const a = generateSong({ dialect, seed: 7 });
       const b = generateSong({ dialect, seed: 7 });
@@ -250,6 +261,75 @@ describe("作曲分析の 6 要素 (§4.1)", () => {
         expect(bridge.annotations.some((a) => a.ruleId === "modulation")).toBe(true);
         expect(song.sections.at(-1)!.key.tonic).toBe(song.key.tonic);
       }
+    }
+    expect(found).toBe(true);
+  });
+});
+
+describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
+  it("Serene: デフォルト拍子が 3/4 になり、休符から入る小節がある", () => {
+    const song = generateSong({ dialect: serene, seed: 1 });
+    expect(song.meter.name).toBe("3/4");
+    expect(song.key.mode).toBe("major");
+    // [-1, 2] テンプレート: 1 拍目が休符で 2 拍目からメロディが入る
+    let restBar = false;
+    for (let seed = 1; seed <= 10 && !restBar; seed++) {
+      const s = generateSong({ dialect: serene, seed });
+      for (const sec of s.sections) {
+        for (const n of sec.melody) {
+          if (Math.abs((n.start % s.meter.barBeats) - 1) < 1e-9 && n.duration === 2) {
+            restBar = true;
+          }
+        }
+      }
+    }
+    expect(restBar).toBe(true);
+  });
+
+  it("Ostinato: 短調 (A minor) で、同音連打率が非常に高い", () => {
+    const song = generateSong({ dialect: ostinato, seed: 1 });
+    expect(song.key).toEqual({ tonic: 9, mode: "minor" });
+    let repeats = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const s = generateSong({ dialect: ostinato, seed });
+      for (const sec of s.sections) {
+        for (let i = 1; i < sec.melody.length; i++) {
+          total++;
+          if (sec.melody[i]!.pitch === sec.melody[i - 1]!.pitch) repeats++;
+        }
+      }
+    }
+    expect(repeats / total).toBeGreaterThan(0.3);
+  });
+
+  it("Bossa: 1 小節 2 コードのシンコペ和声が出る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: bossa, seed });
+      found = song.sections.some((sec) =>
+        sec.chords.some((c) => c.durationBeats === song.meter.barBeats / 2),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("Orchestral: 半音階クリシェ (転回ベース) が適用される", () => {
+    let found = false;
+    for (let seed = 1; seed <= 20 && !found; seed++) {
+      const song = generateSong({ dialect: orchestral, seed });
+      found = song.sections.some((sec) =>
+        sec.annotations.some((a) => a.ruleId === "chromatic-cliche"),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("Angular: 変則フレーズ (8 小節未満のセクション) が出る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 15 && !found; seed++) {
+      const song = generateSong({ dialect: angular, seed });
+      found = song.sections.some((s) => s.plan.bars < 8);
     }
     expect(found).toBe(true);
   });
