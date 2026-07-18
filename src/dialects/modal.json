@@ -1,6 +1,6 @@
 {
   "id": "modal-irregular",
-  "name": "Modal (モーダル・インターチェンジ+変則フレーズ)",
+  "name": "Modal (モーダル進行+語りの同音連打)",
   "stylePrompt": "1960s British rock, modal borrowed chords, raw and honest male vocal, repetitive hypnotic melody, irregular phrase lengths, mid-tempo",
   "defaults": { "key": "G", "mode": "major", "bpm": 104 },
   "chord": {
@@ -15,8 +15,43 @@
       "vi": { "IV": 0.4, "♭VII": 0.3, "ii7": 0.3 },
       "ii7": { "V7": 0.6, "♭VII": 0.4 }
     },
+    "idioms": [
+      { "symbols": ["♭VI", "♭VII", "I"], "weight": 2 },
+      { "symbols": ["I", "♭VII", "I"], "weight": 1 },
+      { "symbols": ["IV", "iv", "I"], "weight": 1 }
+    ],
+    "idiomProbability": 0.3,
+    "cadences": {
+      "final": [
+        { "symbols": ["♭VII", "I"], "weight": 2 },
+        { "symbols": ["V7", "I"], "weight": 1 },
+        { "symbols": ["iv", "I"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["♭VII"], "weight": 2 },
+        { "symbols": ["V7"], "weight": 1 },
+        { "symbols": ["IV"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.25, "1": 0.75 },
+      "chorus": { "1": 1 }
+    },
     "cliches": [],
     "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [1, 1, 1, 1], "weight": 3 },
+        { "beats": [0.5, 0.5, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [1, 1, 2], "weight": 2 },
+        { "beats": [1, -1, 1, 1], "weight": 2 },
+        { "beats": [2, -1, 1], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.1,
+    "chorusDensityBias": 0
   },
   "melody": {
     "leapProbability": { "default": 0.08, "chorusHead": 0.3 },
@@ -24,7 +59,10 @@
     "afterLeapBias": "down",
     "contour": "repetitive",
     "pedalPoint": false,
-    "repeatNoteProbability": 0.4
+    "repeatNoteProbability": 0.4,
+    "motif": { "repeatProbability": 0.75 },
+    "nonChordTones": { "appoggiatura": 0.04, "suspension": 0.12, "chromaticPassing": 0.04 },
+    "registerShift": { "chorus": 1 }
   },
   "structure": {
     "phraseLengths": [4, 4],

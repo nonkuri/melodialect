@@ -39,7 +39,15 @@ describe("各ダイアレクトの生成", () => {
       expect(a).toEqual(b);
       expect(a.totalBars).toBeGreaterThan(0);
       for (const sec of a.sections) {
-        expect(sec.chords.length).toBe(sec.plan.bars);
+        // コードイベントはセクションを隙間なく被覆する (ハーモニックリズム対応)
+        expect(sec.chords[0]!.start).toBe(0);
+        for (let i = 1; i < sec.chords.length; i++) {
+          expect(sec.chords[i]!.start).toBeCloseTo(
+            sec.chords[i - 1]!.start + sec.chords[i - 1]!.durationBeats,
+          );
+        }
+        const last = sec.chords.at(-1)!;
+        expect(last.start + last.durationBeats).toBeCloseTo(sec.plan.bars * a.meter.barBeats);
         expect(sec.melody.length).toBeGreaterThan(0);
       }
     });
@@ -110,6 +118,140 @@ describe("各ダイアレクトの生成", () => {
     }
     expect(choruses).toBeGreaterThan(0);
     expect(bigLeaps / choruses).toBeGreaterThan(0.5);
+  });
+});
+
+describe("作曲分析の 6 要素 (§4.1)", () => {
+  it("ハーモニックリズム: Twilight のサビに 1 小節 2 コードが出る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: twilight, seed });
+      found = song.sections.some(
+        (sec) =>
+          sec.plan.type === "chorus" &&
+          sec.chords.some((c) => c.durationBeats === song.meter.barBeats / 2),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("ハーモニックリズム: Modal に 2 小節 1 コードが出る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: modal, seed });
+      found = song.sections.some((sec) =>
+        sec.chords.some((c) => c.durationBeats === song.meter.barBeats * 2),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("進行イディオム: Twilight に定型句 (IV△7→III7→vi 等) の注記が付く", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: twilight, seed });
+      found = song.sections.some((sec) =>
+        sec.annotations.some((a) => a.ruleId === "chord-idiom"),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("カデンツ: 全セクションに終止の注記が付き、最終セクションは I 系で終わる", () => {
+    for (const dialect of [chromatic, modal, pedal, twilight]) {
+      const song = generateSong({ dialect, seed: 3 });
+      for (const sec of song.sections) {
+        expect(sec.annotations.some((a) => a.ruleId === "cadence")).toBe(true);
+      }
+      const lastChord = song.sections.at(-1)!.chords.at(-1)!;
+      expect(parseRoman(lastChord.symbol).degree).toBe(1);
+    }
+  });
+
+  it("モチーフ反復: Chromatic に motif-repeat の注記が付く", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: chromatic, seed });
+      found = song.sections.some((sec) =>
+        sec.annotations.some((a) => a.ruleId === "motif-repeat"),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("リズム語彙: Modal に休符 (小節内の音価合計 < 1 小節) が出る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: modal, seed });
+      for (const sec of song.sections) {
+        const byBar = new Map<number, number>();
+        for (const n of sec.melody) {
+          const bar = Math.floor(n.start / song.meter.barBeats);
+          byBar.set(bar, (byBar.get(bar) ?? 0) + n.duration);
+        }
+        for (const [, total] of byBar) {
+          if (total < song.meter.barBeats - 1e-9) found = true;
+        }
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  it("アウフタクト: Twilight に anacrusis の注記が付く", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({ dialect: twilight, seed });
+      found = song.sections.some((sec) =>
+        sec.annotations.some((a) => a.ruleId === "anacrusis"),
+      );
+    }
+    expect(found).toBe(true);
+  });
+
+  it("非和声音: Twilight に倚音、Pedal に掛留の注記が付く", () => {
+    const has = (dialect: typeof twilight, ruleId: string): boolean => {
+      for (let seed = 1; seed <= 15; seed++) {
+        const song = generateSong({ dialect, seed });
+        if (song.sections.some((sec) => sec.annotations.some((a) => a.ruleId === ruleId))) {
+          return true;
+        }
+      }
+      return false;
+    };
+    expect(has(twilight, "appoggiatura")).toBe(true);
+    expect(has(pedal, "suspension")).toBe(true);
+  });
+
+  it("セクション対比: Twilight のサビはヴァースより音域が高い (レジスタシフト)", () => {
+    let versePitches: number[] = [];
+    let chorusPitches: number[] = [];
+    for (let seed = 1; seed <= 10; seed++) {
+      const song = generateSong({ dialect: twilight, seed });
+      for (const sec of song.sections) {
+        const target = sec.plan.type === "verse" ? versePitches : chorusPitches;
+        target.push(...sec.melody.map((n) => n.pitch));
+      }
+    }
+    const mean = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+    expect(mean(chorusPitches)).toBeGreaterThan(mean(versePitches));
+  });
+
+  it("転調: Twilight のブリッジがいずれかのシードで転調し、最終セクションは主調に戻る", () => {
+    let found = false;
+    for (let seed = 1; seed <= 10 && !found; seed++) {
+      const song = generateSong({
+        dialect: twilight,
+        seed,
+        form: ["verse", "chorus", "bridge", "chorus"],
+      });
+      const bridge = song.sections.find((s) => s.plan.type === "bridge")!;
+      if (bridge.key.tonic !== song.key.tonic) {
+        found = true;
+        expect(bridge.annotations.some((a) => a.ruleId === "modulation")).toBe(true);
+        expect(song.sections.at(-1)!.key.tonic).toBe(song.key.tonic);
+      }
+    }
+    expect(found).toBe(true);
   });
 });
 

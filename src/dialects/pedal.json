@@ -1,6 +1,6 @@
 {
   "id": "inverted-pedal",
-  "name": "Pedal (逆ペダルポイント)",
+  "name": "Pedal (逆ペダル+掛留のドローン)",
   "stylePrompt": "late 1960s British rock, drone-like pedal tone melody, mixolydian color, contemplative male vocal, gentle electric guitar arpeggio",
   "defaults": { "key": "D", "mode": "major", "bpm": 88 },
   "chord": {
@@ -14,15 +14,51 @@
       "vi": { "II7": 0.3, "IV": 0.4, "ii7": 0.3 },
       "ii7": { "V7": 0.7, "I": 0.3 }
     },
+    "idioms": [
+      { "symbols": ["I", "♭VII", "IV", "I"], "weight": 2 },
+      { "symbols": ["I", "II7", "IV", "I"], "weight": 1 }
+    ],
+    "idiomProbability": 0.3,
+    "cadences": {
+      "final": [
+        { "symbols": ["IV", "I"], "weight": 2 },
+        { "symbols": ["V7", "I"], "weight": 1 },
+        { "symbols": ["♭VII", "I"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["IV"], "weight": 2 },
+        { "symbols": ["V7"], "weight": 1 },
+        { "symbols": ["♭VII"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.2, "1": 0.8 }
+    },
     "cliches": [],
     "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [3, 1], "weight": 2 },
+        { "beats": [2, 1, 1], "weight": 2 },
+        { "beats": [1.5, 1.5, 1], "weight": 1 },
+        { "beats": [4], "weight": 1 },
+        { "beats": [2, -0.5, 0.5, 1], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.05,
+    "chorusDensityBias": 0.15
   },
   "melody": {
     "leapProbability": { "default": 0.06, "chorusHead": 0.25 },
     "leapRangeSemitones": [5, 9],
     "afterLeapBias": "none",
     "contour": "pedal",
-    "pedalPoint": true
+    "pedalPoint": true,
+    "nonChordTones": { "appoggiatura": 0.05, "suspension": 0.2 },
+    "registerShift": { "chorus": 2 }
   },
   "structure": {
     "phraseLengths": [4, 4],

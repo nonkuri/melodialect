@@ -1,4 +1,4 @@
-import type { Dialect, GeneratedSection, KeySignature, SectionType, Song } from "./types.js";
+import type { Annotation, Dialect, GeneratedSection, KeySignature, SectionType, Song } from "./types.js";
 import { createRng } from "./rng.js";
 import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
@@ -9,6 +9,16 @@ import { generateAccompaniment } from "./accompaniment.js";
 const NOTE_NAMES: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
   "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
+};
+
+/** 転調量 (半音) の音楽的な呼び名 (注記用) */
+const MODULATION_LABELS: Record<number, string> = {
+  5: " (下属調へ)",
+  7: " (属調へ)",
+  2: " (全音上へ)",
+  [-2]: " (全音下へ)",
+  [-5]: " (属調へ)",
+  [-7]: " (下属調へ)",
 };
 
 export function parseKeyName(name: string): number {
@@ -68,24 +78,42 @@ export function generateSong(options: GenerateOptions): Song {
   entries.forEach(({ type, dialect }, i) => {
     const isFinalSection = i === entries.length - 1;
     const plan = planSection(type, dialect, rng);
+
+    // 転調 (§4.1): セクションタイプ別の転調傾向 (通常は bridge)。最終セクションは主調のまま
+    let sectionKey = key;
+    const modAnnotations: Annotation[] = [];
+    const modCfg = dialect.modulation?.[type];
+    if (modCfg && !isFinalSection && rng.chance(modCfg.probability)) {
+      const semis = rng.weighted(
+        modCfg.intervals.map((iv) => [iv.semitones, iv.weight] as [number, number]),
+      );
+      sectionKey = { tonic: (((key.tonic + semis) % 12) + 12) % 12, mode: key.mode };
+      modAnnotations.push({
+        bar: 0,
+        ruleId: "modulation",
+        text: `転調: ${semis > 0 ? "+" : ""}${semis} 半音${MODULATION_LABELS[semis] ?? ""}`,
+      });
+    }
+
     const { chords, annotations: harmonyNotes } = generateProgression(
-      plan, dialect, key, rng, { isFinalSection },
+      plan, dialect, sectionKey, meter, rng, { isFinalSection },
     );
-    const melody = generateMelody(plan, chords, dialect, key, meter, rng, {
+    const melody = generateMelody(plan, chords, dialect, sectionKey, meter, rng, {
       startPitch: prevMelodyEnd,
     });
-    const accomp = generateAccompaniment(plan, chords, dialect, key, meter, rng);
+    const accomp = generateAccompaniment(plan, chords, dialect, sectionKey, meter, rng);
 
     prevMelodyEnd = melody.notes.at(-1)?.pitch;
     sections.push({
       plan,
       startBar,
       dialectId: dialect.id,
+      key: sectionKey,
       chords,
       melody: melody.notes,
       piano: accomp.piano,
       bass: accomp.bass,
-      annotations: [...harmonyNotes, ...melody.annotations, ...accomp.annotations].sort(
+      annotations: [...modAnnotations, ...harmonyNotes, ...melody.annotations, ...accomp.annotations].sort(
         (a, b) => a.bar - b.bar,
       ),
     });

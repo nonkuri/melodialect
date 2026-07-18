@@ -64,7 +64,8 @@ function flattenBars(song: Song, useFlats: boolean, lyrics?: SectionLyrics[]): B
   song.sections.forEach((section, sectionIndex) => {
     const syllables = lyrics?.[sectionIndex]?.syllables;
     for (let bar = 0; bar < section.plan.bars; bar++) {
-      const chord = section.chords[bar]!;
+      // ハーモニックリズム対応: この小節内で始まるコードをすべて表示 (継続小節は空欄)
+      const barChords = section.chords.filter((c) => c.bar === bar);
       const notes: ScoredNote[] = [];
       section.melody.forEach((n, noteIndex) => {
         if (Math.floor(n.start / barBeats) === bar) {
@@ -72,7 +73,9 @@ function flattenBars(song: Song, useFlats: boolean, lyrics?: SectionLyrics[]): B
         }
       });
       bars.push({
-        chordName: chordDisplayName(chord, useFlats, scalePcs),
+        chordName: barChords
+          .map((c) => chordDisplayName(c, useFlats, scalePcs))
+          .join("  "),
         sectionLabel: bar === 0 ? (SECTION_LABELS[section.plan.type] ?? section.plan.type) : null,
         notes,
       });
@@ -128,7 +131,7 @@ export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics
           duration,
         });
         if (dotted) Dot.buildAndAttach([note], { all: true });
-        if (i === 0) {
+        if (i === 0 && barData.chordName) {
           note.addModifier(
             new Annotation(barData.chordName)
               .setFont("sans-serif", 13)

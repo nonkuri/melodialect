@@ -6,7 +6,9 @@ import type {
   KeySignature,
   ParsedRoman,
   SectionPlan,
+  WeightedProgression,
 } from "./types.js";
+import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
 import { applyCliche } from "./techniques.js";
 
@@ -66,13 +68,29 @@ export function pcToPitch(pc: number, low: number): number {
   return p;
 }
 
-export function chordFromRoman(symbol: string, bar: number, key: KeySignature): ChordEvent {
+export function chordFromRoman(
+  symbol: string,
+  bar: number,
+  key: KeySignature,
+  start = 0,
+  durationBeats = 0,
+): ChordEvent {
   const parsed = parseRoman(symbol);
   const rootPc = romanRootPc(parsed, key);
   const root = pcToPitch(rootPc, 48); // C3 付近にボイシング
   const pitches = QUALITY_INTERVALS[parsed.quality].map((iv) => root + iv);
   const bassPitch = pcToPitch(rootPc, 36); // C2 付近
-  return { bar, symbol, rootPc, quality: parsed.quality, pitches, bassPitch };
+  return { start, durationBeats, bar, symbol, rootPc, quality: parsed.quality, pitches, bassPitch };
+}
+
+/** beat 時点で鳴っているコードを返す (ハーモニックリズム対応の検索) */
+export function chordAtBeat(chords: ChordEvent[], beat: number): ChordEvent {
+  let current = chords[0]!;
+  for (const c of chords) {
+    if (c.start <= beat + 1e-9) current = c;
+    else break;
+  }
+  return current;
 }
 
 const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -109,58 +127,205 @@ export interface ProgressionResult {
   annotations: Annotation[];
 }
 
+/** コードスロット: ハーモニックリズムで決まる 1 コード分の時間枠 */
+interface ChordSlot {
+  start: number;
+  duration: number;
+  bar: number;
+}
+
+/** 語彙からトニックに相当するシンボルを探す ("I" が無い語彙は "I△7" 等で始める) */
+function tonicSymbolOf(dialect: Dialect): string {
+  if (dialect.chord.vocabulary.includes("I")) return "I";
+  const found = dialect.chord.vocabulary.find((s) => {
+    try {
+      const p = parseRoman(s);
+      return p.degree === 1 && !p.flat;
+    } catch {
+      return false;
+    }
+  });
+  return found ?? "I";
+}
+
+/**
+ * ハーモニックリズム (§4.1) に従ってスロット列を決める。
+ * "0.5" = 2 小節 1 コード、"1" = 1 小節 1 コード、"2" = 1 小節 2 コード。
+ * 末尾 cadenceBars 小節はカデンツ用に必ず 1 小節 1 コードで確保する。
+ */
+function planChordSlots(
+  plan: SectionPlan,
+  dialect: Dialect,
+  meter: Meter,
+  rng: Rng,
+  cadenceBars: number,
+): ChordSlot[] {
+  const bb = meter.barBeats;
+  const hr =
+    dialect.chord.harmonicRhythm?.[plan.type] ??
+    dialect.chord.harmonicRhythm?.["default"] ??
+    { "1": 1 };
+  const bodyEnd = plan.bars - cadenceBars;
+  const slots: ChordSlot[] = [];
+
+  let bar = 0;
+  while (bar < bodyEnd) {
+    const entries = Object.entries(hr).filter(([k, w]) => {
+      if (w <= 0) return false;
+      if (k === "0.5" && bar + 2 > bodyEnd) return false;
+      return true;
+    }) as Array<[string, number]>;
+    const pattern = entries.length > 0 ? rng.weighted(entries) : "1";
+
+    if (pattern === "0.5") {
+      slots.push({ start: bar * bb, duration: 2 * bb, bar });
+      bar += 2;
+    } else if (pattern === "2") {
+      slots.push({ start: bar * bb, duration: bb / 2, bar });
+      slots.push({ start: bar * bb + bb / 2, duration: bb / 2, bar });
+      bar += 1;
+    } else {
+      slots.push({ start: bar * bb, duration: bb, bar });
+      bar += 1;
+    }
+  }
+  for (; bar < plan.bars; bar++) {
+    slots.push({ start: bar * bb, duration: bb, bar });
+  }
+  return slots;
+}
+
+/** 終止形の注記ラベル (§4.1)。V→I 全終止、IV→I 変格終止、V→vi 偽終止など */
+function finalCadenceLabel(pair: string[]): string {
+  try {
+    const from = parseRoman(pair[0]!);
+    const to = parseRoman(pair[1]!);
+    if (to.degree === 1 && !to.flat) {
+      if (from.degree === 5 && !from.flat) return "全終止 (V→I)";
+      if (from.degree === 4 && !from.flat) return "変格終止 (IV→I)";
+      if (from.degree === 7 && from.flat) return "モーダル終止 (♭VII→I)";
+      if (from.degree === 4 && from.flat === false && from.quality === "min") return "変格終止";
+    }
+    if (to.degree === 6) return "偽終止 (V→vi)";
+  } catch {
+    /* 表示だけの分類なので失敗しても無視 */
+  }
+  return "終止";
+}
+
+function halfCadenceLabel(symbol: string): string {
+  try {
+    const p = parseRoman(symbol);
+    if (p.degree === 5 && !p.flat) return "半終止 (V で開いたまま次へ)";
+    if (p.degree === 4 && !p.flat) return "変格系の半終止 (IV 止まり)";
+    if (p.degree === 7 && p.flat) return "モーダルな半終止 (♭VII 止まり)";
+  } catch {
+    /* ignore */
+  }
+  return `半終止 (${symbol})`;
+}
+
 /**
  * コード進行生成 (§4.2 手順 2)。
- * マルコフ遷移表 + カデンツ制約で 1 小節 1 コードを生成し、
- * ダイアレクトの名前付き技法 (クリシェ) を適用する。
+ * ハーモニックリズムでスロットを割り、定型句 (イディオム) 挿入+マルコフ遷移で埋め、
+ * ダイアレクト別のカデンツで締める。最後に名前付き技法 (クリシェ) を適用する。
  */
 export function generateProgression(
   plan: SectionPlan,
   dialect: Dialect,
   key: KeySignature,
+  meter: Meter,
   rng: Rng,
   opts: { isFinalSection: boolean },
 ): ProgressionResult {
   const { vocabulary, transitions } = dialect.chord;
-  const symbols: string[] = [];
-  let current = "I";
-  symbols.push(current);
-
-  for (let bar = 1; bar < plan.bars; bar++) {
-    const table = transitions[current];
-    let nextSymbol: string;
-    if (table && Object.keys(table).length > 0) {
-      nextSymbol = rng.weighted(Object.entries(table));
-    } else {
-      const candidates = vocabulary.filter((s) => s !== current);
-      nextSymbol = rng.pick(candidates.length > 0 ? candidates : vocabulary);
-    }
-    symbols.push(nextSymbol);
-    current = nextSymbol;
-  }
-
-  // カデンツ制約: セクション末尾を V7 で締める (最終セクションは V7 → I の全終止)
-  if (opts.isFinalSection && plan.bars >= 2) {
-    symbols[plan.bars - 2] = "V7";
-    symbols[plan.bars - 1] = "I";
-  } else if (plan.bars >= 1) {
-    symbols[plan.bars - 1] = "V7";
-  }
-
-  const chords = symbols.map((s, bar) => chordFromRoman(s, bar, key));
   const annotations: Annotation[] = [];
+  const tonic = tonicSymbolOf(dialect);
+
+  const cadenceBars = opts.isFinalSection ? Math.min(2, plan.bars) : Math.min(1, plan.bars);
+  const slots = planChordSlots(plan, dialect, meter, rng, cadenceBars);
+  const cadenceSlots = cadenceBars; // カデンツ小節は必ず 1 小節 1 スロット
+  const bodySlots = slots.length - cadenceSlots;
+
+  const symbols: string[] = new Array(slots.length);
+  symbols[0] = tonic;
+  let current = tonic;
+
+  const idioms = dialect.chord.idioms ?? [];
+  const idiomP = dialect.chord.idiomProbability ?? 0;
+
+  let i = 1;
+  while (i < bodySlots) {
+    // 定型句 (イディオム): 3〜4 コードのまとまりをそのまま挿入する (§4.1)
+    let placed = false;
+    if (idioms.length > 0 && rng.chance(idiomP)) {
+      const idiom = rng.weighted<WeightedProgression>(idioms.map((d) => [d, d.weight]));
+      if (i + idiom.symbols.length <= bodySlots) {
+        idiom.symbols.forEach((s, j) => {
+          symbols[i + j] = s;
+        });
+        annotations.push({
+          bar: slots[i]!.bar,
+          ruleId: "chord-idiom",
+          text: `定型句: ${idiom.symbols.join(" → ")}`,
+        });
+        i += idiom.symbols.length;
+        current = idiom.symbols.at(-1)!;
+        placed = true;
+      }
+    }
+    if (!placed) {
+      const table = transitions[current];
+      let nextSymbol: string;
+      if (table && Object.keys(table).length > 0) {
+        nextSymbol = rng.weighted(Object.entries(table));
+      } else {
+        const candidates = vocabulary.filter((s) => s !== current);
+        nextSymbol = rng.pick(candidates.length > 0 ? candidates : vocabulary);
+      }
+      symbols[i] = nextSymbol;
+      current = nextSymbol;
+      i += 1;
+    }
+  }
+
+  // カデンツ (§4.1): 最終セクションは 2 コードの終止形、途中セクションは半終止
+  if (opts.isFinalSection && cadenceSlots >= 2) {
+    const options = dialect.chord.cadences?.final ?? [{ symbols: ["V7", tonic], weight: 1 }];
+    const pair = rng.weighted<WeightedProgression>(options.map((c) => [c, c.weight])).symbols;
+    symbols[slots.length - 2] = pair[0]!;
+    symbols[slots.length - 1] = pair[1]!;
+    annotations.push({
+      bar: slots[slots.length - 2]!.bar,
+      ruleId: "cadence",
+      text: `${finalCadenceLabel(pair)}: ${pair.join(" → ")}`,
+    });
+  } else if (cadenceSlots >= 1) {
+    const options = dialect.chord.cadences?.half ?? [{ symbols: ["V7"], weight: 1 }];
+    const pick = rng.weighted<WeightedProgression>(options.map((c) => [c, c.weight])).symbols;
+    symbols[slots.length - 1] = pick[0]!;
+    annotations.push({
+      bar: slots[slots.length - 1]!.bar,
+      ruleId: "cadence",
+      text: halfCadenceLabel(pick[0]!),
+    });
+  }
+
+  const chords = slots.map((slot, idx) =>
+    chordFromRoman(symbols[idx]!, slot.bar, key, slot.start, slot.duration),
+  );
 
   // 名前付き技法の適用 (技法レジストリ方式 §6.2)
   for (const name of dialect.chord.cliches) {
-    applyCliche(name, chords, annotations, key, rng, plan);
+    applyCliche(name, chords, annotations, key, rng, plan, meter);
   }
 
   // 借用和音の注記は技法適用後の最終的なコードに対して付与する
   // (スラッシュ表記 "I/♭7" 等は技法側で注記済みなので除外)
-  chords.forEach((chord, bar) => {
+  chords.forEach((chord) => {
     if (!chord.symbol.includes("/") && parseRoman(chord.symbol).flat) {
       annotations.push({
-        bar,
+        bar: chord.bar,
         ruleId: "modal-interchange",
         text: `${chord.symbol} は同主短調からの借用和音 (モーダル・インターチェンジ)`,
       });

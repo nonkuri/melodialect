@@ -1,6 +1,6 @@
 {
   "id": "chromatic-cliche",
-  "name": "Chromatic (半音階クリシェ+メロディックベース)",
+  "name": "Chromatic (半音階クリシェ+歌心のモチーフ反復)",
   "stylePrompt": "1960s British pop, warm melodic bassline, piano and acoustic guitar, descending chromatic bass, gentle male vocal, catchy and singable melody",
   "defaults": { "key": "C", "mode": "major", "bpm": 96 },
   "chord": {
@@ -14,18 +14,57 @@
       "vi": { "IV": 0.4, "ii7": 0.3, "V7": 0.3 },
       "♭VII": { "IV": 0.5, "I": 0.5 }
     },
+    "idioms": [
+      { "symbols": ["I", "vi", "ii7", "V7"], "weight": 2 },
+      { "symbols": ["IV", "V7", "iii", "vi"], "weight": 1 }
+    ],
+    "idiomProbability": 0.35,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "I"], "weight": 3 },
+        { "symbols": ["IV", "I"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 3 },
+        { "symbols": ["IV"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "1": 0.85, "2": 0.15 },
+      "chorus": { "1": 0.7, "2": 0.3 }
+    },
     "cliches": ["descending-bass"],
     "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [1.5, 0.5, 1, 1], "weight": 3 },
+        { "beats": [1, 1, 1, 1], "weight": 2 },
+        { "beats": [1, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [2, 1, 1], "weight": 2 },
+        { "beats": [0.5, 0.5, 1, 1, 1], "weight": 1 },
+        { "beats": [1, 1, -0.5, 0.5, 1], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.35,
+    "chorusDensityBias": 0.3
   },
   "melody": {
     "leapProbability": { "default": 0.12, "chorusHead": 0.5 },
     "leapRangeSemitones": [5, 9],
     "afterLeapBias": "down",
     "contour": "stepwise",
-    "pedalPoint": false
+    "pedalPoint": false,
+    "motif": { "repeatProbability": 0.6 },
+    "nonChordTones": { "appoggiatura": 0.15, "suspension": 0.05, "chromaticPassing": 0.1 },
+    "registerShift": { "chorus": 3 }
   },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0
+  },
+  "modulation": {
+    "bridge": { "probability": 0.35, "intervals": [{ "semitones": 5, "weight": 1 }] }
   }
 }

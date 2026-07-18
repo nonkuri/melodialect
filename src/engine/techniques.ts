@@ -1,4 +1,5 @@
 import type { Annotation, ChordEvent, KeySignature, SectionPlan } from "./types.js";
+import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
 import { chordFromRoman, pcToPitch } from "./harmony.js";
 
@@ -13,6 +14,7 @@ export type ClicheFn = (
   key: KeySignature,
   rng: Rng,
   plan: SectionPlan,
+  meter: Meter,
 ) => void;
 
 const registry = new Map<string, ClicheFn>();
@@ -28,19 +30,26 @@ export function applyCliche(
   key: KeySignature,
   rng: Rng,
   plan: SectionPlan,
+  meter: Meter,
 ): void {
   const fn = registry.get(name);
   if (!fn) throw new Error(`unknown cliche technique: ${name}`);
-  fn(chords, annotations, key, rng, plan);
+  fn(chords, annotations, key, rng, plan, meter);
 }
 
 /**
  * 半音階クリシェ (Chromatic / §4.1 D2):
  * ベースラインが半音ずつ下降する 4 小節 (例: C → C/B → C/B♭ → F/A)。
- * フレーズ頭に確率的に挿入する。
+ * フレーズ頭に確率的に挿入する。ハーモニックリズムで先頭 4 小節が
+ * 1 小節 1 コードになっていない場合は適用しない。
  */
-registerCliche("descending-bass", (chords, annotations, key, rng, plan) => {
+registerCliche("descending-bass", (chords, annotations, key, rng, plan, meter) => {
   if (plan.bars < 4 || !rng.chance(0.6)) return;
+  const bb = meter.barBeats;
+  for (let i = 0; i < 4; i++) {
+    const c = chords[i];
+    if (!c || c.start !== i * bb || c.durationBeats !== bb) return;
+  }
 
   const tonicBass = pcToPitch(key.tonic, 36);
   const tonic = chordFromRoman("I", 0, key);
@@ -55,7 +64,14 @@ registerCliche("descending-bass", (chords, annotations, key, rng, plan) => {
   ];
 
   patterns.forEach((p, i) => {
-    chords[i] = { ...p.base, bar: i, symbol: p.symbol, bassPitch: p.bassPitch };
+    chords[i] = {
+      ...p.base,
+      start: i * bb,
+      durationBeats: bb,
+      bar: i,
+      symbol: p.symbol,
+      bassPitch: p.bassPitch,
+    };
     annotations.push({
       bar: i,
       ruleId: "chromatic-cliche",

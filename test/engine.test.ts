@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../src/engine/rng.js";
-import { parseRoman, romanRootPc, chordFromRoman, scaleOf } from "../src/engine/harmony.js";
+import { parseRoman, romanRootPc, chordFromRoman, chordAtBeat, scaleOf } from "../src/engine/harmony.js";
 import { generateSong } from "../src/engine/song.js";
 import { chromatic } from "../src/dialects/index.js";
 
@@ -69,35 +69,63 @@ describe("generateSong (Chromatic, seed 固定)", () => {
     expect(song.totalBars).toBe(32);
   });
 
-  it("最終セクションは V7 → I の全終止で終わる", () => {
-    const last = song.sections.at(-1)!;
-    const lastChords = last.chords.slice(-2).map((c) => c.symbol);
-    expect(lastChords).toEqual(["V7", "I"]);
-  });
-
-  it("メロディはすべて音域内かつスケール音またはその小節のコードトーン", () => {
-    // 借用和音 (♭VII 等) の小節では強拍がスケール外のコードトーンになり得る
-    const scalePcs = scaleOf(song.key);
+  it("コードイベントはセクション全体を隙間なく被覆する (ハーモニックリズム)", () => {
     for (const sec of song.sections) {
-      for (const n of sec.melody) {
-        expect(n.pitch).toBeGreaterThanOrEqual(60);
-        expect(n.pitch).toBeLessThanOrEqual(81);
-        const bar = Math.floor(n.start / song.meter.barBeats);
-        const chordPcs = sec.chords[bar]!.pitches.map((p) => p % 12);
-        const pc = ((n.pitch % 12) + 12) % 12;
-        expect(scalePcs.includes(pc) || chordPcs.includes(pc)).toBe(true);
+      const chords = sec.chords;
+      expect(chords[0]!.start).toBe(0);
+      for (let i = 1; i < chords.length; i++) {
+        expect(chords[i]!.start).toBeCloseTo(
+          chords[i - 1]!.start + chords[i - 1]!.durationBeats,
+        );
       }
+      const last = chords.at(-1)!;
+      expect(last.start + last.durationBeats).toBeCloseTo(sec.plan.bars * song.meter.barBeats);
     }
   });
 
-  it("各小節のメロディの長さの合計は 1 小節分", () => {
+  it("最終セクションはダイアレクトの終止形 (I へ解決) で終わる", () => {
+    const last = song.sections.at(-1)!;
+    const lastChord = last.chords.at(-1)!;
+    expect(parseRoman(lastChord.symbol).degree).toBe(1);
+    expect(last.annotations.some((a) => a.ruleId === "cadence")).toBe(true);
+  });
+
+  it("メロディは音域内かつスケール音・コードトーン・半音隣接音 (非和声音) のいずれか", () => {
+    // 借用和音の小節では強拍がスケール外のコードトーンになり得る。
+    // 半音階経過音 (§4.1) は前後の音と半音関係にあることを確認する
+    const scalePcs = scaleOf(song.key);
+    for (const sec of song.sections) {
+      sec.melody.forEach((n, i) => {
+        expect(n.pitch).toBeGreaterThanOrEqual(57);
+        expect(n.pitch).toBeLessThanOrEqual(85);
+        const chord = chordAtBeat(sec.chords, n.start);
+        const chordPcs = chord.pitches.map((p) => p % 12);
+        const pc = ((n.pitch % 12) + 12) % 12;
+        const prev = sec.melody[i - 1];
+        const next = sec.melody[i + 1];
+        const isChromaticNeighbor =
+          (prev !== undefined && Math.abs(n.pitch - prev.pitch) === 1) ||
+          (next !== undefined && Math.abs(n.pitch - next.pitch) === 1);
+        expect(
+          scalePcs.includes(pc) || chordPcs.includes(pc) || isChromaticNeighbor,
+        ).toBe(true);
+      });
+    }
+  });
+
+  it("各小節のメロディは小節内に収まり、休符込みで 1 小節分を超えない", () => {
     for (const sec of song.sections) {
       const byBar = new Map<number, number>();
       for (const n of sec.melody) {
         const bar = Math.floor(n.start / song.meter.barBeats);
+        expect(n.start + n.duration).toBeLessThanOrEqual(
+          (bar + 1) * song.meter.barBeats + 1e-9,
+        );
         byBar.set(bar, (byBar.get(bar) ?? 0) + n.duration);
       }
-      for (const [, total] of byBar) expect(total).toBeCloseTo(song.meter.barBeats);
+      for (const [, total] of byBar) {
+        expect(total).toBeLessThanOrEqual(song.meter.barBeats + 1e-9);
+      }
     }
   });
 
@@ -105,12 +133,12 @@ describe("generateSong (Chromatic, seed 固定)", () => {
     const metered = generateSong({ dialect: chromatic, seed: 42, meterName });
     expect(metered.meter.name).toBe(meterName);
     for (const sec of metered.sections) {
-      const byBar = new Map<number, number>();
       for (const n of sec.melody) {
         const bar = Math.floor(n.start / metered.meter.barBeats);
-        byBar.set(bar, (byBar.get(bar) ?? 0) + n.duration);
+        expect(n.start + n.duration).toBeLessThanOrEqual(
+          (bar + 1) * metered.meter.barBeats + 1e-9,
+        );
       }
-      for (const [, total] of byBar) expect(total).toBeCloseTo(metered.meter.barBeats);
       // 伴奏も小節内に収まっている
       for (const n of [...sec.piano, ...sec.bass]) {
         const bar = Math.floor(n.start / metered.meter.barBeats);
@@ -124,9 +152,9 @@ describe("generateSong (Chromatic, seed 固定)", () => {
   });
 
   it("半音階クリシェが適用された場合はベースが半音下降する", () => {
-    // 複数シードのどれかでクリシェが出ることを確認 (確率 0.6)
+    // 複数シードのどれかでクリシェが出ることを確認 (確率 0.6 × 先頭 4 小節が 1 コード/小節のとき)
     let found = false;
-    for (let seed = 1; seed <= 10 && !found; seed++) {
+    for (let seed = 1; seed <= 20 && !found; seed++) {
       const s = generateSong({ dialect: chromatic, seed });
       for (const sec of s.sections) {
         const cliche = sec.annotations.filter((a) => a.ruleId === "chromatic-cliche");

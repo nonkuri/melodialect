@@ -92,10 +92,10 @@ export function PianoRoll({ song, playheadBeat }: { song: Song; playheadBeat: nu
               <text x={x + 4} y={14} fill="#aeb6c8" fontSize={11} fontWeight="bold">
                 {SECTION_LABELS[section.plan.type] ?? section.plan.type}
               </text>
-              {section.chords.map((chord) => (
+              {section.chords.map((chord, ci) => (
                 <text
-                  key={chord.bar}
-                  x={(section.startBar + chord.bar) * barBeats * PX_PER_BEAT + 46}
+                  key={ci}
+                  x={(section.startBar * barBeats + chord.start) * PX_PER_BEAT + 46}
                   y={14}
                   fill="#6d7688"
                   fontSize={10}

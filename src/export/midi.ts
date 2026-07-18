@@ -105,7 +105,7 @@ export function encodeSongToMidi(song: Song): Uint8Array {
     });
     for (const chord of section.chords) {
       meta.push({
-        tick: (sectionOffset(i) + chord.bar * barBeats) * TICKS_PER_BEAT,
+        tick: Math.round((sectionOffset(i) + chord.start) * TICKS_PER_BEAT),
         order: 3,
         bytes: metaEvent(0x01, textBytes(chord.symbol)), // コードシンボル (テキスト)
       });
