@@ -155,17 +155,22 @@ export class SongPlayer {
   private startTime = 0;
   private bpm = 120;
   private totalBeats = 0;
+  private looping = false;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
 
   get isPlaying(): boolean {
     return this.ctx !== null;
   }
 
-  /** 再生位置 (曲頭からの拍数)。停止中は null */
+  /** 再生位置 (曲頭からの拍数)。ループ中は周回ごとに巻き戻る。停止中は null */
   get positionBeats(): number | null {
     if (!this.ctx) return null;
     const elapsed = this.ctx.currentTime - this.startTime;
-    return Math.min(elapsed * (this.bpm / 60), this.totalBeats);
+    const beats = elapsed * (this.bpm / 60);
+    if (this.looping && this.totalBeats > 0) {
+      return Math.max(0, beats) % this.totalBeats;
+    }
+    return Math.min(beats, this.totalBeats);
   }
 
   play(song: Song, onEnded?: () => void): void {
@@ -174,15 +179,29 @@ export class SongPlayer {
     this.ctx = ctx;
     this.bpm = song.bpm;
     this.totalBeats = song.totalBars * song.meter.barBeats;
+    this.looping = song.ending === "loop";
 
     // AudioContext 起動直後のスケジューリング余裕
     this.startTime = ctx.currentTime + 0.1;
-    const totalSec = scheduleSong(ctx, song, this.startTime) + 0.5;
+    const songSec = scheduleSong(ctx, song, this.startTime);
 
-    this.endTimer = setTimeout(() => {
-      this.stop();
-      onEnded?.();
-    }, totalSec * 1000);
+    if (this.looping) {
+      // シームレスなリピート: 常に 1 周先までスケジュールしておき、
+      // 周回ごとに次の周をスケジュールし続ける (停止はユーザー操作のみ)
+      let scheduledIterations = 2;
+      scheduleSong(ctx, song, this.startTime + songSec);
+      const scheduleNext = () => {
+        scheduleSong(ctx, song, this.startTime + scheduledIterations * songSec);
+        scheduledIterations++;
+        this.endTimer = setTimeout(scheduleNext, songSec * 1000);
+      };
+      this.endTimer = setTimeout(scheduleNext, songSec * 1000);
+    } else {
+      this.endTimer = setTimeout(() => {
+        this.stop();
+        onEnded?.();
+      }, (songSec + 0.5) * 1000);
+    }
   }
 
   stop(): void {

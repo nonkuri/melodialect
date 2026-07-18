@@ -32,6 +32,7 @@ function buildSong(settings: Settings): Song {
     meterName: settings.meterName,
     form: entries,
     resolveDialect: (name) => dialects[name],
+    ending: settings.ending,
   });
 }
 
@@ -46,6 +47,7 @@ export function App() {
       meterName: "4/4",
       form: "v,c,v,c",
       sectionDialects: ["", "", "", ""],
+      ending: "final",
     };
   });
   const [song, setSong] = useState<Song>(() => buildSong(settings));

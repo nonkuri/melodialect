@@ -78,9 +78,17 @@ export interface GeneratedSection {
   annotations: Annotation[];
 }
 
+/**
+ * 曲の終わり方 (§4.2)。
+ * "final" = 終止カデンツ+終止和音を 1 小節保持するコーダ付き。
+ * "loop" = 半終止のまま曲頭の I へ戻る、リピート再生用のシームレスな継ぎ目
+ */
+export type EndingMode = "final" | "loop";
+
 export interface Song {
   dialectId: string;
   seed: number;
+  ending: EndingMode;
   key: KeySignature;
   /** 表示用のキー名 (例: "C", "Bb")。譜面の調号・音名の綴りに使う */
   keyName: string;

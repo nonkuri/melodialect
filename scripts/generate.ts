@@ -15,6 +15,7 @@ function arg(name: string, fallback: string): string {
 }
 
 const seed = Number(arg("seed", "42"));
+const loop = process.argv.includes("--loop");
 const dialectName = arg("dialect", "chromatic");
 const outDir = arg("out", "out");
 const formStr = arg("form", "v,c,v,c");
@@ -33,6 +34,7 @@ const song = generateSong({
   meterName: arg("meter", dialect.defaults.meter ?? "4/4"),
   form: parseForm(formStr),
   resolveDialect: (name) => dialects[name],
+  ending: loop ? "loop" : "final",
 });
 
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];

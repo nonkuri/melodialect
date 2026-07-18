@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SectionType } from "../engine/types.js";
+import type { EndingMode, SectionType } from "../engine/types.js";
 import { parseForm } from "../engine/structure.js";
 import { METERS } from "../engine/meter.js";
 import { dialects, dialectList, shortName } from "../dialects/index.js";
@@ -19,6 +19,8 @@ export interface Settings {
   form: string;
   /** 合作モード (§4.2): 構成の各セクションに割り当てるダイアレクト id。"" はメイン */
   sectionDialects: string[];
+  /** 終わり方 (§4.2): final = 終止+コーダ、loop = リピート用の半終止 */
+  ending: EndingMode;
 }
 
 const KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
@@ -211,6 +213,15 @@ export function SettingsPanel({
           </label>
         ))}
       </div>
+
+      <label className="ending-toggle">
+        <input
+          type="checkbox"
+          checked={settings.ending === "loop"}
+          onChange={(e) => set("ending", e.target.checked ? "loop" : "final")}
+        />
+        ループモード (終止せず曲頭へ戻る。再生もリピート)
+      </label>
 
       <label>
         シード

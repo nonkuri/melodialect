@@ -57,7 +57,7 @@ const TAIL_SEC = 1;
 
 /** 曲全体を WAV Blob にレンダリングする */
 export async function renderWavBlob(song: Song): Promise<Blob> {
-  const totalBeats = song.totalBars * 4;
+  const totalBeats = song.totalBars * song.meter.barBeats;
   const totalSec = (totalBeats / song.bpm) * 60 + TAIL_SEC;
   const ctx = new OfflineAudioContext(2, Math.ceil(SAMPLE_RATE * totalSec), SAMPLE_RATE);
   scheduleSong(ctx, song, 0.05);

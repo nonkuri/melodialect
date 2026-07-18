@@ -1,8 +1,16 @@
-import type { Annotation, Dialect, GeneratedSection, KeySignature, SectionType, Song } from "./types.js";
+import type {
+  Annotation,
+  Dialect,
+  EndingMode,
+  GeneratedSection,
+  KeySignature,
+  SectionType,
+  Song,
+} from "./types.js";
 import { createRng } from "./rng.js";
 import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
-import { generateProgression } from "./harmony.js";
+import { chordAtBeat, generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment } from "./accompaniment.js";
 
@@ -43,6 +51,28 @@ export interface GenerateOptions {
   form?: Array<SectionType | FormEntry>;
   /** 合作モード用: dialectName の解決。省略時はメインのみ */
   resolveDialect?: (name: string) => Dialect | undefined;
+  /**
+   * 終わり方 (§4.2)。"final" (既定) は終止カデンツ+コーダ 1 小節。
+   * "loop" は半終止のまま曲頭へ戻るシームレスなリピート用
+   */
+  ending?: EndingMode;
+}
+
+/** pitch に最も近い chordPitches のコードトーン (ループ継ぎ目の調整用) */
+function nearestChordTone(pitch: number, chordPitches: number[]): number {
+  const pcs = chordPitches.map((p) => p % 12);
+  let best = pitch;
+  let bestDist = Infinity;
+  for (let cand = pitch - 6; cand <= pitch + 6; cand++) {
+    if (pcs.includes(((cand % 12) + 12) % 12)) {
+      const dist = Math.abs(cand - pitch);
+      if (dist < bestDist) {
+        best = cand;
+        bestDist = dist;
+      }
+    }
+  }
+  return best;
 }
 
 /** 生成パイプライン全体 (§4.2)。同じオプション+シードなら常に同じ曲を返す。 */
@@ -62,6 +92,7 @@ export function generateSong(options: GenerateOptions): Song {
       : DEFAULT_METER;
   const form: Array<SectionType | FormEntry> =
     options.form ?? ["verse", "chorus", "verse", "chorus"];
+  const ending: EndingMode = options.ending ?? "final";
 
   // 各セクションのダイアレクトを解決 (合作モード §4.2)
   const entries = form.map((e) => {
@@ -80,14 +111,16 @@ export function generateSong(options: GenerateOptions): Song {
   let prevMelodyEnd: number | undefined;
 
   entries.forEach(({ type, dialect }, i) => {
-    const isFinalSection = i === entries.length - 1;
+    const isLastEntry = i === entries.length - 1;
+    // ループモードでは最終セクションも半終止で終え、曲頭の I へ戻れるようにする
+    const isFinalSection = ending === "final" && isLastEntry;
     const plan = planSection(type, dialect, rng);
 
     // 転調 (§4.1): セクションタイプ別の転調傾向 (通常は bridge)。最終セクションは主調のまま
     let sectionKey = key;
     const modAnnotations: Annotation[] = [];
     const modCfg = dialect.modulation?.[type];
-    if (modCfg && !isFinalSection && rng.chance(modCfg.probability)) {
+    if (modCfg && !isLastEntry && rng.chance(modCfg.probability)) {
       const semis = rng.weighted(
         modCfg.intervals.map((iv) => [iv.semitones, iv.weight] as [number, number]),
       );
@@ -124,9 +157,52 @@ export function generateSong(options: GenerateOptions): Song {
     startBar += plan.bars;
   });
 
+  const lastSection = sections.at(-1);
+  if (ending === "final" && lastSection) {
+    // コーダ (§4.2): 終止和音を 1 小節保持して伴奏パターンを止め、唐突な終わりを避ける
+    const bb = meter.barBeats;
+    const codaBar = lastSection.plan.bars;
+    const tailStart = codaBar * bb;
+    const lastChord = lastSection.chords.at(-1)!;
+    lastSection.chords.push({
+      ...lastChord,
+      start: tailStart,
+      durationBeats: bb,
+      bar: codaBar,
+    });
+    for (const pitch of lastChord.pitches) {
+      lastSection.piano.push({ start: tailStart, duration: bb, pitch, velocity: 64 });
+    }
+    lastSection.bass.push({
+      start: tailStart, duration: bb, pitch: lastChord.bassPitch, velocity: 78,
+    });
+    lastSection.annotations.push({
+      bar: codaBar,
+      ruleId: "final-hold",
+      text: "コーダ: 終止和音を 1 小節保持して終わる",
+    });
+    lastSection.plan.bars += 1;
+    startBar += 1;
+  } else if (ending === "loop" && lastSection) {
+    // ループ継ぎ目 (§4.2): 最後のメロディ音を最終コードのコードトーンのうち
+    // 曲頭の音に最も近いものへ寄せ、リピート時に順次進行でつながるようにする
+    const firstNote = sections[0]!.melody[0];
+    const lastNote = lastSection.melody.at(-1);
+    if (firstNote && lastNote) {
+      const chord = chordAtBeat(lastSection.chords, lastNote.start);
+      lastNote.pitch = nearestChordTone(firstNote.pitch, chord.pitches);
+    }
+    lastSection.annotations.push({
+      bar: lastSection.plan.bars - 1,
+      ruleId: "loop-seam",
+      text: "ループ継ぎ目: 半終止のまま曲頭の I へ戻る (リピート用)",
+    });
+  }
+
   return {
     dialectId: mainDialect.id,
     seed,
+    ending,
     key,
     keyName,
     bpm,

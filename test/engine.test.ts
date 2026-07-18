@@ -63,10 +63,10 @@ describe("generateSong (Chromatic, seed 固定)", () => {
     expect(symbols(other) + melodyPitches(other)).not.toBe(symbols(song) + melodyPitches(song));
   });
 
-  it("構成は V-C-V-C で各 8 小節 (Chromatic は変則フレーズなし)", () => {
+  it("構成は V-C-V-C の各 8 小節+最終セクションにコーダ 1 小節", () => {
     expect(song.sections.map((s) => s.plan.type)).toEqual(["verse", "chorus", "verse", "chorus"]);
-    for (const s of song.sections) expect(s.plan.bars).toBe(8);
-    expect(song.totalBars).toBe(32);
+    expect(song.sections.map((s) => s.plan.bars)).toEqual([8, 8, 8, 9]);
+    expect(song.totalBars).toBe(33);
   });
 
   it("コードイベントはセクション全体を隙間なく被覆する (ハーモニックリズム)", () => {
@@ -168,6 +168,39 @@ describe("generateSong (Chromatic, seed 固定)", () => {
       }
     }
     expect(found).toBe(true);
+  });
+
+  it("final (既定): コーダで終止和音を保持し、メロディは入らない", () => {
+    expect(song.ending).toBe("final");
+    const last = song.sections.at(-1)!;
+    const bb = song.meter.barBeats;
+    const tailStart = 8 * bb;
+    const coda = last.chords.at(-1)!;
+    expect(coda.start).toBe(tailStart);
+    expect(coda.durationBeats).toBe(bb);
+    expect(parseRoman(coda.symbol).degree).toBe(1);
+    expect(last.annotations.some((a) => a.ruleId === "final-hold")).toBe(true);
+    expect(
+      last.piano.some((n) => n.start === tailStart && n.duration === bb),
+    ).toBe(true);
+    expect(last.melody.every((n) => n.start < tailStart)).toBe(true);
+  });
+
+  it("loop: コーダなし・半終止で終わり、最後の音が曲頭の音に近い", () => {
+    const looped = generateSong({ dialect: chromatic, seed: 42, ending: "loop" });
+    expect(looped.ending).toBe("loop");
+    expect(looped.totalBars).toBe(32);
+    const last = looped.sections.at(-1)!;
+    const lastChord = last.chords.at(-1)!;
+    // 半終止 (V7 / IV) のまま曲頭の I へ戻る
+    expect(parseRoman(lastChord.symbol).degree).not.toBe(1);
+    expect(last.annotations.some((a) => a.ruleId === "loop-seam")).toBe(true);
+    expect(last.annotations.some((a) => a.ruleId === "final-hold")).toBe(false);
+    const firstPitch = looped.sections[0]!.melody[0]!.pitch;
+    const lastPitch = last.melody.at(-1)!.pitch;
+    expect(Math.abs(lastPitch - firstPitch)).toBeLessThanOrEqual(6);
+    // ループモードも決定的
+    expect(generateSong({ dialect: chromatic, seed: 42, ending: "loop" })).toEqual(looped);
   });
 
   it("生成根拠の注記が付与される", () => {
