@@ -1,6 +1,7 @@
 {
   "id": "paul-classic",
   "name": "Paul (半音階クリシェ+メロディックベース)",
+  "stylePrompt": "1960s British pop, warm melodic bassline, piano and acoustic guitar, descending chromatic bass, gentle male vocal, catchy and singable melody",
   "defaults": { "key": "C", "mode": "major", "bpm": 96 },
   "chord": {
     "vocabulary": ["I", "ii7", "iii", "IV", "V7", "vi", "♭VII"],

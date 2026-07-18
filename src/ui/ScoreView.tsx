@@ -14,6 +14,7 @@ import {
 import type { NoteEvent, Song } from "../engine/types.js";
 import { BEATS_PER_BAR } from "../engine/types.js";
 import { chordDisplayName, scaleOf } from "../engine/harmony.js";
+import type { SectionLyrics } from "../engine/lyrics.js";
 
 const SHARP_NAMES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
 const FLAT_NAMES = ["c", "db", "d", "eb", "e", "f", "gb", "g", "ab", "a", "bb", "b"];
@@ -40,36 +41,47 @@ function durationOf(beats: number): { duration: string; dotted: boolean } {
   return { duration: "q", dotted: false };
 }
 
+interface ScoredNote {
+  note: NoteEvent;
+  /** 仮歌詞の音節 (§4.2 手順 5)。歌詞表示が無効なら undefined */
+  syllable?: string;
+}
+
 interface BarData {
   chordName: string;
   sectionLabel: string | null;
-  notes: NoteEvent[];
+  notes: ScoredNote[];
 }
 
 /** 曲全体を小節単位に平坦化する */
-function flattenBars(song: Song, useFlats: boolean): BarData[] {
+function flattenBars(song: Song, useFlats: boolean, lyrics?: SectionLyrics[]): BarData[] {
   const bars: BarData[] = [];
   const scalePcs = scaleOf(song.key);
   const SECTION_LABELS: Record<string, string> = {
     intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
   };
-  for (const section of song.sections) {
+  song.sections.forEach((section, sectionIndex) => {
+    const syllables = lyrics?.[sectionIndex]?.syllables;
     for (let bar = 0; bar < section.plan.bars; bar++) {
       const chord = section.chords[bar]!;
+      const notes: ScoredNote[] = [];
+      section.melody.forEach((n, noteIndex) => {
+        if (Math.floor(n.start / BEATS_PER_BAR) === bar) {
+          notes.push({ note: n, syllable: syllables?.[noteIndex] });
+        }
+      });
       bars.push({
         chordName: chordDisplayName(chord, useFlats, scalePcs),
         sectionLabel: bar === 0 ? (SECTION_LABELS[section.plan.type] ?? section.plan.type) : null,
-        notes: section.melody.filter(
-          (n) => Math.floor(n.start / BEATS_PER_BAR) === bar,
-        ),
+        notes,
       });
     }
-  }
+  });
   return bars;
 }
 
-/** メロディ+コードネームのリードシート表示 (§4.4)。 */
-export function ScoreView({ song }: { song: Song }) {
+/** メロディ+コードネーム (+仮歌詞) のリードシート表示 (§4.4)。 */
+export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,7 +90,7 @@ export function ScoreView({ song }: { song: Song }) {
     container.innerHTML = "";
 
     const useFlats = FLAT_KEYS.has(song.keyName);
-    const bars = flattenBars(song, useFlats);
+    const bars = flattenBars(song, useFlats, lyrics);
     const lines = Math.ceil(bars.length / BARS_PER_LINE);
     const width = FIRST_BAR_EXTRA + BARS_PER_LINE * BAR_WIDTH + 20;
     const height = lines * LINE_HEIGHT + 30;
@@ -107,10 +119,10 @@ export function ScoreView({ song }: { song: Song }) {
 
       if (barData.notes.length === 0) return;
 
-      const staveNotes = barData.notes.map((n, i) => {
-        const { duration, dotted } = durationOf(n.duration);
+      const staveNotes = barData.notes.map((sn, i) => {
+        const { duration, dotted } = durationOf(sn.note.duration);
         const note = new StaveNote({
-          keys: [pitchToVexKey(n.pitch, useFlats)],
+          keys: [pitchToVexKey(sn.note.pitch, useFlats)],
           duration,
         });
         if (dotted) Dot.buildAndAttach([note], { all: true });
@@ -119,6 +131,13 @@ export function ScoreView({ song }: { song: Song }) {
             new Annotation(barData.chordName)
               .setFont("sans-serif", 13)
               .setVerticalJustification(AnnotationVerticalJustify.TOP),
+          );
+        }
+        if (sn.syllable) {
+          note.addModifier(
+            new Annotation(sn.syllable)
+              .setFont("sans-serif", 10)
+              .setVerticalJustification(AnnotationVerticalJustify.BOTTOM),
           );
         }
         return note;
@@ -132,7 +151,7 @@ export function ScoreView({ song }: { song: Song }) {
       voice.draw(context, stave);
       beams.forEach((b) => b.setContext(context).draw());
     });
-  }, [song]);
+  }, [song, lyrics]);
 
   return <div className="score-scroll" ref={containerRef} />;
 }

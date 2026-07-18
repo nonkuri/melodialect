@@ -5,6 +5,9 @@ import { parseForm } from "../engine/structure.js";
 import { dialects, shortName } from "../dialects/index.js";
 import { SongPlayer } from "../audio/player.js";
 import { downloadMidi } from "../export/download.js";
+import { downloadWav } from "../export/wav.js";
+import { downloadSunoText } from "../export/text.js";
+import { generateLyrics } from "../engine/lyrics.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { PianoRoll } from "./PianoRoll.js";
 import { ScoreView } from "./ScoreView.js";
@@ -47,6 +50,8 @@ export function App() {
   const [playheadBeat, setPlayheadBeat] = useState<number | null>(null);
   const [showAnnotations, setShowAnnotations] = useState(false);
   const [view, setView] = useState<"roll" | "score">("roll");
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [renderingWav, setRenderingWav] = useState(false);
 
   const playerRef = useRef<SongPlayer>(null);
   if (playerRef.current === null) playerRef.current = new SongPlayer();
@@ -102,6 +107,16 @@ export function App() {
   );
 
   const mainDialectId = song.dialectId;
+  const lyrics = useMemo(() => generateLyrics(song), [song]);
+
+  const saveWav = useCallback(async () => {
+    setRenderingWav(true);
+    try {
+      await downloadWav(song);
+    } finally {
+      setRenderingWav(false);
+    }
+  }, [song]);
 
   return (
     <div className="app">
@@ -128,6 +143,15 @@ export function App() {
           </button>
           <button onClick={togglePlay}>{playing ? "■ 停止" : "▶ 再生"}</button>
           <button onClick={() => downloadMidi(song)}>MIDI 保存</button>
+          <button onClick={saveWav} disabled={renderingWav}>
+            {renderingWav ? "書き出し中…" : "WAV 保存"}
+          </button>
+          <button
+            onClick={() => downloadSunoText(song, dialects[settings.dialectId])}
+            title="Suno 等に貼り付けるスタイル+仮歌詞+コード進行のテキスト"
+          >
+            テキスト出力
+          </button>
         </div>
       </header>
 
@@ -138,7 +162,17 @@ export function App() {
           {view === "roll" ? (
             <PianoRoll song={song} playheadBeat={playheadBeat} />
           ) : (
-            <ScoreView song={song} />
+            <>
+              <label className="lyrics-toggle">
+                <input
+                  type="checkbox"
+                  checked={showLyrics}
+                  onChange={(e) => setShowLyrics(e.target.checked)}
+                />
+                仮歌詞を表示
+              </label>
+              <ScoreView song={song} lyrics={showLyrics ? lyrics : undefined} />
+            </>
           )}
 
           <div className="annotations">

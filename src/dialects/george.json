@@ -1,6 +1,7 @@
 {
   "id": "george-pedal",
   "name": "George (逆ペダルポイント)",
+  "stylePrompt": "late 1960s British rock, drone-like pedal tone melody, mixolydian color, contemplative male vocal, gentle electric guitar arpeggio",
   "defaults": { "key": "D", "mode": "major", "bpm": 88 },
   "chord": {
     "vocabulary": ["I", "♭VII", "IV", "II7", "V7", "vi", "ii7"],

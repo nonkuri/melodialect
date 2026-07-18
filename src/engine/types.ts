@@ -85,6 +85,8 @@ export interface Song {
 export interface Dialect {
   id: string;
   name: string;
+  /** Suno 等の外部サービスに渡すスタイル記述 (§4.5 テキスト出力) */
+  stylePrompt?: string;
   defaults: { key: string; mode: Mode; bpm: number };
   chord: {
     vocabulary: string[];
