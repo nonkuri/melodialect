@@ -1,4 +1,4 @@
-import type { NoteEvent, Song } from "../engine/types.js";
+import type { NoteEvent, Song, SongPart } from "../engine/types.js";
 
 /**
  * SMF (Standard MIDI File) Format 1 エンコーダ (§4.5)。
@@ -96,6 +96,19 @@ export function encodeSongToMidi(song: Song): Uint8Array {
 
   const sectionCounts: Record<string, number> = {};
   song.sections.forEach((section, i) => {
+    const sectionBpm = section.bpm ?? song.bpm;
+    if (sectionBpm !== song.bpm || i > 0) {
+      const sectionUsPerBeat = Math.round(60_000_000 / sectionBpm);
+      meta.push({
+        tick: sectionOffset(i) * TICKS_PER_BEAT,
+        order: 0,
+        bytes: metaEvent(0x51, [
+          (sectionUsPerBeat >> 16) & 0xff,
+          (sectionUsPerBeat >> 8) & 0xff,
+          sectionUsPerBeat & 0xff,
+        ]),
+      });
+    }
     const label = SECTION_LABELS[section.plan.type] ?? section.plan.type;
     sectionCounts[label] = (sectionCounts[label] ?? 0) + 1;
     meta.push({
@@ -113,8 +126,10 @@ export function encodeSongToMidi(song: Song): Uint8Array {
   });
 
   // 各パートのトラック
-  const trackDefs: Array<{ name: string; channel: number; program: number; part: "melody" | "piano" | "bass" }> = [
+  const trackDefs: Array<{ name: string; channel: number; program: number; part: SongPart }> = [
     { name: "Melody", channel: 0, program: 73, part: "melody" }, // Flute
+    { name: "Guitar", channel: 3, program: 24, part: "guitar" },
+    { name: "Drums", channel: 9, program: 0, part: "drums" },
     { name: "Piano", channel: 1, program: 0, part: "piano" },    // Acoustic Grand
     { name: "Bass", channel: 2, program: 33, part: "bass" },     // Fingered Bass
   ];

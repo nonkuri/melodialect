@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { EndingMode, SectionType } from "../engine/types.js";
+import type { EndingMode, Mode, SectionType } from "../engine/types.js";
 import { parseForm } from "../engine/structure.js";
 import { METERS } from "../engine/meter.js";
 import { dialects, dialectList, shortName } from "../dialects/index.js";
@@ -14,6 +14,7 @@ export interface Settings {
   dialectId: string;
   keyName: string;
   bpm: number;
+  mode?: Mode;
   seed: number;
   meterName: string;
   form: string;
@@ -93,6 +94,7 @@ export function SettingsPanel({
                 ? {
                     keyName: d.defaults.key,
                     bpm: d.defaults.bpm,
+                    mode: d.defaults.mode,
                     meterName: d.defaults.meter ?? "4/4",
                   }
                 : {}),
@@ -115,6 +117,17 @@ export function SettingsPanel({
               {k}
             </option>
           ))}
+        </select>
+      </label>
+
+      <label>
+        調性
+        <select
+          value={settings.mode}
+          onChange={(e) => set("mode", e.target.value as Mode)}
+        >
+          <option value="major">メジャー</option>
+          <option value="minor">マイナー</option>
         </select>
       </label>
 

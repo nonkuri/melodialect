@@ -1,4 +1,4 @@
-import type { NoteEvent, Song } from "../engine/types.js";
+import type { NoteEvent, Song, SongPart } from "../engine/types.js";
 
 /**
  * Web Audio API による再生 (§4.4)。M2 は軽量な自前シンセ
@@ -7,7 +7,7 @@ import type { NoteEvent, Song } from "../engine/types.js";
  * (AudioContext) と WAV レンダリング (OfflineAudioContext, §4.5 M4) で共用できる。
  */
 
-type Part = "melody" | "piano" | "bass";
+type Part = SongPart;
 
 interface Timbre {
   type: OscillatorType;
@@ -41,6 +41,28 @@ const TIMBRES: Record<Part, Timbre> = {
     type: "triangle", gain: 0.22, attack: 0.008, decayTc: 0.5,
     sustain: 0.7, release: 0.06, lowpassHz: 750, subOctave: true,
   },
+  guitar: {
+    type: "sawtooth", gain: 0.08, attack: 0.006, decayTc: 0.18,
+    sustain: 0.24, release: 0.05, lowpassHz: 2100, strumSec: 0.014,
+  },
+  drums: {
+    type: "square", gain: 0.075, attack: 0.001, decayTc: 0.025,
+    sustain: 0.02, release: 0.025, lowpassHz: 4200,
+  },
+};
+
+const TIMBRE_PRESETS: Record<string, Partial<Timbre>> = {
+  sine: { type: "sine", lowpassHz: 3200 },
+  flute: { type: "triangle", attack: 0.018, sustain: 0.82, lowpassHz: 2800 },
+  lead: { type: "sawtooth", attack: 0.008, lowpassHz: 1800 },
+  grand: { type: "triangle", decayTc: 0.3, sustain: 0.16 },
+  electric: { type: "sine", decayTc: 0.42, sustain: 0.28, lowpassHz: 2600 },
+  organ: { type: "square", attack: 0.02, sustain: 0.75, lowpassHz: 1700 },
+  nylon: { type: "triangle", attack: 0.004, sustain: 0.18, lowpassHz: 1900 },
+  bright: { type: "sawtooth", sustain: 0.16, lowpassHz: 2500 },
+  fingered: { type: "triangle", subOctave: true, lowpassHz: 780 },
+  synthbass: { type: "square", subOctave: true, lowpassHz: 520 },
+  electronic: { type: "sawtooth", lowpassHz: 5000 },
 };
 
 function midiToFreq(pitch: number): number {
@@ -59,8 +81,9 @@ function scheduleNote(
   note: NoteEvent,
   time: number,
   duration: number,
+  timbreName?: string,
 ): void {
-  const timbre = TIMBRES[part];
+  const timbre = { ...TIMBRES[part], ...(TIMBRE_PRESETS[timbreName ?? ""] ?? {}) };
   const gain = ctx.createGain();
   gain.connect(dest);
 
@@ -98,7 +121,7 @@ function scheduleNote(
 }
 
 /** 曲全体をコンテキストにスケジュールする。戻り値は曲の長さ (秒)。 */
-export function scheduleSong(ctx: BaseAudioContext, song: Song, startTime: number): number {
+function scheduleSongLegacy(ctx: BaseAudioContext, song: Song, startTime: number): number {
   const master = ctx.createGain();
   master.gain.value = 0.6;
   const comp = ctx.createDynamicsCompressor();
@@ -148,6 +171,81 @@ export function scheduleSong(ctx: BaseAudioContext, song: Song, startTime: numbe
     }
   }
   return song.totalBars * song.meter.barBeats * secPerBeat;
+}
+
+const PARTS: Part[] = ["melody", "piano", "guitar", "bass", "drums"];
+
+export function beatToSeconds(song: Song, beat: number): number {
+  const bb = song.meter.barBeats;
+  let seconds = 0;
+  for (const section of song.sections) {
+    const start = section.startBar * bb;
+    const end = start + section.plan.bars * bb;
+    const bpm = section.bpm ?? song.bpm;
+    if (beat <= start) break;
+    const covered = Math.min(beat, end) - start;
+    if (covered > 0) seconds += covered * 60 / bpm;
+    if (beat < end) break;
+  }
+  return seconds;
+}
+
+export function secondsToBeat(song: Song, seconds: number): number {
+  const bb = song.meter.barBeats;
+  let remaining = Math.max(0, seconds);
+  for (const section of song.sections) {
+    const beats = section.plan.bars * bb;
+    const bpm = section.bpm ?? song.bpm;
+    const duration = beats * 60 / bpm;
+    if (remaining <= duration) {
+      return section.startBar * bb + remaining * bpm / 60;
+    }
+    remaining -= duration;
+  }
+  return song.totalBars * bb;
+}
+
+export function scheduleSong(ctx: BaseAudioContext, song: Song, startTime: number): number {
+  const buses = createPartBuses(ctx, song);
+  const bb = song.meter.barBeats;
+  for (const section of song.sections) {
+    const offsetBeats = section.startBar * bb;
+    const bpm = section.bpm ?? song.bpm;
+    const secPerBeat = 60 / bpm;
+    const sectionTime = startTime + beatToSeconds(song, offsetBeats);
+    const partLists: Record<Part, NoteEvent[]> = {
+      melody: section.melody,
+      piano: section.piano,
+      guitar: section.guitar ?? [],
+      bass: section.bass,
+      drums: section.drums ?? [],
+    };
+    for (const part of PARTS) {
+      const notes = partLists[part];
+      const timbre = song.mixer?.[part]?.timbre;
+      const strum = TIMBRES[part].strumSec ?? 0;
+      let lastStart = Number.NaN;
+      let chordIndex = 0;
+      for (const note of notes) {
+        if (note.start === lastStart) {
+          chordIndex++;
+        } else {
+          chordIndex = 0;
+          lastStart = note.start;
+        }
+        scheduleNote(
+          ctx,
+          buses[part],
+          part,
+          note,
+          sectionTime + note.start * secPerBeat + chordIndex * strum,
+          note.duration * secPerBeat,
+          timbre,
+        );
+      }
+    }
+  }
+  return beatToSeconds(song, song.totalBars * bb);
 }
 
 export class SongPlayer {
@@ -224,18 +322,29 @@ export interface PlayOptions {
   countInBars?: number;
 }
 
-function createPartBuses(ctx: BaseAudioContext): Record<Part, AudioNode> {
+function createPartBuses(ctx: BaseAudioContext, song: Song): Record<Part, AudioNode> {
   const master = ctx.createGain();
   master.gain.value = 0.6;
   const comp = ctx.createDynamicsCompressor();
   master.connect(comp);
   comp.connect(ctx.destination);
   const buses: Record<Part, AudioNode> = {} as Record<Part, AudioNode>;
-  for (const part of ["melody", "piano", "bass"] as const) {
+  const hasSolo = PARTS.some((part) => song.mixer?.[part]?.solo);
+  for (const part of PARTS) {
+    const mix = song.mixer?.[part];
+    const preset = TIMBRE_PRESETS[mix?.timbre ?? ""];
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = TIMBRES[part].lowpassHz;
-    filter.connect(master);
+    filter.frequency.value = preset?.lowpassHz ?? TIMBRES[part].lowpassHz;
+    const gain = ctx.createGain();
+    gain.gain.value = !mix?.mute && (!hasSolo || Boolean(mix?.solo))
+      ? Math.max(0, mix?.volume ?? 1)
+      : 0;
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = Math.max(-1, Math.min(1, mix?.pan ?? 0));
+    filter.connect(gain);
+    gain.connect(panner);
+    panner.connect(master);
     buses[part] = filter;
   }
   return buses;
@@ -248,14 +357,15 @@ function scheduleSongRange(
   startBeat: number,
   endBeat: number,
 ): number {
-  const buses = createPartBuses(ctx);
-  const secPerBeat = 60 / song.bpm;
+  const buses = createPartBuses(ctx, song);
   for (const section of song.sections) {
     const sectionOffset = section.startBar * song.meter.barBeats;
     const parts: Array<[Part, NoteEvent[]]> = [
       ["melody", section.melody],
       ["piano", section.piano],
       ["bass", section.bass],
+      ["guitar", section.guitar ?? []],
+      ["drums", section.drums ?? []],
     ];
     for (const [part, notes] of parts) {
       for (const note of notes) {
@@ -269,13 +379,14 @@ function scheduleSongRange(
           buses[part],
           part,
           note,
-          time + (clippedStart - startBeat) * secPerBeat,
-          (clippedEnd - clippedStart) * secPerBeat,
+          time + beatToSeconds(song, clippedStart) - beatToSeconds(song, startBeat),
+          beatToSeconds(song, clippedEnd) - beatToSeconds(song, clippedStart),
+          song.mixer?.[part]?.timbre,
         );
       }
     }
   }
-  return (endBeat - startBeat) * secPerBeat;
+  return beatToSeconds(song, endBeat) - beatToSeconds(song, startBeat);
 }
 
 function scheduleClick(ctx: BaseAudioContext, time: number, accent: boolean): void {
@@ -297,10 +408,13 @@ function scheduleMetronomeRange(
   startBeat: number,
   endBeat: number,
 ): void {
-  const secPerBeat = 60 / song.bpm;
   for (let beat = Math.ceil(startBeat); beat < endBeat; beat++) {
     const barBeat = ((beat % song.meter.barBeats) + song.meter.barBeats) % song.meter.barBeats;
-    scheduleClick(ctx, time + (beat - startBeat) * secPerBeat, barBeat < 1e-9);
+    scheduleClick(
+      ctx,
+      time + beatToSeconds(song, beat) - beatToSeconds(song, startBeat),
+      barBeat < 1e-9,
+    );
   }
 }
 
@@ -308,31 +422,32 @@ function scheduleMetronomeRange(
 export class TransportPlayer {
   private ctx: AudioContext | null = null;
   private musicStartTime = 0;
-  private bpm = 120;
+  private song: Song | null = null;
   private looping = false;
   private rangeStart = 0;
   private rangeLength = 0;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
+  private rangeStartSeconds = 0;
+  private rangeDurationSeconds = 0;
 
   get isPlaying(): boolean {
     return this.ctx !== null;
   }
 
   get positionBeats(): number | null {
-    if (!this.ctx) return null;
+    if (!this.ctx || !this.song) return null;
     const elapsed = Math.max(0, this.ctx.currentTime - this.musicStartTime);
-    const beats = elapsed * (this.bpm / 60);
-    if (this.looping && this.rangeLength > 0) {
-      return this.rangeStart + beats % this.rangeLength;
-    }
-    return Math.min(this.rangeStart + beats, this.rangeStart + this.rangeLength);
+    const within = this.looping && this.rangeDurationSeconds > 0
+      ? elapsed % this.rangeDurationSeconds
+      : Math.min(elapsed, this.rangeDurationSeconds);
+    return secondsToBeat(this.song, this.rangeStartSeconds + within);
   }
 
   play(song: Song, onEnded?: () => void, options: PlayOptions = {}): void {
     this.stop();
     const ctx = new AudioContext();
     this.ctx = ctx;
-    this.bpm = song.bpm;
+    this.song = song;
     const totalBeats = song.totalBars * song.meter.barBeats;
     this.rangeStart = Math.max(0, Math.min(options.startBeat ?? 0, totalBeats));
     const endBeat = Math.max(
@@ -342,8 +457,14 @@ export class TransportPlayer {
     this.rangeLength = endBeat - this.rangeStart;
     this.looping = options.loop ?? song.ending === "loop";
 
-    const secPerBeat = 60 / song.bpm;
+    const startSection = song.sections.find((section) =>
+      this.rangeStart >= section.startBar * song.meter.barBeats &&
+      this.rangeStart < (section.startBar + section.plan.bars) * song.meter.barBeats);
+    const secPerBeat = 60 / (startSection?.bpm ?? song.bpm);
     const countInBeats = (options.countInBars ?? 0) * song.meter.barBeats;
+    this.rangeStartSeconds = beatToSeconds(song, this.rangeStart);
+    this.rangeDurationSeconds = beatToSeconds(song, endBeat) - this.rangeStartSeconds;
+
     const contextStart = ctx.currentTime + 0.08;
     this.musicStartTime = contextStart + countInBeats * secPerBeat;
     for (let beat = 0; beat < countInBeats; beat++) {
@@ -383,6 +504,7 @@ export class TransportPlayer {
       clearTimeout(this.endTimer);
       this.endTimer = null;
     }
+    this.song = null;
     if (this.ctx) {
       void this.ctx.close();
       this.ctx = null;

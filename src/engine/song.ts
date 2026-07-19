@@ -1,10 +1,14 @@
 import type {
   Annotation,
+  ArrangementSettings,
+  CompositionControls,
+  Mode,
   Dialect,
   EndingMode,
   GeneratedSection,
   KeySignature,
   SectionType,
+  SectionControl,
   Song,
 } from "./types.js";
 import { createRng } from "./rng.js";
@@ -14,6 +18,11 @@ import { chordAtBeat, generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment } from "./accompaniment.js";
 
+import {
+  applyCompositionControls,
+  dialectWithControls,
+  normalizeComposition,
+} from "./controls.js";
 const NOTE_NAMES: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
   "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
@@ -43,6 +52,7 @@ export interface GenerateOptions {
   keyName?: string;
   bpm?: number;
   /** 拍子 ("4/4" | "3/4" | "6/8")。省略時は 4/4 */
+  mode?: Mode;
   meterName?: string;
   /**
    * セクション構成。省略時は Verse-Chorus-Verse-Chorus。
@@ -60,6 +70,9 @@ export interface GenerateOptions {
   sectionSeeds?: number[];
   /** Fixed phrase lengths used while partially regenerating an existing song. */
   sectionPhraseLengths?: number[][];
+  arrangement?: ArrangementSettings;
+  composition?: CompositionControls;
+  sectionControls?: SectionControl[];
 }
 
 /** Derive an independent deterministic seed for each section. */
@@ -92,9 +105,10 @@ function nearestChordTone(pitch: number, chordPitches: number[]): number {
 export function generateSong(options: GenerateOptions): Song {
   const { dialect: mainDialect, seed } = options;
   const keyName = options.keyName ?? mainDialect.defaults.key;
+  const controls = normalizeComposition(options.composition, options.mode ?? mainDialect.defaults.mode);
   const key: KeySignature = {
     tonic: parseKeyName(keyName),
-    mode: mainDialect.defaults.mode,
+    mode: controls.mode,
   };
   const bpm = options.bpm ?? mainDialect.defaults.bpm;
   const meter: Meter = options.meterName
@@ -115,7 +129,7 @@ export function generateSong(options: GenerateOptions): Song {
       if (!resolved) throw new Error(`unknown dialect in form: ${entry.dialectName}`);
       sectionDialect = resolved;
     }
-    return { type: entry.type, dialect: sectionDialect };
+    return { type: entry.type, dialect: options.composition ? dialectWithControls(sectionDialect, controls) : sectionDialect };
   });
 
   const sections: GeneratedSection[] = [];
@@ -127,7 +141,10 @@ export function generateSong(options: GenerateOptions): Song {
     // ループモードでは最終セクションも半終止で終え、曲頭の I へ戻れるようにする
     const rng = createRng(options.sectionSeeds?.[i] ?? sectionSeed(seed, i));
     const isFinalSection = ending === "final" && isLastEntry;
-    const fixedPhraseLengths = options.sectionPhraseLengths?.[i];
+    const sectionControl = options.sectionControls?.[i];
+    const fixedPhraseLengths = sectionControl
+      ? [Math.max(1, Math.round(sectionControl.bars))]
+      : options.sectionPhraseLengths?.[i];
     const plan = fixedPhraseLengths
       ? {
           type,
@@ -152,13 +169,25 @@ export function generateSong(options: GenerateOptions): Song {
       });
     }
 
+    if (sectionControl?.transpose) {
+      const semis = sectionControl.transpose;
+      sectionKey = {
+        ...sectionKey,
+        tonic: (((sectionKey.tonic + semis) % 12) + 12) % 12,
+      };
+      modAnnotations.push({
+        bar: 0,
+        ruleId: "manual-transpose",
+        text: "セクション移調: " + (semis > 0 ? "+" : "") + semis + " 半音",
+      });
+    }
     const { chords, annotations: harmonyNotes } = generateProgression(
       plan, dialect, sectionKey, meter, rng, { isFinalSection },
     );
     const melody = generateMelody(plan, chords, dialect, sectionKey, meter, rng, {
       startPitch: prevMelodyEnd,
     });
-    const accomp = generateAccompaniment(plan, chords, dialect, sectionKey, meter, rng);
+    const accomp = generateAccompaniment(plan, chords, dialect, sectionKey, meter, rng, options.arrangement);
 
     prevMelodyEnd = melody.notes.at(-1)?.pitch;
     sections.push({
@@ -170,6 +199,9 @@ export function generateSong(options: GenerateOptions): Song {
       melody: melody.notes,
       piano: accomp.piano,
       bass: accomp.bass,
+      guitar: accomp.guitar,
+      drums: accomp.drums,
+      bpm: sectionControl?.bpm ?? bpm,
       annotations: [...modAnnotations, ...harmonyNotes, ...melody.annotations, ...accomp.annotations].sort(
         (a, b) => a.bar - b.bar,
       ),
@@ -219,7 +251,8 @@ export function generateSong(options: GenerateOptions): Song {
     });
   }
 
-  return {
+  const song: Song = {
+    arrangement: options.arrangement,
     dialectId: mainDialect.id,
     seed,
     ending,
@@ -230,4 +263,5 @@ export function generateSong(options: GenerateOptions): Song {
     sections,
     totalBars: startBar,
   };
+  return options.composition ? applyCompositionControls(song, controls) : song;
 }

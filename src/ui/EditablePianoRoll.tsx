@@ -9,6 +9,8 @@ const GRID = 0.25;
 
 const PART_COLORS = {
   melody: "#e2603a",
+  guitar: "#d9a441",
+  drums: "#c56fd5",
   piano: "#7d92d8",
   bass: "#3fa878",
 } as const;
@@ -57,7 +59,7 @@ export function EditablePianoRoll({
     const flat: FlatNote[] = [];
     song.sections.forEach((section, sectionIndex) => {
       const offset = section.startBar * barBeats;
-      for (const part of ["melody", "piano", "bass"] as const) {
+      for (const part of ["melody", "piano", "guitar", "bass", "drums"] as const) {
         section[part].forEach((note, noteIndex) => {
           flat.push({
             sectionIndex,

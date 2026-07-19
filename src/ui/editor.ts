@@ -15,7 +15,7 @@ import {
 } from "./project.js";
 
 export type RegenerationTarget = "all" | LockPart;
-export type NotePart = "melody" | "piano" | "bass";
+export type NotePart = "melody" | "piano" | "guitar" | "bass" | "drums";
 
 export interface NoteSelection {
   sectionIndex: number;
@@ -92,6 +92,10 @@ export function regenerateWorkspace(
   const candidate = buildSong(workspace.settings, {
     sectionSeeds: next.sectionSeeds,
     sectionPhraseLengths: workspace.song.sections.map((section) => section.plan.phraseLengths),
+    arrangement: workspace.arrangement,
+    composition: workspace.composition,
+    mixer: workspace.mixer,
+    sectionControls: workspace.sectionControls,
   });
   const currentSection = workspace.song.sections[sectionIndex];
   const candidateSection = candidate.sections[sectionIndex];
@@ -128,6 +132,20 @@ export function regenerateWorkspace(
     section.bass = mergeNotes(
       currentSection.bass,
       candidateSection.bass,
+      workspace,
+      sectionIndex,
+      "accompaniment",
+    );
+    section.guitar = mergeNotes(
+      currentSection.guitar,
+      candidateSection.guitar,
+      workspace,
+      sectionIndex,
+      "accompaniment",
+    );
+    section.drums = mergeNotes(
+      currentSection.drums,
+      candidateSection.drums,
       workspace,
       sectionIndex,
       "accompaniment",
@@ -206,9 +224,12 @@ function refreshAccompaniment(workspace: WorkspaceState, sectionIndex: number): 
     section.key,
     workspace.song.meter,
     createRng((workspace.settings.seed + sectionIndex * 1009) >>> 0),
+    workspace.arrangement,
   );
   section.piano = generated.piano;
   section.bass = generated.bass;
+  section.guitar = generated.guitar;
+  section.drums = generated.drums;
 }
 
 export function replaceChord(

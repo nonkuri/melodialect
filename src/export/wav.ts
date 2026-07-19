@@ -1,5 +1,5 @@
 import type { Song } from "../engine/types.js";
-import { scheduleSong } from "../audio/player.js";
+import { beatToSeconds, scheduleSong } from "../audio/player.js";
 
 /**
  * WAV 書き出し (§4.5)。OfflineAudioContext で再生と同じシンセを
@@ -58,7 +58,7 @@ const TAIL_SEC = 1;
 /** 曲全体を WAV Blob にレンダリングする */
 export async function renderWavBlob(song: Song): Promise<Blob> {
   const totalBeats = song.totalBars * song.meter.barBeats;
-  const totalSec = (totalBeats / song.bpm) * 60 + TAIL_SEC;
+  const totalSec = beatToSeconds(song, totalBeats) + TAIL_SEC;
   const ctx = new OfflineAudioContext(2, Math.ceil(SAMPLE_RATE * totalSec), SAMPLE_RATE);
   scheduleSong(ctx, song, 0.05);
   const buffer = await ctx.startRendering();

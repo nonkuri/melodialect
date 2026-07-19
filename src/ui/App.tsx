@@ -28,6 +28,7 @@ function buildSong(settings: Settings): Song {
     dialect,
     seed: settings.seed,
     keyName: settings.keyName,
+    mode: settings.mode,
     bpm: settings.bpm,
     meterName: settings.meterName,
     form: entries,
@@ -42,6 +43,7 @@ export function App() {
     return {
       dialectId: d.id,
       keyName: d.defaults.key,
+      mode: d.defaults.mode,
       bpm: d.defaults.bpm,
       seed: 42,
       meterName: "4/4",

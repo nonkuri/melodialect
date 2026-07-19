@@ -1,6 +1,20 @@
-import type { ChordEvent, NoteEvent, Song } from "../engine/types.js";
+import type {
+  ArrangementSettings,
+  ChordEvent,
+  CompositionControls,
+  MixerSettings,
+  NoteEvent,
+  SectionControl,
+  Song,
+} from "../engine/types.js";
 import type { Settings } from "./SettingsPanel.js";
 
+import {
+  normalizeArrangement,
+  normalizeComposition,
+  normalizeMixer,
+  normalizeSongControls,
+} from "../engine/controls.js";
 export type LockPart = "melody" | "chords" | "accompaniment";
 
 export interface LockState {
@@ -16,6 +30,10 @@ export interface WorkspaceState {
   locks: LockState;
   /** Only overridden section seeds are populated. Sparse entries use the base song seed. */
   sectionSeeds: number[];
+  arrangement?: ArrangementSettings;
+  mixer?: MixerSettings;
+  composition?: CompositionControls;
+  sectionControls?: SectionControl[];
 }
 
 export interface Variation {
@@ -50,6 +68,44 @@ export function cloneWorkspace(workspace: WorkspaceState): WorkspaceState {
   return structuredClone(workspace);
 }
 
+
+export function normalizeWorkspace(workspace: WorkspaceState): WorkspaceState {
+  const song = normalizeSongControls(workspace.song);
+  const mode = workspace.settings.mode ?? song.key.mode;
+  const arrangement = normalizeArrangement(workspace.arrangement ?? song.arrangement);
+  const mixer = normalizeMixer(workspace.mixer ?? song.mixer);
+  const composition = normalizeComposition(workspace.composition ?? song.composition, mode);
+  const sectionControls = workspace.sectionControls?.length === song.sections.length
+    ? workspace.sectionControls
+    : song.sections.map((section, index) => ({
+        id: "section-" + index + "-" + Date.now().toString(36),
+        type: section.plan.type,
+        dialectId: section.dialectId,
+        bars: section.plan.phraseLengths.reduce((sum, bars) => sum + bars, 0),
+        transpose: 0,
+        bpm: section.bpm ?? song.bpm,
+      }));
+  const settings = { ...workspace.settings, mode };
+  song.arrangement = arrangement;
+  song.mixer = mixer;
+  song.composition = composition;
+  return {
+    ...workspace,
+    settings,
+    song,
+    arrangement,
+    mixer,
+    composition,
+    sectionControls,
+    locks: {
+      sections: workspace.locks?.sections ?? [],
+      bars: workspace.locks?.bars ?? [],
+      notes: workspace.locks?.notes ?? [],
+      chords: workspace.locks?.chords ?? [],
+    },
+    sectionSeeds: workspace.sectionSeeds ?? [],
+  };
+}
 export function createId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -64,7 +120,7 @@ export function createProject(title: string, workspace: WorkspaceState): Project
     title,
     createdAt: now,
     updatedAt: now,
-    workspace: cloneWorkspace(workspace),
+    workspace: normalizeWorkspace(cloneWorkspace(workspace)),
     variations: [],
     seedHistory: [workspace.settings.seed],
   };
@@ -217,7 +273,14 @@ export function parseProject(value: unknown): ProjectDocument {
   ) {
     throw new Error("Melodialect プロジェクトの形式が正しくありません");
   }
-  return project as ProjectDocument;
+  const normalized = project as ProjectDocument;
+  normalized.workspace = normalizeWorkspace(normalized.workspace);
+  normalized.variations = (normalized.variations ?? []).map((variation) => ({
+    ...variation,
+    workspace: normalizeWorkspace(variation.workspace),
+  }));
+  normalized.seedHistory ??= [normalized.workspace.settings.seed];
+  return normalized;
 }
 
 export function downloadProject(project: ProjectDocument): void {

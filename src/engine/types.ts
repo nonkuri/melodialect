@@ -46,6 +46,67 @@ export interface NoteEvent {
   velocity: number;
 }
 
+
+export type PianoPattern = "block" | "arpeggio" | "eighth" | "ballad";
+export type GuitarPattern = "off" | "strum" | "arpeggio" | "syncopated";
+export type DrumPattern = "off" | "basic" | "rock" | "bossa";
+export type SongPart = "melody" | "piano" | "guitar" | "bass" | "drums";
+
+export interface ArrangementSettings {
+  pianoPattern: PianoPattern;
+  guitarPattern: GuitarPattern;
+  drumPattern: DrumPattern;
+  /** 0..1: 裏の8分音符を遅らせる量 */
+  swing: number;
+  /** 0..1: タイミングとベロシティの揺らぎ */
+  humanize: number;
+  /** 0.5..1.5 */
+  velocityScale: number;
+}
+
+export interface MixerPartSettings {
+  mute: boolean;
+  solo: boolean;
+  /** 0..1.5 */
+  volume: number;
+  /** -1..1 */
+  pan: number;
+  timbre: string;
+}
+
+export type MixerSettings = Record<SongPart, MixerPartSettings>;
+
+export interface CompositionControls {
+  mode: Mode;
+  melodyLow: number;
+  melodyHigh: number;
+  /** 0..1 */
+  density: number;
+  /** 0..1 */
+  harmonyComplexity: number;
+  /** 0..1 */
+  tension: number;
+  /** 0..1 */
+  leap: number;
+  /** 0..1 */
+  repetition: number;
+  /** 0..1 */
+  syncopation: number;
+  /** macro controls, all 0..1 */
+  brightness: number;
+  calm: number;
+  surprise: number;
+}
+
+export interface SectionControl {
+  id: string;
+  type: SectionType;
+  dialectId: string;
+  /** 本体の小節数。final の最終セクションには別途コーダが付く。 */
+  bars: number;
+  transpose: number;
+  bpm: number;
+}
 export type SectionType = "intro" | "verse" | "chorus" | "bridge" | "outro";
 
 export interface SectionPlan {
@@ -76,6 +137,9 @@ export interface GeneratedSection {
   piano: NoteEvent[];
   bass: NoteEvent[];
   annotations: Annotation[];
+  guitar: NoteEvent[];
+  drums: NoteEvent[];
+  bpm?: number;
 }
 
 /**
@@ -96,8 +160,10 @@ export interface Song {
   meter: Meter;
   sections: GeneratedSection[];
   totalBars: number;
+  arrangement?: ArrangementSettings;
+  mixer?: MixerSettings;
+  composition?: CompositionControls;
 }
-
 /** 重み付きリズムテンプレート。beats の負値は休符 (絶対値が長さ)。合計は 1 小節分 */
 export interface RhythmTemplate {
   beats: number[];

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { NoteEvent, Song } from "../engine/types.js";
+import type { ArrangementSettings, CompositionControls, MixerSettings, NoteEvent, SectionControl, Song } from "../engine/types.js";
 import { dialects, shortName } from "../dialects/index.js";
 import { TransportPlayer } from "../audio/player.js";
 import { downloadMidi } from "../export/download.js";
 import { downloadWav } from "../export/wav.js";
 import { downloadSunoText } from "../export/text.js";
 import { generateLyrics } from "../engine/lyrics.js";
+import { parseForm } from "../engine/structure.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { ScoreView } from "./ScoreView.js";
 import { EditablePianoRoll } from "./EditablePianoRoll.js";
@@ -13,6 +14,8 @@ import { ProjectToolbar } from "./ProjectToolbar.js";
 import { TransportBar, type TransportState } from "./TransportBar.js";
 import { EditorToolbar } from "./EditorToolbar.js";
 import { buildSong } from "./songBuilder.js";
+import { ArrangementPanel } from "./ArrangementPanel.js";
+import { StructureEditor } from "./StructureEditor.js";
 import {
   addNote,
   deleteChord,
@@ -45,6 +48,7 @@ import {
   saveProject,
   toggleSectionLock,
   toggleNoteLock,
+  normalizeWorkspace,
   type LockPart,
   type ProjectDocument,
   type RecentProject,
@@ -56,11 +60,24 @@ const SECTION_LABELS: Record<string, string> = {
   intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
 };
 
+const SECTION_TOKENS = { intro: "i", verse: "v", chorus: "c", bridge: "b", outro: "o" } as const;
+
+function sectionControlsMatchSettings(settings: Settings, controls: SectionControl[] | undefined): boolean {
+  if (!controls) return false;
+  const entries = parseForm(settings.form);
+  return entries.length === controls.length && controls.every((control, index) => {
+    const entry = entries[index]!;
+    const dialectId = settings.sectionDialects[index] || entry.dialectName || settings.dialectId;
+    return control.type === entry.type && control.dialectId === dialectId;
+  });
+}
+
 function defaultSettings(): Settings {
   const dialect = dialects.chromatic!;
   return {
     dialectId: dialect.id,
     keyName: dialect.defaults.key,
+    mode: dialect.defaults.mode,
     bpm: dialect.defaults.bpm,
     seed: 42,
     meterName: "4/4",
@@ -72,12 +89,12 @@ function defaultSettings(): Settings {
 
 function defaultWorkspace(): WorkspaceState {
   const settings = defaultSettings();
-  return {
+  return normalizeWorkspace({
     settings,
     song: buildSong(settings),
     locks: emptyLocks(),
     sectionSeeds: [],
-  };
+  });
 }
 
 function initialProject(): ProjectDocument {
@@ -311,8 +328,17 @@ export function ComposerApp() {
   }, []);
 
   const generateFullSong = useCallback(() => {
-    const generated = buildSong(settings);
-    const next = { ...cloneWorkspace(workspace), song: generated, locks: emptyLocks(), sectionSeeds: [] };
+    const composition = { ...workspace.composition!, mode: settings.mode ?? workspace.composition!.mode };
+    const sectionControls = sectionControlsMatchSettings(settings, workspace.sectionControls)
+      ? workspace.sectionControls
+      : undefined;
+    const generated = buildSong(settings, {
+      arrangement: workspace.arrangement, composition, mixer: workspace.mixer, sectionControls,
+    });
+    const next = normalizeWorkspace({
+      ...cloneWorkspace(workspace), composition, song: generated, sectionControls,
+      locks: emptyLocks(), sectionSeeds: [],
+    });
     setProject((current) => ({
       ...current,
       variations: addVariationSnapshot(
@@ -331,12 +357,18 @@ export function ComposerApp() {
   const createVariation = useCallback(() => {
     const nextSeed = Math.floor(Math.random() * 1_000_000);
     const nextSettings = { ...settings, seed: nextSeed };
-    const nextWorkspace: WorkspaceState = {
+    const composition = { ...workspace.composition!, mode: nextSettings.mode ?? workspace.composition!.mode };
+    const nextWorkspace = normalizeWorkspace({
       settings: nextSettings,
-      song: buildSong(nextSettings),
+      song: buildSong(nextSettings, {
+        arrangement: workspace.arrangement, composition, mixer: workspace.mixer,
+        sectionControls: workspace.sectionControls,
+      }),
       locks: emptyLocks(),
       sectionSeeds: [],
-    };
+      arrangement: workspace.arrangement, mixer: workspace.mixer, composition,
+      sectionControls: workspace.sectionControls,
+    });
     setProject((current) => ({
       ...current,
       variations: [
@@ -354,6 +386,63 @@ export function ComposerApp() {
     commitWorkspace(nextWorkspace);
     resetEditorState(nextWorkspace.song);
   }, [settings, workspace, addVariationSnapshot, commitWorkspace, resetEditorState]);
+
+  const rebuildControlledSong = useCallback((values: {
+    arrangement?: ArrangementSettings;
+    composition?: CompositionControls;
+    sectionControls?: SectionControl[];
+  }) => {
+    const next = cloneWorkspace(workspace);
+    const arrangement = values.arrangement ?? next.arrangement!;
+    const composition = values.composition ?? next.composition!;
+    const sectionControls = values.sectionControls ?? next.sectionControls!;
+    const nextSettings = values.sectionControls
+      ? {
+          ...next.settings,
+          form: sectionControls.map((section) => SECTION_TOKENS[section.type]).join(","),
+          sectionDialects: sectionControls.map((section) => section.dialectId),
+        }
+      : next.settings;
+    const song = buildSong(nextSettings, {
+      arrangement, composition, mixer: next.mixer, sectionControls,
+    });
+    song.mixer = next.mixer;
+    const normalized = normalizeWorkspace({
+      ...next, settings: nextSettings, song, arrangement, composition, sectionControls,
+      locks: values.sectionControls ? emptyLocks() : next.locks,
+      sectionSeeds: values.sectionControls ? [] : next.sectionSeeds,
+    });
+    commitWorkspace(normalized);
+    setTransport((current) => ({
+      ...current,
+      positionBeat: 0,
+      rangeStartBar: 0,
+      rangeEndBar: normalized.song.totalBars,
+    }));
+  }, [workspace, commitWorkspace]);
+
+  const updateMixer = useCallback((mixer: MixerSettings) => {
+    const next = cloneWorkspace(workspace);
+    next.mixer = mixer;
+    next.song.mixer = mixer;
+    commitWorkspace(next);
+  }, [workspace, commitWorkspace]);
+
+  const updateStructure = useCallback((sections: SectionControl[]) => {
+    rebuildControlledSong({ sectionControls: sections });
+    setNoteSelection(null);
+    setChordSelection(null);
+    setSelectedSection((index) => Math.min(index, sections.length - 1));
+  }, [rebuildControlledSong]);
+
+  const reorderStructure = useCallback((from: number, to: number) => {
+    if (from === to || !workspace.sectionControls?.[from] || !workspace.sectionControls?.[to]) return;
+    const next = [...workspace.sectionControls];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    updateStructure(next);
+    setSelectedSection(to);
+  }, [workspace.sectionControls, updateStructure]);
 
   const selectedNoteBar = noteSelection ? noteBar(song, noteSelection) : null;
   const selectedChordBar = chordSelection
@@ -490,6 +579,13 @@ export function ComposerApp() {
         onStop={() => stopPlayback(true)}
       />
 
+      <StructureEditor
+        sections={workspace.sectionControls!}
+        selectedIndex={selectedSection}
+        onSelect={setSelectedSection}
+        onChange={updateStructure}
+      />
+
       <div className="body">
         <SettingsPanel
           settings={settings}
@@ -617,6 +713,15 @@ export function ComposerApp() {
             }}
           />
 
+          <ArrangementPanel
+            arrangement={workspace.arrangement!}
+            mixer={workspace.mixer!}
+            composition={workspace.composition!}
+            onArrangementChange={(arrangement) => rebuildControlledSong({ arrangement })}
+            onCompositionChange={(composition) => rebuildControlledSong({ composition })}
+            onMixerChange={updateMixer}
+          />
+
           <div className="view-area">
             {view === "roll" ? (
               <EditablePianoRoll
@@ -687,11 +792,18 @@ export function ComposerApp() {
           const locked = isSectionLocked(workspace.locks, index);
           return (
             <button
-              key={index}
+              key={workspace.sectionControls?.[index]?.id ?? index}
               className={"timeline-block block-" + section.plan.type +
                 (selectedSection === index ? " selected" : "")}
               style={{ flexGrow: section.plan.bars }}
               title="クリックで頭出し、ダブルクリックでこのセクションをループ"
+              draggable
+              onDragStart={(event) => event.dataTransfer.setData("text/plain", String(index))}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                reorderStructure(Number(event.dataTransfer.getData("text/plain")), index);
+              }}
               onClick={() => {
                 setSelectedSection(index);
                 setTransport((current) => ({
