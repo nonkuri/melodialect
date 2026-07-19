@@ -34,19 +34,19 @@ const TIMBRES: Record<Part, Timbre> = {
     sustain: 0.8, release: 0.06, lowpassHz: 2600,
   },
   piano: {
-    type: "triangle", gain: 0.13, attack: 0.004, decayTc: 0.28,
+    type: "triangle", gain: 0.26, attack: 0.004, decayTc: 0.28,
     sustain: 0.18, release: 0.05, lowpassHz: 1800, strumSec: 0.008,
   },
   bass: {
-    type: "triangle", gain: 0.22, attack: 0.008, decayTc: 0.5,
+    type: "triangle", gain: 0.17, attack: 0.008, decayTc: 0.5,
     sustain: 0.7, release: 0.06, lowpassHz: 750, subOctave: true,
   },
   guitar: {
-    type: "sawtooth", gain: 0.08, attack: 0.006, decayTc: 0.18,
+    type: "sawtooth", gain: 0.2, attack: 0.006, decayTc: 0.18,
     sustain: 0.24, release: 0.05, lowpassHz: 2100, strumSec: 0.014,
   },
   drums: {
-    type: "square", gain: 0.075, attack: 0.001, decayTc: 0.025,
+    type: "square", gain: 0.19, attack: 0.001, decayTc: 0.025,
     sustain: 0.02, release: 0.025, lowpassHz: 4200,
   },
 };
@@ -63,6 +63,20 @@ const TIMBRE_PRESETS: Record<string, Partial<Timbre>> = {
   fingered: { type: "triangle", subOctave: true, lowpassHz: 780 },
   synthbass: { type: "square", subOctave: true, lowpassHz: 520 },
   electronic: { type: "sawtooth", lowpassHz: 5000 },
+};
+
+/**
+ * Oscillator waveforms and envelopes do not have equal perceived output.
+ * These part-aware trims keep a timbre change from also acting as a volume
+ * change. Values are linear gain multipliers calibrated against the rendered
+ * RMS level at the default registers and note patterns.
+ */
+const TIMBRE_LEVELS: Record<Part, Record<string, number>> = {
+  melody: { flute: 1, sine: 0.83, lead: 1.19 },
+  piano: { grand: 1, electric: 0.64, organ: 0.36 },
+  guitar: { nylon: 1, bright: 1.25 },
+  bass: { fingered: 1, synthbass: 0.83 },
+  drums: { electronic: 1, bright: 0.88 },
 };
 
 function midiToFreq(pitch: number): number {
@@ -84,10 +98,11 @@ function scheduleNote(
   timbreName?: string,
 ): void {
   const timbre = { ...TIMBRES[part], ...(TIMBRE_PRESETS[timbreName ?? ""] ?? {}) };
+  const timbreLevel = TIMBRE_LEVELS[part][timbreName ?? ""] ?? 1;
   const gain = ctx.createGain();
   gain.connect(dest);
 
-  const peak = timbre.gain * (note.velocity / 127);
+  const peak = timbre.gain * timbreLevel * (note.velocity / 127);
   const end = time + duration;
   const attackEnd = time + timbre.attack;
 
@@ -326,6 +341,11 @@ function createPartBuses(ctx: BaseAudioContext, song: Song): Record<Part, AudioN
   const master = ctx.createGain();
   master.gain.value = 0.6;
   const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14;
+  comp.knee.value = 20;
+  comp.ratio.value = 3;
+  comp.attack.value = 0.005;
+  comp.release.value = 0.2;
   master.connect(comp);
   comp.connect(ctx.destination);
   const buses: Record<Part, AudioNode> = {} as Record<Part, AudioNode>;
