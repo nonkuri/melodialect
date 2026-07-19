@@ -187,9 +187,21 @@ export function regenerateWorkspace(
   target: RegenerationTarget,
 ): WorkspaceState {
   if (isSectionLocked(workspace.locks, sectionIndex)) return workspace;
+  const currentSection = workspace.song.sections[sectionIndex];
+  if (!currentSection) return workspace;
   const next = cloneWorkspace(workspace);
   const seed = Math.floor(Math.random() * 0xffffffff) >>> 0;
   next.sectionSeeds[sectionIndex] = seed;
+  // "same" / "light" copies every later Chorus from the first Chorus after
+  // generation. During an explicit section regeneration that would overwrite
+  // the newly seeded melody and make repeated clicks appear to do nothing.
+  // Generate this candidate independently while keeping the saved design mode.
+  const isRepeatedChorus = currentSection.plan.type === "chorus" &&
+    workspace.song.sections.slice(0, sectionIndex)
+      .some((section) => section.plan.type === "chorus");
+  const candidateDesign = isRepeatedChorus && (target === "all" || target === "melody") && workspace.design
+    ? { ...workspace.design, chorusVariation: "large" as const }
+    : workspace.design;
   const candidate = buildSong(workspace.settings, {
     sectionSeeds: next.sectionSeeds,
     sectionPhraseLengths: workspace.song.sections.map((section) => section.plan.phraseLengths),
@@ -197,11 +209,10 @@ export function regenerateWorkspace(
     composition: workspace.composition,
     mixer: workspace.mixer,
     sectionControls: workspace.sectionControls,
-    design: workspace.design,
+    design: candidateDesign,
   });
-  const currentSection = workspace.song.sections[sectionIndex];
   const candidateSection = candidate.sections[sectionIndex];
-  if (!currentSection || !candidateSection) return workspace;
+  if (!candidateSection) return workspace;
   const section = structuredClone(currentSection);
   const sectionBeats = section.plan.bars * workspace.song.meter.barBeats;
 

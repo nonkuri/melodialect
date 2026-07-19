@@ -33,7 +33,40 @@ const SECTION_LABELS: Record<string, string> = {
   intro: "Intro", verse: "Verse", chorus: "Chorus", bridge: "Bridge", outro: "Outro",
 };
 
+export type CompositionTool = "harmony" | "expression" | "lyrics" | "dialects";
+
+const TOOL_COPY: Record<CompositionTool, {
+  title: string;
+  description: string;
+  saveLabel?: string;
+  savedMessage?: string;
+}> = {
+  harmony: {
+    title: "コード進行を設計",
+    description: "コード原案の固定、空欄補完、リハーモナイズとテンプレートを扱います。",
+    saveLabel: "コード設定を保存",
+    savedMessage: "コード設定を保存しました",
+  },
+  expression: {
+    title: "曲全体の表情を設計",
+    description: "モチーフ、Chorus間の変奏、セクションごとの緊張度・密度・明るさ・終止形を整えます。",
+    saveLabel: "表情設定を保存",
+    savedMessage: "曲全体の表情設定を保存しました",
+  },
+  lyrics: {
+    title: "仮歌詞を編集",
+    description: "セクションごとの歌詞と、メロディ音符への音節割り当てを編集します。",
+    saveLabel: "歌詞を保存",
+    savedMessage: "仮歌詞を保存しました",
+  },
+  dialects: {
+    title: "ダイアレクトを管理",
+    description: "ユーザー定義ダイアレクトの読み込み、書き出し、削除を行います。",
+  },
+};
+
 interface Props {
+  tool: CompositionTool;
   workspace: WorkspaceState;
   selectedSection: number;
   noteSelections: NoteSelection[];
@@ -52,12 +85,14 @@ function bodyBeats(workspace: WorkspaceState, sectionIndex: number): number {
 }
 
 export function CompositionDesignDialog({
+  tool,
   workspace,
   selectedSection,
   noteSelections,
   onClose,
   onCommit,
 }: Props) {
+  const copy = TOOL_COPY[tool];
   const [design, setDesign] = useState<CompositionDesign>(() =>
     normalizeCompositionDesign(workspace.design, workspace.song, workspace.composition));
   const [chordTexts, setChordTexts] = useState(() =>
@@ -96,16 +131,29 @@ export function CompositionDesignDialog({
   };
 
   const buildWorkspace = (): WorkspaceState | null => {
-    if (design.harmonyMode !== "auto" && hasErrors) {
+    if (tool === "harmony" && design.harmonyMode !== "auto" && hasErrors) {
       setMessage("コード進行のエラーを修正してから適用してください");
       return null;
     }
     const next = cloneWorkspace(workspace);
-    next.design = {
-      ...structuredClone(design),
-      chordDrafts: hasErrors ? structuredClone(design.chordDrafts) : parsedDrafts.map((result) => result.slots),
-    };
-    next.song.lyrics = structuredClone(lyrics);
+    const currentDesign = normalizeCompositionDesign(workspace.design, workspace.song, workspace.composition);
+    if (tool === "harmony") {
+      next.design = {
+        ...currentDesign,
+        harmonyMode: design.harmonyMode,
+        chordDrafts: hasErrors ? structuredClone(design.chordDrafts) : parsedDrafts.map((result) => result.slots),
+        originalChordDrafts: structuredClone(design.originalChordDrafts),
+      };
+    } else if (tool === "expression") {
+      next.design = {
+        ...currentDesign,
+        motif: structuredClone(design.motif),
+        chorusVariation: design.chorusVariation,
+        sectionExpressions: structuredClone(design.sectionExpressions),
+      };
+    } else if (tool === "lyrics") {
+      next.song.lyrics = structuredClone(lyrics);
+    }
     return next;
   };
 
@@ -116,7 +164,7 @@ export function CompositionDesignDialog({
       next,
       regenerate
         ? `固定コードに対して${regenerate === "melody" ? "メロディ" : "伴奏"}だけ生成しました`
-        : "作曲設計と仮歌詞を保存しました",
+        : copy.savedMessage ?? "設定を保存しました",
       regenerate,
     );
     onClose();
@@ -169,19 +217,18 @@ export function CompositionDesignDialog({
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="modal composition-design" role="dialog" aria-modal="true" aria-label="v0.9 作曲設計">
+      <section className={`modal composition-design composition-design-${tool}`} role="dialog" aria-modal="true" aria-label={copy.title}>
         <header>
           <div>
-            <h2>作曲設計 v0.9</h2>
-            <p>コード原案を保った生成、モチーフと全体表現、編集可能な仮歌詞、ユーザーダイアレクトをまとめて設定します。</p>
+            <h2>{copy.title}</h2>
+            <p>{copy.description}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="閉じる">×</button>
+          <button type="button" onClick={onClose} aria-label="ダイアログを閉じる">×</button>
         </header>
 
         {message && <p className="manager-message">{message}</p>}
 
-        <details open>
-          <summary>コードを制約にした生成</summary>
+        {tool === "harmony" && <section className="design-section" aria-label="コード進行の設定">
           <div className="design-grid">
             <label>
               生成モード
@@ -259,10 +306,9 @@ export function CompositionDesignDialog({
               setTemplateId("");
             }}>削除</button>
           </div>
-        </details>
+        </section>}
 
-        <details open>
-          <summary>モチーフと曲全体の設計</summary>
+        {tool === "expression" && <section className="design-section" aria-label="曲全体の表情設定">
           <div className="manager-actions">
             <button type="button" onClick={() => {
               const melodySelections = noteSelections.filter((selection) => selection.part === "melody");
@@ -313,10 +359,9 @@ export function CompositionDesignDialog({
               );
             })}
           </div>
-        </details>
+        </section>}
 
-        <details open>
-          <summary>仮歌詞の編集と音節割り当て</summary>
+        {tool === "lyrics" && <section className="design-section" aria-label="仮歌詞の編集">
           <div className="lyrics-editor">
             <label>セクション<select value={lyricSection} onChange={(event) => setLyricSection(Number(event.target.value))}>
               {workspace.song.sections.map((section, index) => <option key={index} value={index}>{index + 1}. {SECTION_LABELS[section.plan.type]}</option>)}
@@ -340,10 +385,9 @@ export function CompositionDesignDialog({
               })}>前セクションからコピー</button>
             </div>
           </div>
-        </details>
+        </section>}
 
-        <details>
-          <summary>ユーザー定義ダイアレクト</summary>
+        {tool === "dialects" && <section className="design-section" aria-label="ユーザー定義ダイアレクト">
           <p className="design-help">JSONは128KBまで。値域、ローマ数字、参照可能な内蔵技法を項目別に検証し、端末内へ保存します。</p>
           <div className="manager-actions">
             <label className="file-button">JSONを読み込む<input type="file" accept="application/json,.json" onChange={(event) => {
@@ -371,11 +415,11 @@ export function CompositionDesignDialog({
               }}>削除</button>
             </article>)}
           </div>
-        </details>
+        </section>}
 
         <footer className="design-footer">
-          <button type="button" onClick={onClose}>キャンセル</button>
-          <button type="button" className="primary" onClick={() => apply()}>設計と歌詞を保存</button>
+          <button type="button" onClick={onClose}>{tool === "dialects" ? "閉じる" : "キャンセル"}</button>
+          {copy.saveLabel && <button type="button" className="primary" onClick={() => apply()}>{copy.saveLabel}</button>}
         </footer>
       </section>
     </div>

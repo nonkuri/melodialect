@@ -37,6 +37,7 @@ interface Props {
   onReset: () => void;
   onCompare: () => void;
   onOpenSoundFonts: () => void;
+  onOpenExpressionDesign: () => void;
 }
 
 const PARTS: Array<{ id: SongPart; label: string; timbres: Array<[string, string]> }> = [
@@ -99,7 +100,7 @@ function Meter({ value, warning = false }: { value: LevelValue; warning?: boolea
   );
 }
 
-interface StoredMixerPreset {
+export interface StoredMixerPreset {
   name: string;
   mixer: MixerSettings;
   master: MasterSettings;
@@ -114,6 +115,26 @@ function loadMixerPresets(): StoredMixerPreset[] {
   } catch {
     return [];
   }
+}
+
+export function overwriteMixerPreset(
+  presets: StoredMixerPreset[],
+  index: number,
+  mixer: MixerSettings,
+  master: MasterSettings,
+): StoredMixerPreset[] {
+  if (!Number.isInteger(index) || index < 0 || index >= presets.length) return presets;
+  return presets.map((preset, presetIndex) => presetIndex === index
+    ? { ...preset, mixer: structuredClone(mixer), master: { ...master } }
+    : preset);
+}
+
+export function removeMixerPreset(
+  presets: StoredMixerPreset[],
+  index: number,
+): StoredMixerPreset[] {
+  if (!Number.isInteger(index) || index < 0 || index >= presets.length) return presets;
+  return presets.filter((_, presetIndex) => presetIndex !== index);
 }
 
 export function ArrangementPanel(props: Props) {
@@ -132,6 +153,7 @@ export function ArrangementPanel(props: Props) {
     onCompositionChange,
   } = props;
   const [presets, setPresets] = useState<StoredMixerPreset[]>(loadMixerPresets);
+  const [selectedPresetIndex, setSelectedPresetIndex] = useState("");
   const emptyLevels = useMemo(() => ({ peak: 0, rms: 0 }), []);
   const updateArrangement = <K extends keyof ArrangementSettings>(key: K, value: ArrangementSettings[K]) =>
     onArrangementChange({ ...arrangement, [key]: value });
@@ -140,10 +162,40 @@ export function ArrangementPanel(props: Props) {
 
   const savePreset = () => {
     const name = window.prompt("ミキサープリセット名", `ミックス ${presets.length + 1}`);
-    if (!name) return;
-    const next = [{ name, mixer: structuredClone(mixer), master: { ...master } }, ...presets].slice(0, 20);
+    const normalizedName = name?.trim();
+    if (!normalizedName) return;
+    const existingIndex = presets.findIndex((preset) => preset.name === normalizedName);
+    if (existingIndex >= 0) {
+      if (!window.confirm(`「${normalizedName}」を現在のミックスで上書きしますか？`)) return;
+      const next = overwriteMixerPreset(presets, existingIndex, mixer, master);
+      localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(next));
+      setPresets(next);
+      setSelectedPresetIndex(String(existingIndex));
+      return;
+    }
+    const next = [{ name: normalizedName, mixer: structuredClone(mixer), master: { ...master } }, ...presets].slice(0, 20);
     localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(next));
     setPresets(next);
+    setSelectedPresetIndex("0");
+  };
+
+  const overwriteSelectedPreset = () => {
+    const index = selectedPresetIndex === "" ? -1 : Number(selectedPresetIndex);
+    const preset = presets[index];
+    if (!preset || !window.confirm(`「${preset.name}」を現在のミックスで上書きしますか？`)) return;
+    const next = overwriteMixerPreset(presets, index, mixer, master);
+    localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(next));
+    setPresets(next);
+  };
+
+  const deleteSelectedPreset = () => {
+    const index = selectedPresetIndex === "" ? -1 : Number(selectedPresetIndex);
+    const preset = presets[index];
+    if (!preset || !window.confirm(`「${preset.name}」を削除しますか？`)) return;
+    const next = removeMixerPreset(presets, index);
+    localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(next));
+    setPresets(next);
+    setSelectedPresetIndex("");
   };
 
   return (
@@ -158,6 +210,7 @@ export function ArrangementPanel(props: Props) {
         <button disabled={!canCompare} className={comparisonSide === "before" ? "active" : ""} onClick={props.onCompare}>
           A/B: {comparisonSide === "before" ? "変更前" : "変更後"}
         </button>
+        <button type="button" onClick={props.onOpenExpressionDesign}>曲全体の表情…</button>
       </div>
 
       <div className="parameter-sections">
@@ -213,9 +266,12 @@ export function ArrangementPanel(props: Props) {
           {levels?.clipping && <span className="clip-warning" role="alert">CLIP</span>}
         </div>
         <div className="mixer-presets">
-          <button onClick={savePreset}>現在のミックスを保存</button>
-          <select value="" onChange={(event) => {
-            const preset = presets[Number(event.target.value)];
+          <button onClick={savePreset}>新規保存</button>
+          <select aria-label="ミキサープリセット" value={selectedPresetIndex} onChange={(event) => {
+            const value = event.target.value;
+            setSelectedPresetIndex(value);
+            if (value === "") return;
+            const preset = presets[Number(value)];
             if (preset) {
               props.onMixerPresetLoad(
                 structuredClone(preset.mixer),
@@ -223,9 +279,11 @@ export function ArrangementPanel(props: Props) {
               );
             }
           }}>
-            <option value="">プリセットを読込…</option>
+            <option value="">プリセットを選択…</option>
             {presets.map((preset, index) => <option value={index} key={`${preset.name}-${index}`}>{preset.name}</option>)}
           </select>
+          <button disabled={selectedPresetIndex === ""} onClick={overwriteSelectedPreset}>上書き</button>
+          <button className="danger" disabled={selectedPresetIndex === ""} onClick={deleteSelectedPreset}>削除</button>
           <button onClick={props.onOpenSoundFonts}>音源を追加 / 管理</button>
         </div>
         <div className="mixer-table">

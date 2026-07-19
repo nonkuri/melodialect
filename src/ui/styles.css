@@ -98,6 +98,26 @@ button.link {
   color: #aeb6c8;
 }
 
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #aeb6c8;
+  font-size: 12px;
+}
+
+.settings-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-field-heading .link {
+  padding: 0;
+  font-size: 11px;
+}
+
 .settings select,
 .settings input {
   background: #2a2e39;
@@ -433,10 +453,13 @@ button:disabled {
   }
 }
 
-/* v0.9 composition design */
-.composition-design { width: min(1180px, 97vw); }
-.composition-design details { margin: 9px 0; padding: 8px 10px; border: 1px solid #3e4657; border-radius: 8px; background: #282d38; }
-.composition-design summary { cursor: pointer; font-weight: 750; color: #dce4f5; }
+/* Focused composition tools */
+.modal.composition-design { width: min(980px, 96vw); }
+.modal.composition-design-harmony,
+.modal.composition-design-expression { width: min(1120px, 97vw); }
+.modal.composition-design-lyrics { width: min(820px, 96vw); }
+.modal.composition-design-dialects { width: min(760px, 96vw); }
+.design-section { margin: 9px 0; padding: 10px; border: 1px solid #3e4657; border-radius: 8px; background: #282d38; }
 .composition-design label { display: flex; flex-direction: column; gap: 4px; color: #aeb7ca; font-size: 11px; }
 .composition-design input,
 .composition-design textarea,
@@ -452,7 +475,7 @@ button:disabled {
 .template-row { display: grid; grid-template-columns: minmax(150px, 1fr) auto minmax(190px, 1fr) auto auto; gap: 6px; margin-top: 9px; }
 .expression-table { display: grid; gap: 6px; margin-top: 9px; }
 .expression-row { display: grid; grid-template-columns: 105px repeat(3, minmax(120px, 1fr)) minmax(130px, 1fr) 150px; align-items: center; gap: 7px; padding: 6px; background: #222731; border-radius: 6px; }
-.expression-row label { display: grid; grid-template-columns: auto 1fr; align-items: center; }
+.expression-row label { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; white-space: nowrap; }
 .expression-row input[type="range"] { min-width: 70px; padding: 0; accent-color: #6f91ec; }
 .contrast-bars { display: grid; gap: 2px; }
 .contrast-bars span { position: relative; height: 12px; overflow: hidden; padding-left: 30px; color: #909aaf; background: #171a21; border-radius: 3px; font-size: 9px; }

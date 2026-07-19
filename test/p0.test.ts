@@ -87,6 +87,33 @@ describe("P0 project and editing", () => {
     expect(bassEnd).toBeCloseTo(sectionBeats);
   });
 
+  it("2回目のChorusが最終セクションでもメロディを部分再生成できる", () => {
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0.424242)
+      .mockReturnValueOnce(0.737373);
+    const value = { ...settings(), form: "v,c,v,c", sectionDialects: ["", "", "", ""] };
+    const before = normalizeWorkspace({
+      settings: value,
+      song: buildSong(value),
+      locks: emptyLocks(),
+      sectionSeeds: [],
+    });
+    const lastIndex = before.song.sections.length - 1;
+
+    expect(before.song.sections[lastIndex]!.plan.type).toBe("chorus");
+    expect(before.design!.chorusVariation).toBe("light");
+
+    const first = regenerateWorkspace(before, lastIndex, "melody");
+    const second = regenerateWorkspace(first, lastIndex, "melody");
+
+    expect(first.song.sections[lastIndex]!.melody)
+      .not.toEqual(before.song.sections[lastIndex]!.melody);
+    expect(second.song.sections[lastIndex]!.melody)
+      .not.toEqual(first.song.sections[lastIndex]!.melody);
+    expect(second.song.sections.slice(0, lastIndex))
+      .toEqual(before.song.sections.slice(0, lastIndex));
+  });
+
   it("セクションロックと小節ロックを部分再生成が尊重する", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.271828);
     const before = workspace();

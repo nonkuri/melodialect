@@ -14,6 +14,11 @@ import {
   emptyLocks,
   parseProject,
 } from "../src/ui/project.js";
+import {
+  overwriteMixerPreset,
+  removeMixerPreset,
+  type StoredMixerPreset,
+} from "../src/ui/ArrangementPanel.js";
 
 describe("P1 arrangement and controls", () => {
   it("ピアノパターン、ギター、ドラムを決定的に生成する", () => {
@@ -114,5 +119,28 @@ describe("P1 arrangement and controls", () => {
     expect(applied.song.master).toEqual(master);
     expect(before.mixer).not.toEqual(mixer);
     expect(before.master).not.toEqual(master);
+  });
+
+  it("選択したミキサープリセットを上書き・削除できる", () => {
+    const originalMixer = defaultMixer();
+    const originalMaster = { ...DEFAULT_MASTER };
+    const presets: StoredMixerPreset[] = [
+      { name: "ライブ", mixer: structuredClone(originalMixer), master: { ...originalMaster } },
+      { name: "静か", mixer: structuredClone(originalMixer), master: { ...originalMaster, volume: 0.4 } },
+    ];
+    const replacementMixer = defaultMixer();
+    replacementMixer.melody = { ...replacementMixer.melody, volume: 0.25, mute: true };
+    const replacementMaster = { ...DEFAULT_MASTER, volume: 1.2, limiter: false };
+
+    const overwritten = overwriteMixerPreset(presets, 0, replacementMixer, replacementMaster);
+
+    expect(overwritten[0]!.name).toBe("ライブ");
+    expect(overwritten[0]!.mixer).toEqual(replacementMixer);
+    expect(overwritten[0]!.master).toEqual(replacementMaster);
+    expect(overwritten[1]).toEqual(presets[1]);
+    expect(presets[0]!.mixer).toEqual(originalMixer);
+
+    const removed = removeMixerPreset(overwritten, 0);
+    expect(removed).toEqual([presets[1]]);
   });
 });

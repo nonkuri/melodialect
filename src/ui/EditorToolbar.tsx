@@ -31,6 +31,7 @@ export function EditorToolbar({
   onInsertChord,
   onDeleteChords,
   onTransposeChords,
+  onOpenHarmonyDesign,
 }: {
   song: Song;
   sectionIndex: number;
@@ -52,6 +53,7 @@ export function EditorToolbar({
   onInsertChord: (symbol: string) => void;
   onDeleteChords: () => void;
   onTransposeChords: (semitones: number) => void;
+  onOpenHarmonyDesign: () => void;
 }) {
   const section = song.sections[sectionIndex];
   const primaryChord = chordSelections[0];
@@ -80,6 +82,8 @@ export function EditorToolbar({
           {{ all: "全体", melody: "メロディ", chords: "コード", accompaniment: "伴奏" }[target]}
         </button>
       ))}
+      <span className="toolbar-separator" />
+      <button type="button" onClick={onOpenHarmonyDesign}>コード進行…</button>
 
       {noteSelections.length > 0 && (
         <>

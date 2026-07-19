@@ -34,9 +34,11 @@ const SECTION_LABELS: Record<SectionType, string> = {
 export function SettingsPanel({
   settings,
   onChange,
+  onManageDialects,
 }: {
   settings: Settings;
   onChange: (next: Settings) => void;
+  onManageDialects?: () => void;
 }) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
@@ -96,9 +98,13 @@ export function SettingsPanel({
           });
         }}>推奨値へ戻す</button>
       </div>
-      <label title="ダイアレクト変更は次の全体生成でノートとコードへ反映されます">
-        ダイアレクト
+      <div className="settings-field" title="ダイアレクト変更は次の全体生成でノートとコードへ反映されます">
+        <span className="settings-field-heading">
+          <span>ダイアレクト</span>
+          {onManageDialects && <button type="button" className="link" onClick={onManageDialects}>管理</button>}
+        </span>
         <select
+          aria-label="ダイアレクト"
           value={settings.dialectId}
           onChange={(e) => {
             const d = dialects[e.target.value];
@@ -122,7 +128,7 @@ export function SettingsPanel({
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
       <label title="次の全体生成で調と全ノートを再構築します">
         キー

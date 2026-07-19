@@ -34,7 +34,7 @@ import { StructureEditor } from "./StructureEditor.js";
 import { HelpGuide } from "./HelpGuide.js";
 import { ProjectManager } from "./ProjectManager.js";
 import { SoundFontLibrary } from "./SoundFontLibrary.js";
-import { CompositionDesignDialog } from "./CompositionDesignDialog.js";
+import { CompositionDesignDialog, type CompositionTool } from "./CompositionDesignDialog.js";
 import { validateSoundFontAssignments } from "../audio/soundfonts.js";
 import {
   addNote,
@@ -171,7 +171,7 @@ export function ComposerApp() {
   const [showProjects, setShowProjects] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSoundFonts, setShowSoundFonts] = useState(false);
-  const [showCompositionDesign, setShowCompositionDesign] = useState(false);
+  const [compositionTool, setCompositionTool] = useState<CompositionTool | null>(null);
   const [soundFontIssues, setSoundFontIssues] = useState<string[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(() =>
     typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_KEY) !== "done");
@@ -887,7 +887,7 @@ export function ComposerApp() {
         </div>
         <div className="header-actions">
           <button onClick={() => setShowHelp(true)}>使い方</button>
-          <button onClick={() => setShowCompositionDesign(true)}>作曲設計 v0.9</button>
+          <button onClick={() => setCompositionTool("lyrics")}>歌詞を編集</button>
           <button onClick={() => setShowProjects(true)}>プロジェクト一覧</button>
           <button disabled={pastRef.current.length === 0} onClick={undo}>↶ Undo</button>
           <button disabled={futureRef.current.length === 0} onClick={redo}>↷ Redo</button>
@@ -981,6 +981,7 @@ export function ComposerApp() {
       <div className="body">
         <SettingsPanel
           settings={settings}
+          onManageDialects={() => setCompositionTool("dialects")}
           onChange={(nextSettings) => {
             const next = cloneWorkspace(workspace);
             next.settings = nextSettings;
@@ -1113,6 +1114,7 @@ export function ComposerApp() {
               commitWorkspace(transposeSelectedChords(workspace, chordSelections, semitones, refreshParts));
               setChordSelections([]);
             }}
+            onOpenHarmonyDesign={() => setCompositionTool("harmony")}
           />
 
           <div
@@ -1142,6 +1144,7 @@ export function ComposerApp() {
               onReset={resetParameterDraft}
               onCompare={toggleComparison}
               onOpenSoundFonts={() => setShowSoundFonts(true)}
+              onOpenExpressionDesign={() => setCompositionTool("expression")}
             />
           </div>
 
@@ -1333,12 +1336,13 @@ export function ComposerApp() {
           }}
         />
       )}
-      {showCompositionDesign && (
+      {compositionTool && (
         <CompositionDesignDialog
+          tool={compositionTool}
           workspace={workspace}
           selectedSection={selectedSection}
           noteSelections={noteSelections}
-          onClose={() => setShowCompositionDesign(false)}
+          onClose={() => setCompositionTool(null)}
           onCommit={(next, message, regenerate) => {
             const applied = regenerate ? regenerateCompositionParts(next, regenerate) : next;
             commitWorkspace(normalizeWorkspace(applied));
