@@ -81,7 +81,22 @@ export function SettingsPanel({
 
   return (
     <aside className="settings">
-      <label>
+      <div className="panel-heading">
+        <strong>曲の土台</strong>
+        <span className="change-badge rebuild">全体生成で反映</span>
+        <button type="button" onClick={() => {
+          const dialect = dialects[settings.dialectId];
+          if (!dialect) return;
+          onChange({
+            ...settings,
+            keyName: dialect.defaults.key,
+            bpm: dialect.defaults.bpm,
+            mode: dialect.defaults.mode,
+            meterName: dialect.defaults.meter ?? "4/4",
+          });
+        }}>推奨値へ戻す</button>
+      </div>
+      <label title="ダイアレクト変更は次の全体生成でノートとコードへ反映されます">
         ダイアレクト
         <select
           value={settings.dialectId}
@@ -109,7 +124,7 @@ export function SettingsPanel({
         </select>
       </label>
 
-      <label>
+      <label title="次の全体生成で調と全ノートを再構築します">
         キー
         <select value={settings.keyName} onChange={(e) => set("keyName", e.target.value)}>
           {KEYS.map((k) => (
@@ -120,7 +135,7 @@ export function SettingsPanel({
         </select>
       </label>
 
-      <label>
+      <label title="次の全体生成で長調・短調の和声と旋律を再構築します">
         調性
         <select
           value={settings.mode}
@@ -131,7 +146,7 @@ export function SettingsPanel({
         </select>
       </label>
 
-      <label>
+      <label title="次の全体生成で小節の拍数を変更します">
         拍子
         <select value={settings.meterName} onChange={(e) => set("meterName", e.target.value)}>
           {Object.keys(METERS).map((m) => (
@@ -142,7 +157,7 @@ export function SettingsPanel({
         </select>
       </label>
 
-      <label>
+      <label title="次の全体生成でテンポを反映します。セクション別BPMは構成バーで変更できます">
         テンポ (BPM)
         <input
           type="number"

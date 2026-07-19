@@ -2,6 +2,7 @@ import type {
   ArrangementSettings,
   CompositionControls,
   Dialect,
+  MasterSettings,
   MixerSettings,
   NoteEvent,
   Song,
@@ -32,6 +33,11 @@ export const DEFAULT_COMPOSITION: CompositionControls = {
   surprise: 0.5,
 };
 
+export const DEFAULT_MASTER: MasterSettings = {
+  volume: 0.8,
+  limiter: true,
+};
+
 const DEFAULT_TIMBRES: Record<SongPart, string> = {
   melody: "flute",
   piano: "grand",
@@ -50,6 +56,13 @@ export function defaultMixer(): MixerSettings {
         volume: 1,
         pan: part === "guitar" ? 0.25 : part === "piano" ? -0.15 : 0,
         timbre: DEFAULT_TIMBRES[part],
+        soundfont: part === "drums" ? undefined : {
+          sourceId: "standard",
+          bankMSB: 0,
+          bankLSB: 0,
+          program: 0,
+          presetName: "Melodialect Saw",
+        },
       },
     ]),
   ) as MixerSettings;
@@ -80,6 +93,14 @@ export function normalizeMixer(value: Partial<MixerSettings> | undefined): Mixer
   }
   return defaults;
 }
+
+export function normalizeMaster(value: Partial<MasterSettings> | undefined): MasterSettings {
+  return {
+    volume: Math.max(0, Math.min(1.5, value?.volume ?? DEFAULT_MASTER.volume)),
+    limiter: value?.limiter ?? DEFAULT_MASTER.limiter,
+  };
+}
+
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -204,6 +225,7 @@ export function normalizeSongControls(song: Song): Song {
   const next = structuredClone(song);
   next.arrangement = normalizeArrangement(next.arrangement);
   next.mixer = normalizeMixer(next.mixer);
+  next.master = normalizeMaster(next.master);
   next.composition = normalizeComposition(next.composition, next.key.mode);
   for (const section of next.sections) {
     section.guitar ??= [];

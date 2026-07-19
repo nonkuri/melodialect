@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { ArrangementSettings, CompositionControls, MixerSettings, NoteEvent, SectionControl, Song } from "../engine/types.js";
+import type {
+  ArrangementSettings,
+  CompositionControls,
+  MasterSettings,
+  MixerSettings,
+  NoteEvent,
+  SectionControl,
+  Song,
+  SongPart,
+  SoundFontAssignment,
+} from "../engine/types.js";
 import { dialects, shortName } from "../dialects/index.js";
-import { TransportPlayer } from "../audio/player.js";
+import { auditionNote, TransportPlayer } from "../audio/player.js";
 import { downloadMidi } from "../export/download.js";
-import { downloadWav } from "../export/wav.js";
+import { downloadWav, downloadWavStems } from "../export/wav.js";
+import { downloadMusicXml } from "../export/musicxml.js";
 import { downloadSunoText } from "../export/text.js";
 import { generateLyrics } from "../engine/lyrics.js";
-import { normalizeArrangement } from "../engine/controls.js";
+import { DEFAULT_COMPOSITION, normalizeArrangement, normalizeComposition } from "../engine/controls.js";
 import { parseForm } from "../engine/structure.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { ScoreView } from "./ScoreView.js";
@@ -15,18 +26,36 @@ import { ProjectToolbar } from "./ProjectToolbar.js";
 import { TransportBar, type TransportState } from "./TransportBar.js";
 import { EditorToolbar } from "./EditorToolbar.js";
 import { buildSong } from "./songBuilder.js";
-import { ArrangementPanel } from "./ArrangementPanel.js";
+import { ArrangementPanel, type MixerLevels } from "./ArrangementPanel.js";
 import { StructureEditor } from "./StructureEditor.js";
+import { HelpGuide } from "./HelpGuide.js";
+import { ProjectManager } from "./ProjectManager.js";
+import { SoundFontLibrary } from "./SoundFontLibrary.js";
+import { validateSoundFontAssignments } from "../audio/soundfonts.js";
 import {
   addNote,
+  analyzeControlChange,
+  applyControlChanges,
+  copySelectedNotes,
   deleteChord,
   deleteNote,
+  deleteSelectedNotes,
+  duplicateSelectedNotes,
   insertChord,
+  pasteNotes,
+  quantizeSelectedNotes,
   quantizeNote,
   regenerateWorkspace,
   replaceChord,
+  setSelectedNoteVelocity,
+  transposeSelectedChords,
+  transposeSelectedNotes,
+  updateChordTiming,
   updateNote,
+  updateSelectedNotes,
+  type ChordRefreshPart,
   type ChordSelection,
+  type ClipboardNote,
   type NoteSelection,
   type RegenerationTarget,
 } from "./editor.js";
@@ -34,6 +63,7 @@ import {
   cloneWorkspace,
   createId,
   createProject,
+  createProjectSnapshot,
   downloadProject,
   emptyLocks,
   isChordLocked,
@@ -50,6 +80,7 @@ import {
   toggleSectionLock,
   toggleNoteLock,
   normalizeWorkspace,
+  ProjectStorageError,
   type LockPart,
   type ProjectDocument,
   type RecentProject,
@@ -62,6 +93,18 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 const SECTION_TOKENS = { intro: "i", verse: "v", chorus: "c", bridge: "b", outro: "o" } as const;
+const ONBOARDING_KEY = "melodialect.onboarding.v0.8";
+
+function emptyLevels(): MixerLevels {
+  const zero = () => ({ peak: 0, rms: 0 });
+  return {
+    master: zero(),
+    parts: {
+      melody: zero(), piano: zero(), guitar: zero(), bass: zero(), drums: zero(),
+    },
+    clipping: false,
+  };
+}
 
 function sectionControlsMatchSettings(settings: Settings, controls: SectionControl[] | undefined): boolean {
   if (!controls) return false;
@@ -117,15 +160,27 @@ export function ComposerApp() {
   const [playing, setPlaying] = useState(false);
   const [playheadBeat, setPlayheadBeat] = useState<number | null>(null);
   const [selectedSection, setSelectedSection] = useState(0);
-  const [noteSelection, setNoteSelection] = useState<NoteSelection | null>(null);
-  const [chordSelection, setChordSelection] = useState<ChordSelection | null>(null);
+  const [noteSelections, setNoteSelections] = useState<NoteSelection[]>([]);
+  const [chordSelections, setChordSelections] = useState<ChordSelection[]>([]);
   const [showAnnotations, setShowAnnotations] = useState(false);
   const [view, setView] = useState<"roll" | "score">("roll");
   const [showLyrics, setShowLyrics] = useState(false);
   const [renderingWav, setRenderingWav] = useState(false);
+  const [renderingStems, setRenderingStems] = useState(false);
   const [status, setStatus] = useState("自動保存");
   const [historyTick, setHistoryTick] = useState(0);
   const [viewHeight, setViewHeight] = useState<number | null>(null);
+  const [showProjects, setShowProjects] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showSoundFonts, setShowSoundFonts] = useState(false);
+  const [soundFontIssues, setSoundFontIssues] = useState<string[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(() =>
+    typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_KEY) !== "done");
+  const [comparisonBefore, setComparisonBefore] = useState<WorkspaceState | null>(null);
+  const [comparisonSide, setComparisonSide] = useState<"before" | "after">("after");
+  const [grid, setGrid] = useState(0.25);
+  const [levels, setLevels] = useState<MixerLevels>(emptyLevels);
+  const [refreshParts, setRefreshParts] = useState<ChordRefreshPart[]>(["piano", "guitar", "bass", "drums"]);
   const [transport, setTransport] = useState<TransportState>(() => ({
     positionBeat: 0,
     loopRange: false,
@@ -137,11 +192,40 @@ export function ComposerApp() {
 
   const workspace = project.workspace;
   const { settings, song } = workspace;
+  const [draftArrangement, setDraftArrangement] = useState<ArrangementSettings>(() => workspace.arrangement!);
+  const [draftComposition, setDraftComposition] = useState<CompositionControls>(() => workspace.composition!);
+  const noteSelection = noteSelections[0] ?? null;
+  const chordSelection = chordSelections[0] ?? null;
+  const setNoteSelection = useCallback((selection: NoteSelection | null) =>
+    setNoteSelections(selection ? [selection] : []), []);
+  const setChordSelection = useCallback((selection: ChordSelection | null) =>
+    setChordSelections(selection ? [selection] : []), []);
+  const clipboardRef = useRef<ClipboardNote[]>([]);
+  const audioGestureRef = useRef<WorkspaceState | null>(null);
   const playerRef = useRef<TransportPlayer | null>(null);
   if (playerRef.current === null) playerRef.current = new TransportPlayer();
   const player = playerRef.current;
   const pastRef = useRef<WorkspaceState[]>([]);
   const futureRef = useRef<WorkspaceState[]>([]);
+  const parameterDirty = JSON.stringify(draftArrangement) !== JSON.stringify(workspace.arrangement) ||
+    JSON.stringify(draftComposition) !== JSON.stringify(workspace.composition);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshIssues = () => {
+      void validateSoundFontAssignments(workspace.mixer!).then((issues) => {
+        if (!cancelled) setSoundFontIssues(issues);
+      }).catch(() => {
+        if (!cancelled) setSoundFontIssues(["音源ライブラリの状態を確認できませんでした"]);
+      });
+    };
+    refreshIssues();
+    window.addEventListener("melodialect:soundfonts-changed", refreshIssues);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("melodialect:soundfonts-changed", refreshIssues);
+    };
+  }, [workspace.mixer]);
 
   const onSplitterDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -171,12 +255,13 @@ export function ComposerApp() {
     player.stop();
     setPlaying(false);
     setPlayheadBeat(null);
+    setLevels(emptyLevels());
     if (reset) setTransport((current) => ({ ...current, positionBeat: 0 }));
   }, [player]);
 
   const commitWorkspace = useCallback((
     next: WorkspaceState,
-    options: { history?: boolean; seedHistory?: boolean } = {},
+    options: { history?: boolean; seedHistory?: boolean; preserveComparison?: boolean } = {},
   ) => {
     stopPlayback(false);
     if (options.history !== false) {
@@ -192,6 +277,10 @@ export function ComposerApp() {
         ? Array.from(new Set([next.settings.seed, ...current.seedHistory])).slice(0, 40)
         : current.seedHistory,
     }));
+    if (!options.preserveComparison) {
+      setComparisonBefore(null);
+      setComparisonSide("after");
+    }
   }, [project.workspace, stopPlayback]);
 
   const resetEditorState = useCallback((nextSong: Song) => {
@@ -202,6 +291,8 @@ export function ComposerApp() {
     setSelectedSection(0);
     setNoteSelection(null);
     setChordSelection(null);
+    setComparisonBefore(null);
+    setComparisonSide("after");
     setTransport((current) => ({
       ...current,
       positionBeat: 0,
@@ -216,8 +307,8 @@ export function ComposerApp() {
         saveProject(project);
         setRecents(listRecentProjects());
         setStatus("保存済み");
-      } catch {
-        setStatus("自動保存に失敗");
+      } catch (error) {
+        setStatus(error instanceof ProjectStorageError ? error.message : "自動保存に失敗しました");
       }
     }, 450);
     setStatus("保存中…");
@@ -233,6 +324,7 @@ export function ComposerApp() {
         setPlayheadBeat(position);
         setTransport((current) => ({ ...current, positionBeat: position }));
       }
+      setLevels(player.levels);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -240,6 +332,42 @@ export function ComposerApp() {
   }, [playing, player]);
 
   useEffect(() => () => player.stop(), [player]);
+
+  const startPlayback = useCallback(async (targetSong: Song, startBeat?: number) => {
+    const bb = targetSong.meter.barBeats;
+    const rangeStart = transport.rangeStartBar * bb;
+    const rangeEnd = transport.rangeEndBar * bb;
+    const requested = startBeat ?? transport.positionBeat;
+    const atSongEnd = requested >= targetSong.totalBars * bb - 1e-9;
+    const outsideLoop = requested < rangeStart || requested >= rangeEnd;
+    const requestedStart = atSongEnd
+      ? transport.loopRange ? rangeStart : 0
+      : transport.loopRange && outsideLoop ? rangeStart : requested;
+    setStatus("音源を読み込み中…");
+    await player.play(
+      targetSong,
+      () => {
+        setPlaying(false);
+        setPlayheadBeat(null);
+        setLevels(emptyLevels());
+        setTransport((current) => ({ ...current, positionBeat: 0 }));
+      },
+      {
+        startBeat: requestedStart,
+        endBeat: transport.loopRange ? rangeEnd : undefined,
+        loopStartBeat: transport.loopRange ? rangeStart : 0,
+        loop: transport.loopRange || targetSong.ending === "loop",
+        metronome: transport.metronome,
+        countInBars: transport.countIn ? 1 : 0,
+        onSoundFontFallback: (fallbacks) =>
+          setStatus(`音源フォールバック: ${fallbacks.map((item) => item.part).join(", ")}（再取込または標準音源を確認）`),
+      },
+    );
+    if (player.isPlaying) {
+      setPlaying(true);
+      setStatus("再生中");
+    }
+  }, [player, transport]);
 
   const playPause = useCallback(() => {
     if (player.isPlaying) {
@@ -252,32 +380,11 @@ export function ComposerApp() {
       }
       return;
     }
-    const bb = song.meter.barBeats;
-    const rangeStart = transport.rangeStartBar * bb;
-    const rangeEnd = transport.rangeEndBar * bb;
-    const atSongEnd = transport.positionBeat >= song.totalBars * bb - 1e-9;
-    const outsideLoop = transport.positionBeat < rangeStart ||
-      transport.positionBeat >= rangeEnd;
-    const requestedStart = atSongEnd
-      ? transport.loopRange ? rangeStart : 0
-      : transport.loopRange && outsideLoop ? rangeStart : transport.positionBeat;
-    player.play(
-      song,
-      () => {
-        setPlaying(false);
-        setPlayheadBeat(null);
-        setTransport((current) => ({ ...current, positionBeat: 0 }));
-      },
-      {
-        startBeat: requestedStart,
-        endBeat: transport.loopRange ? rangeEnd : undefined,
-        loop: transport.loopRange || song.ending === "loop",
-        metronome: transport.metronome,
-        countInBars: transport.countIn ? 1 : 0,
-      },
-    );
-    setPlaying(true);
-  }, [player, song, transport]);
+    const targetSong = comparisonSide === "before" && comparisonBefore
+      ? comparisonBefore.song
+      : song;
+    void startPlayback(targetSong);
+  }, [player, song, comparisonSide, comparisonBefore, startPlayback]);
 
   const undo = useCallback(() => {
     const previous = pastRef.current.pop();
@@ -365,6 +472,12 @@ export function ComposerApp() {
       ...cloneWorkspace(workspace), composition, song: generated, sectionControls,
       locks: emptyLocks(), sectionSeeds: [],
     });
+    try {
+      createProjectSnapshot(project, "全体生成前");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "生成前スナップショットを保存できませんでした");
+      return;
+    }
     setProject((current) => ({
       ...current,
       variations: addVariationSnapshot(
@@ -374,11 +487,13 @@ export function ComposerApp() {
       ),
     }));
     commitWorkspace(next, { seedHistory: true });
+    setDraftArrangement(next.arrangement!);
+    setDraftComposition(next.composition!);
     setSelectedSection(0);
     setNoteSelection(null);
     setChordSelection(null);
     setTransport((current) => ({ ...current, positionBeat: 0, rangeEndBar: generated.totalBars }));
-  }, [settings, workspace, addVariationSnapshot, commitWorkspace]);
+  }, [settings, workspace, project, addVariationSnapshot, commitWorkspace]);
 
   const createVariation = useCallback(() => {
     const nextSeed = Math.floor(Math.random() * 1_000_000);
@@ -410,6 +525,8 @@ export function ComposerApp() {
       seedHistory: Array.from(new Set([nextSeed, ...current.seedHistory])).slice(0, 40),
     }));
     commitWorkspace(nextWorkspace);
+    setDraftArrangement(nextWorkspace.arrangement!);
+    setDraftComposition(nextWorkspace.composition!);
     resetEditorState(nextWorkspace.song);
   }, [settings, workspace, addVariationSnapshot, commitWorkspace, resetEditorState]);
 
@@ -447,19 +564,89 @@ export function ComposerApp() {
     }));
   }, [workspace, commitWorkspace]);
 
-  const updateMixer = useCallback((mixer: MixerSettings) => {
+  const commitAudioSettings = useCallback((values: {
+    mixer?: MixerSettings;
+    master?: MasterSettings;
+  }, commit = false) => {
     const next = cloneWorkspace(workspace);
-    next.mixer = mixer;
-    next.song.mixer = mixer;
-    commitWorkspace(next);
+    if (values.mixer) {
+      next.mixer = values.mixer;
+      next.song.mixer = values.mixer;
+    }
+    if (values.master) {
+      next.master = values.master;
+      next.song.master = values.master;
+    }
+    if (!commit && !audioGestureRef.current) audioGestureRef.current = cloneWorkspace(workspace);
+    if (commit && audioGestureRef.current) {
+      pastRef.current.push(audioGestureRef.current);
+      if (pastRef.current.length > 80) pastRef.current.shift();
+      futureRef.current = [];
+      audioGestureRef.current = null;
+      setHistoryTick((value) => value + 1);
+      commitWorkspace(next, { history: false });
+    } else {
+      commitWorkspace(next, { history: commit });
+    }
   }, [workspace, commitWorkspace]);
 
+  const applyParameterDraft = useCallback(() => {
+    const impact = analyzeControlChange(workspace, draftArrangement, draftComposition);
+    if (!impact.arrangementChanged && !impact.compositionChanged) return;
+    try {
+      createProjectSnapshot(project, "パラメーター適用前");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "適用前スナップショットを保存できませんでした");
+      return;
+    }
+    const before = cloneWorkspace(workspace);
+    const next = applyControlChanges(workspace, draftArrangement, draftComposition);
+    setComparisonBefore(before);
+    setComparisonSide("after");
+    commitWorkspace(next, { preserveComparison: true });
+    setStatus(impact.message);
+  }, [workspace, draftArrangement, draftComposition, project, commitWorkspace]);
+
+  const resetParameterDraft = useCallback(() => {
+    const dialect = dialects[settings.dialectId];
+    setDraftArrangement(normalizeArrangement(dialect?.defaults.arrangement));
+    setDraftComposition(normalizeComposition({
+      ...DEFAULT_COMPOSITION,
+      mode: dialect?.defaults.mode ?? settings.mode ?? "major",
+    }, settings.mode));
+  }, [settings]);
+
+  const toggleComparison = useCallback(() => {
+    if (!comparisonBefore) return;
+    const position = player.positionBeats ?? transport.positionBeat;
+    const wasPlaying = player.isPlaying;
+    stopPlayback(false);
+    setTransport((current) => ({ ...current, positionBeat: position }));
+    const side = comparisonSide === "after" ? "before" : "after";
+    setComparisonSide(side);
+    if (wasPlaying) {
+      const target = side === "before" ? comparisonBefore.song : workspace.song;
+      void startPlayback(target, position);
+    }
+  }, [comparisonBefore, comparisonSide, player, transport.positionBeat, stopPlayback, workspace.song, startPlayback]);
+
   const updateStructure = useCallback((sections: SectionControl[]) => {
+    const protectedCount = workspace.locks.sections.length + workspace.locks.bars.length +
+      (workspace.locks.notes?.length ?? 0) + (workspace.locks.chords?.length ?? 0);
+    if (protectedCount > 0 && !window.confirm(
+      `構成変更ではセクション対応が変わるため、ロック済み・手動編集済み ${protectedCount}件を維持できません。適用前状態は保存世代へ退避します。続けますか？`,
+    )) return;
+    try {
+      createProjectSnapshot(project, "構成変更前");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "構成変更前の保存に失敗しました");
+      return;
+    }
     rebuildControlledSong({ sectionControls: sections });
     setNoteSelection(null);
     setChordSelection(null);
     setSelectedSection((index) => Math.min(index, sections.length - 1));
-  }, [rebuildControlledSong]);
+  }, [workspace.locks, project, rebuildControlledSong]);
 
   const reorderStructure = useCallback((from: number, to: number) => {
     if (from === to || !workspace.sectionControls?.[from] || !workspace.sectionControls?.[to]) return;
@@ -508,10 +695,86 @@ export function ComposerApp() {
     setNoteSelection(null);
   }, [song, workspace, commitManualEdit]);
 
+  const commitSelectedEdit = useCallback((
+    next: WorkspaceState,
+    selections: NoteSelection[],
+    options: { history?: boolean } = {},
+  ) => {
+    for (const selection of selections) {
+      const note = workspace.song.sections[selection.sectionIndex]?.[selection.part][selection.noteIndex];
+      if (!note) continue;
+      const bar = Math.floor(note.start / workspace.song.meter.barBeats);
+      next.locks = lockBar(next.locks, selection.sectionIndex, selectionPart(selection), bar, true);
+    }
+    commitWorkspace(next, { history: options.history });
+  }, [workspace, commitWorkspace]);
+
+  const handlePianoCommand = useCallback((command: import("./EditablePianoRoll.js").PianoRollCommand) => {
+    if (command === "copy") {
+      clipboardRef.current = copySelectedNotes(song, noteSelections);
+      setStatus(`${clipboardRef.current.length}ノートをコピーしました`);
+      return;
+    }
+    if (command === "cut") {
+      clipboardRef.current = copySelectedNotes(song, noteSelections);
+      if (noteSelections.length) commitSelectedEdit(deleteSelectedNotes(workspace, noteSelections), noteSelections);
+      setNoteSelections([]);
+      return;
+    }
+    if (command === "paste") {
+      if (!clipboardRef.current.length) return;
+      commitWorkspace(pasteNotes(workspace, clipboardRef.current, transport.positionBeat));
+      return;
+    }
+    if (command === "duplicate") {
+      if (!noteSelections.length) return;
+      commitSelectedEdit(duplicateSelectedNotes(workspace, noteSelections, grid), noteSelections);
+      return;
+    }
+    if (command === "quantize") {
+      if (!noteSelections.length) return;
+      commitSelectedEdit(quantizeSelectedNotes(workspace, noteSelections, grid), noteSelections);
+      setNoteSelections([]);
+      return;
+    }
+    if (command === "delete" && noteSelections.length) {
+      commitSelectedEdit(deleteSelectedNotes(workspace, noteSelections), noteSelections);
+      setNoteSelections([]);
+    }
+  }, [song, noteSelections, workspace, transport.positionBeat, grid, commitWorkspace, commitSelectedEdit]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, select, textarea")) return;
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      if (modifier && ["c", "x", "v", "d"].includes(key)) {
+        event.preventDefault();
+        handlePianoCommand(({ c: "copy", x: "cut", v: "paste", d: "duplicate" } as const)[key as "c" | "x" | "v" | "d"]);
+      } else if (key === "q" && noteSelections.length) {
+        event.preventDefault();
+        handlePianoCommand("quantize");
+      } else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && noteSelections.length) {
+        event.preventDefault();
+        const semitones = (event.shiftKey ? 12 : 1) * (event.key === "ArrowUp" ? 1 : -1);
+        commitSelectedEdit(transposeSelectedNotes(workspace, noteSelections, semitones), noteSelections);
+        auditionNote((selectedNote?.pitch ?? 60) + semitones);
+        setNoteSelections([]);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handlePianoCommand, noteSelections, workspace, commitSelectedEdit, selectedNote?.pitch]);
+
   const saveWav = useCallback(async () => {
     setRenderingWav(true);
     try {
-      await downloadWav(song);
+      await downloadWav(song, (progress, message) =>
+        setStatus(`WAV ${Math.round(progress * 100)}%: ${message}`));
+      setStatus("WAV書き出し完了");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "WAV書き出しに失敗しました");
     } finally {
       setRenderingWav(false);
     }
@@ -524,7 +787,17 @@ export function ComposerApp() {
       return;
     }
     setProject(loaded);
+    setDraftArrangement(loaded.workspace.arrangement!);
+    setDraftComposition(loaded.workspace.composition!);
     resetEditorState(loaded.workspace.song);
+  }, [resetEditorState]);
+
+  const openProjectDocument = useCallback((loaded: ProjectDocument) => {
+    setProject(loaded);
+    setDraftArrangement(loaded.workspace.arrangement!);
+    setDraftComposition(loaded.workspace.composition!);
+    resetEditorState(loaded.workspace.song);
+    setShowProjects(false);
   }, [resetEditorState]);
 
   return (
@@ -540,6 +813,8 @@ export function ComposerApp() {
           </button>
         </div>
         <div className="header-actions">
+          <button onClick={() => setShowHelp(true)}>使い方</button>
+          <button onClick={() => setShowProjects(true)}>プロジェクト一覧</button>
           <button disabled={pastRef.current.length === 0} onClick={undo}>↶ Undo</button>
           <button disabled={futureRef.current.length === 0} onClick={redo}>↷ Redo</button>
           <button className="primary" onClick={generateFullSong}>♪ 全体生成</button>
@@ -547,6 +822,17 @@ export function ComposerApp() {
           <button onClick={saveWav} disabled={renderingWav}>
             {renderingWav ? "書出中…" : "WAV"}
           </button>
+          <button
+            disabled={renderingStems}
+            onClick={() => {
+              setRenderingStems(true);
+              void downloadWavStems(song, (progress, part) =>
+                setStatus(`WAVステム ${part}: ${Math.round(progress * 100)}%`))
+                .catch((error: unknown) => setStatus(error instanceof Error ? error.message : "ステム書出しに失敗しました"))
+                .finally(() => setRenderingStems(false));
+            }}
+          >{renderingStems ? "ステム書出中…" : "WAVステム"}</button>
+          <button onClick={() => downloadMusicXml(song)}>MusicXML</button>
           <button onClick={() => downloadSunoText(song, dialects[settings.dialectId])}>テキスト</button>
         </div>
       </header>
@@ -559,6 +845,8 @@ export function ComposerApp() {
         onNew={() => {
           const created = createProject("新しい曲", defaultWorkspace());
           setProject(created);
+          setDraftArrangement(created.workspace.arrangement!);
+          setDraftComposition(created.workspace.composition!);
           resetEditorState(created.workspace.song);
         }}
         onSave={() => {
@@ -573,6 +861,8 @@ export function ComposerApp() {
             .then((loaded) => {
               const imported = { ...loaded, id: createId(), title: loaded.title + " (読込)" };
               setProject(imported);
+              setDraftArrangement(imported.workspace.arrangement!);
+              setDraftComposition(imported.workspace.composition!);
               resetEditorState(imported.workspace.song);
             })
             .catch((error: unknown) =>
@@ -618,17 +908,19 @@ export function ComposerApp() {
           onChange={(nextSettings) => {
             const next = cloneWorkspace(workspace);
             next.settings = nextSettings;
+            const endingChanged = next.song.ending !== nextSettings.ending;
+            next.song.ending = nextSettings.ending;
             if (nextSettings.dialectId !== settings.dialectId) {
               const dialect = dialects[nextSettings.dialectId];
               if (dialect) {
-                next.arrangement = normalizeArrangement(dialect.defaults.arrangement);
-                next.song.arrangement = next.arrangement;
-                next.composition = {
-                  ...next.composition!,
+                setDraftArrangement(normalizeArrangement(dialect.defaults.arrangement));
+                setDraftComposition({
+                  ...draftComposition,
                   mode: dialect.defaults.mode,
-                };
+                });
               }
             }
+            if (endingChanged && playing) stopPlayback(false);
             commitWorkspace(next, { history: false });
           }}
         />
@@ -637,11 +929,13 @@ export function ComposerApp() {
           <EditorToolbar
             song={song}
             sectionIndex={selectedSection}
-            noteSelection={noteSelection}
-            chordSelection={chordSelection}
+            noteSelections={noteSelections}
+            chordSelections={chordSelections}
             sectionLocked={isSectionLocked(workspace.locks, selectedSection)}
             selectionLocked={selectionLocked}
             entityLocked={entityLocked}
+            refreshParts={refreshParts}
+            onRefreshPartsChange={setRefreshParts}
             onRegenerate={(target: RegenerationTarget) =>
               commitWorkspace(regenerateWorkspace(workspace, selectedSection, target))}
             onToggleSectionLock={() =>
@@ -649,36 +943,24 @@ export function ComposerApp() {
                 ...cloneWorkspace(workspace),
                 locks: toggleSectionLock(workspace.locks, selectedSection),
               })}
-            onMoveNote={(semitones) => {
-              if (!noteSelection) return;
-              const note = song.sections[noteSelection.sectionIndex]?.[noteSelection.part][noteSelection.noteIndex];
-              if (note) editNote(noteSelection, { pitch: note.pitch + semitones });
+            onMoveNotes={(semitones) => {
+              if (!noteSelections.length) return;
+              commitSelectedEdit(
+                transposeSelectedNotes(workspace, noteSelections, semitones),
+                noteSelections,
+              );
+              auditionNote((selectedNote?.pitch ?? 60) + semitones);
+              setNoteSelections([]);
             }}
             onQuantize={() => {
-              if (!noteSelection) return;
-              const bar = noteBar(song, noteSelection);
-              if (bar !== null) {
-                commitManualEdit(
-                  quantizeNote(workspace, noteSelection),
-                  noteSelection.sectionIndex,
-                  selectionPart(noteSelection),
-                  bar,
-                );
-                setNoteSelection(null);
-              }
+              if (!noteSelections.length) return;
+              commitSelectedEdit(quantizeSelectedNotes(workspace, noteSelections, grid), noteSelections);
+              setNoteSelections([]);
             }}
-            onDeleteNote={() => {
-              if (!noteSelection) return;
-              const bar = noteBar(song, noteSelection);
-              if (bar !== null) {
-                commitManualEdit(
-                  deleteNote(workspace, noteSelection),
-                  noteSelection.sectionIndex,
-                  selectionPart(noteSelection),
-                  bar,
-                );
-                setNoteSelection(null);
-              }
+            onDeleteNotes={() => {
+              if (!noteSelections.length) return;
+              commitSelectedEdit(deleteSelectedNotes(workspace, noteSelections), noteSelections);
+              setNoteSelections([]);
             }}
             onToggleSelectionLock={() => {
               if (selectionBar === null) return;
@@ -717,7 +999,7 @@ export function ComposerApp() {
               if (!chordSelection || selectedChordBar === null) return;
               try {
                 commitManualEdit(
-                  replaceChord(workspace, chordSelection, symbol),
+                  replaceChord(workspace, chordSelection, symbol, refreshParts),
                   chordSelection.sectionIndex,
                   "chords",
                   selectedChordBar,
@@ -731,7 +1013,7 @@ export function ComposerApp() {
               if (!chordSelection || selectedChordBar === null) return;
               try {
                 commitManualEdit(
-                  insertChord(workspace, chordSelection, symbol),
+                  insertChord(workspace, chordSelection, symbol, refreshParts),
                   chordSelection.sectionIndex,
                   "chords",
                   selectedChordBar,
@@ -741,25 +1023,43 @@ export function ComposerApp() {
                 setStatus("コード記号が正しくありません");
               }
             }}
-            onDeleteChord={() => {
-              if (!chordSelection || selectedChordBar === null) return;
-              commitManualEdit(
-                deleteChord(workspace, chordSelection),
-                chordSelection.sectionIndex,
-                "chords",
-                selectedChordBar,
-              );
-              setChordSelection(null);
+            onDeleteChords={() => {
+              if (!chordSelections.length) return;
+              let next = workspace;
+              const ordered = [...chordSelections].sort((a, b) =>
+                b.sectionIndex - a.sectionIndex || b.chordIndex - a.chordIndex);
+              for (const selection of ordered) next = deleteChord(next, selection, refreshParts);
+              commitWorkspace(next);
+              setChordSelections([]);
+            }}
+            onTransposeChords={(semitones) => {
+              if (!chordSelections.length) return;
+              commitWorkspace(transposeSelectedChords(workspace, chordSelections, semitones, refreshParts));
+              setChordSelections([]);
             }}
           />
 
           <ArrangementPanel
-            arrangement={workspace.arrangement!}
+            arrangement={draftArrangement}
             mixer={workspace.mixer!}
-            composition={workspace.composition!}
-            onArrangementChange={(arrangement) => rebuildControlledSong({ arrangement })}
-            onCompositionChange={(composition) => rebuildControlledSong({ composition })}
-            onMixerChange={updateMixer}
+            master={workspace.master!}
+            composition={draftComposition}
+            dirty={parameterDirty}
+            canCompare={Boolean(comparisonBefore)}
+            comparisonSide={comparisonSide}
+            levels={levels}
+            onArrangementChange={setDraftArrangement}
+            onCompositionChange={setDraftComposition}
+            onMixerChange={(mixer, commit) => commitAudioSettings({ mixer }, commit)}
+            onMasterChange={(master, commit) => commitAudioSettings({ master }, commit)}
+            onApply={applyParameterDraft}
+            onCancel={() => {
+              setDraftArrangement(workspace.arrangement!);
+              setDraftComposition(workspace.composition!);
+            }}
+            onReset={resetParameterDraft}
+            onCompare={toggleComparison}
+            onOpenSoundFonts={() => setShowSoundFonts(true)}
           />
 
           <div
@@ -770,25 +1070,63 @@ export function ComposerApp() {
               <EditablePianoRoll
                 song={song}
                 playheadBeat={playheadBeat}
-                noteSelection={noteSelection}
-                chordSelection={chordSelection}
-                onSelectNote={(selection) => {
-                  setNoteSelection(selection);
-                  if (selection) setSelectedSection(selection.sectionIndex);
+                noteSelections={noteSelections}
+                chordSelections={chordSelections}
+                grid={grid}
+                onGridChange={setGrid}
+                onSelectNotes={(selections) => {
+                  setNoteSelections(selections);
+                  if (selections[0]) setSelectedSection(selections[0].sectionIndex);
                 }}
-                onSelectChord={(selection) => {
-                  setChordSelection(selection);
-                  if (selection) setSelectedSection(selection.sectionIndex);
+                onSelectChords={(selections) => {
+                  setChordSelections(selections);
+                  if (selections[0]) setSelectedSection(selections[0].sectionIndex);
                 }}
-                onEditNote={editNote}
-                onAddNote={(sectionIndex, note) => {
+                onMoveNotes={(selections, deltaBeat, deltaPitch) => {
+                  if (deltaBeat === 0 && deltaPitch === 0) return;
+                  commitSelectedEdit(updateSelectedNotes(workspace, selections, (note) => ({
+                    start: note.start + deltaBeat,
+                    pitch: note.pitch + deltaPitch,
+                  })), selections);
+                  setNoteSelections([]);
+                }}
+                onResizeNotes={(selections, deltaDuration) => {
+                  if (deltaDuration === 0) return;
+                  commitSelectedEdit(updateSelectedNotes(workspace, selections, (note) => ({
+                    duration: Math.max(grid, note.duration + deltaDuration),
+                  })), selections);
+                  setNoteSelections([]);
+                }}
+                onSetVelocity={(selections, velocity, commit) => {
+                  const next = setSelectedNoteVelocity(workspace, selections, velocity);
+                  commitSelectedEdit(next, selections, { history: commit });
+                }}
+                onEditChordTiming={(selection, patch) => {
+                  const chord = song.sections[selection.sectionIndex]?.chords[selection.chordIndex];
+                  if (!chord) return;
+                  commitManualEdit(
+                    updateChordTiming(workspace, selection, patch, grid, refreshParts),
+                    selection.sectionIndex,
+                    "chords",
+                    chord.bar,
+                  );
+                  setChordSelections([]);
+                }}
+                onAddNote={(sectionIndex, part, note) => {
                   const bar = Math.floor(note.start / song.meter.barBeats);
-                  commitManualEdit(addNote(workspace, sectionIndex, note), sectionIndex, "melody", bar);
+                  const next = cloneWorkspace(workspace);
+                  const section = next.song.sections[sectionIndex];
+                  if (!section) return;
+                  section[part].push(note);
+                  section[part].sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+                  commitManualEdit(next, sectionIndex, part === "melody" ? "melody" : "accompaniment", bar);
                 }}
                 onSeek={(beat) => {
                   stopPlayback(false);
                   setTransport((current) => ({ ...current, positionBeat: beat }));
                 }}
+                onCommand={handlePianoCommand}
+                onAudition={auditionNote}
               />
             ) : (
               <>
@@ -884,6 +1222,35 @@ export function ComposerApp() {
         <span className="save-status">{status} · 履歴 {project.seedHistory.join(", ")}</span>
       </footer>
       <span hidden>{historyTick}</span>
+      {showProjects && (
+        <ProjectManager
+          currentId={project.id}
+          onClose={() => setShowProjects(false)}
+          onOpen={openProjectDocument}
+          onProjectsChanged={() => setRecents(listRecentProjects())}
+        />
+      )}
+      {showHelp && <HelpGuide onClose={() => setShowHelp(false)} />}
+      {showOnboarding && (
+        <HelpGuide
+          onboarding
+          onClose={() => {
+            localStorage.setItem(ONBOARDING_KEY, "done");
+            setShowOnboarding(false);
+          }}
+        />
+      )}
+      {showSoundFonts && (
+        <SoundFontLibrary
+          issues={soundFontIssues}
+          onClose={() => setShowSoundFonts(false)}
+          onAssign={(part: SongPart, assignment: SoundFontAssignment) => {
+            const mixer = structuredClone(workspace.mixer!);
+            mixer[part].soundfont = assignment;
+            commitAudioSettings({ mixer }, true);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { normalizeSeekBeat, seekBeatFromPointer, TRANSPORT_SEEK_STEP } from "./playbackViewport.js";
+
 export interface TransportState {
   positionBeat: number;
   loopRange: boolean;
@@ -26,6 +28,13 @@ export function TransportBar({
 }) {
   const totalBeats = totalBars * barBeats;
   const positionBar = Math.min(totalBars, transport.positionBeat / barBeats);
+  const seekFromPointer = (input: HTMLInputElement, clientX: number) => {
+    const rect = input.getBoundingClientRect();
+    onChange({
+      ...transport,
+      positionBeat: seekBeatFromPointer(clientX, rect.left, rect.width, totalBeats),
+    });
+  };
   return (
     <div className="transport-bar">
       <button className="primary" onClick={onPlayPause}>
@@ -41,10 +50,34 @@ export function TransportBar({
         type="range"
         min={0}
         max={Math.max(0.25, totalBeats)}
-        step={0.25}
-        value={Math.min(transport.positionBeat, totalBeats)}
+        step={TRANSPORT_SEEK_STEP}
+        value={normalizeSeekBeat(transport.positionBeat, totalBeats)}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.focus();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          seekFromPointer(event.currentTarget, event.clientX);
+        }}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            seekFromPointer(event.currentTarget, event.clientX);
+          }
+        }}
+        onPointerUp={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          seekFromPointer(event.currentTarget, event.clientX);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
         onChange={(event) =>
-          onChange({ ...transport, positionBeat: Number(event.target.value) })
+          onChange({
+            ...transport,
+            positionBeat: normalizeSeekBeat(Number(event.target.value), totalBeats),
+          })
         }
       />
       <label>

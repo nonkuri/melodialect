@@ -96,9 +96,27 @@ export interface MixerPartSettings {
   /** -1..1 */
   pan: number;
   timbre: string;
+  /** SoundFont assignment. Omitted or sourceId="oscillator" keeps the built-in synth. */
+  soundfont?: SoundFontAssignment;
 }
 
 export type MixerSettings = Record<SongPart, MixerPartSettings>;
+export interface SoundFontAssignment {
+  /** "standard" is the bundled SF2; every other value is a user-library id. */
+  sourceId: string;
+  bankMSB: number;
+  bankLSB: number;
+  program: number;
+  isDrum?: boolean;
+  presetName?: string;
+}
+
+export interface MasterSettings {
+  /** 0..1.5 linear gain. */
+  volume: number;
+  /** Protects audition and exported audio from unexpected user-SF2 peaks. */
+  limiter: boolean;
+}
 
 export interface CompositionControls {
   mode: Mode;
@@ -186,6 +204,7 @@ export interface Song {
   totalBars: number;
   arrangement?: ArrangementSettings;
   mixer?: MixerSettings;
+  master?: MasterSettings;
   composition?: CompositionControls;
 }
 /** 重み付きリズムテンプレート。beats の負値は休符 (絶対値が長さ)。合計は 1 小節分 */

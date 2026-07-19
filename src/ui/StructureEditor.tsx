@@ -12,6 +12,9 @@ const TYPES: Array<[SectionType, string]> = [
   ["intro", "Intro"], ["verse", "Verse"], ["chorus", "Chorus"],
   ["bridge", "Bridge"], ["outro", "Outro"],
 ];
+const DIALECT_OPTIONS = Array.from(
+  new Map(Object.values(dialects).map((dialect) => [dialect.id, dialect])).values(),
+);
 
 export function StructureEditor({ sections, selectedIndex, onSelect, onChange }: Props) {
   const selected = sections[selectedIndex];
@@ -50,7 +53,7 @@ export function StructureEditor({ sections, selectedIndex, onSelect, onChange }:
         {TYPES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select></label>
       <label>ダイアレクト<select value={selected.dialectId} onChange={(event) => replace({ dialectId: event.target.value })}>
-        {Object.values(dialects).map((dialect) => <option value={dialect.id} key={dialect.id}>{shortName(dialect)}</option>)}
+        {DIALECT_OPTIONS.map((dialect) => <option value={dialect.id} key={dialect.id}>{shortName(dialect)}</option>)}
       </select></label>
       <label>小節<input type="number" min="1" max="32" value={selected.bars}
         onChange={(event) => replace({ bars: Math.max(1, Number(event.target.value)) })} /></label>

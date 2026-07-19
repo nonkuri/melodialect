@@ -1,5 +1,6 @@
-import type { Song } from "../engine/types.js";
+import type { Song, SongPart } from "../engine/types.js";
 import { beatToSeconds, scheduleSong } from "../audio/player.js";
+import { renderSoundFontPcm } from "../audio/soundfontOffline.js";
 
 /**
  * WAV 書き出し (§4.5)。OfflineAudioContext で再生と同じシンセを
@@ -56,17 +57,92 @@ const SAMPLE_RATE = 44100;
 const TAIL_SEC = 1;
 
 /** 曲全体を WAV Blob にレンダリングする */
-export async function renderWavBlob(song: Song): Promise<Blob> {
-  const totalBeats = song.totalBars * song.meter.barBeats;
-  const totalSec = beatToSeconds(song, totalBeats) + TAIL_SEC;
-  const ctx = new OfflineAudioContext(2, Math.ceil(SAMPLE_RATE * totalSec), SAMPLE_RATE);
-  scheduleSong(ctx, song, 0.05);
-  const buffer = await ctx.startRendering();
-  return new Blob([encodeWav(buffer)], { type: "audio/wav" });
+export type WavRenderProgress = (progress: number, message: string) => void;
+
+function mixedAudioBuffer(
+  oscillator: AudioBufferLike,
+  soundfont: [Float32Array, Float32Array],
+  song: Song,
+): AudioBufferLike {
+  const channels = [new Float32Array(oscillator.length), new Float32Array(oscillator.length)];
+  const master = song.master?.volume ?? 0.8;
+  for (let channel = 0; channel < 2; channel++) {
+    const oscillatorData = oscillator.getChannelData(Math.min(channel, oscillator.numberOfChannels - 1));
+    const soundfontData = soundfont[channel]!;
+    for (let index = 0; index < oscillator.length; index++) {
+      const mixed = oscillatorData[index]! + soundfontData[index]! * 0.55 * master;
+      // The realtime graph uses a limiter. A smooth saturation here keeps mixed
+      // oscillator/SoundFont exports equally resistant to inter-sample clipping.
+      channels[channel]![index] = song.master?.limiter ?? true ? Math.tanh(mixed) : mixed;
+    }
+  }
+  return {
+    numberOfChannels: 2,
+    length: oscillator.length,
+    sampleRate: oscillator.sampleRate,
+    getChannelData: (channel) => channels[channel]!,
+  };
 }
 
-export async function downloadWav(song: Song): Promise<void> {
-  const blob = await renderWavBlob(song);
+/** Render the same oscillator/SoundFont assignments used by realtime playback. */
+export async function renderWavBlob(
+  song: Song,
+  onProgress?: WavRenderProgress,
+): Promise<Blob> {
+  const totalBeats = song.totalBars * song.meter.barBeats;
+  const totalSec = beatToSeconds(song, totalBeats) + TAIL_SEC;
+  const sampleCount = Math.ceil(SAMPLE_RATE * totalSec);
+  onProgress?.(0.02, "音源を準備中");
+  const soundfont = await renderSoundFontPcm(song, SAMPLE_RATE, sampleCount, (progress) =>
+    onProgress?.(0.05 + progress * 0.75, "SoundFont を描画中"));
+  const oscillatorSong = structuredClone(song);
+  for (const part of soundfont.activeParts) {
+    if (oscillatorSong.mixer?.[part]) oscillatorSong.mixer[part].mute = true;
+  }
+  const ctx = new OfflineAudioContext(2, sampleCount, SAMPLE_RATE);
+  scheduleSong(ctx, oscillatorSong, 0.05);
+  onProgress?.(0.82, "内蔵音源を描画中");
+  const buffer = await ctx.startRendering();
+  onProgress?.(0.94, "WAV をエンコード中");
+  const mixed = mixedAudioBuffer(buffer, [soundfont.left, soundfont.right], song);
+  const blob = new Blob([encodeWav(mixed)], { type: "audio/wav" });
+  onProgress?.(1, soundfont.fallbacks.length ? "一部を内蔵音源で書き出しました" : "完了");
+  return blob;
+}
+
+export async function renderWavStem(song: Song, part: SongPart): Promise<Blob> {
+  const stem = structuredClone(song);
+  if (stem.mixer) {
+    for (const [id, settings] of Object.entries(stem.mixer) as Array<[SongPart, typeof stem.mixer[SongPart]]>) {
+      settings.mute = id !== part;
+      settings.solo = false;
+    }
+  }
+  return renderWavBlob(stem);
+}
+
+export async function downloadWavStems(
+  song: Song,
+  onProgress?: (progress: number, part: SongPart) => void,
+): Promise<void> {
+  const parts: SongPart[] = ["melody", "piano", "guitar", "bass", "drums"];
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]!;
+    onProgress?.(index / parts.length, part);
+    const blob = await renderWavStem(song, part);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `melodialect-${song.dialectId}-seed${song.seed}-${part}.wav`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+  }
+  onProgress?.(1, parts[parts.length - 1]!);
+}
+
+export async function downloadWav(song: Song, onProgress?: WavRenderProgress): Promise<void> {
+  const blob = await renderWavBlob(song, onProgress);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -1,14 +1,18 @@
 {
   "name": "melodialect",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "作曲家の「音楽的方言」をルールベースで再現する楽曲ジェネレーター",
   "scripts": {
+    "assets": "node scripts/setup-audio-assets.mjs",
+    "predev": "npm run assets",
+    "prebuild": "npm run assets",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:audio": "node scripts/benchmark-audio.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "generate": "tsx scripts/generate.ts"
@@ -26,6 +30,8 @@
   "dependencies": {
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "spessasynth_core": "^4.3.15",
+    "spessasynth_lib": "^4.3.11",
     "vexflow": "^5.0.0"
   }
 }

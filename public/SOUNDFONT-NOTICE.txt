@@ -1,0 +1,2 @@
+Melodialect Standard SF2 is generated from spessasynth_core (Apache-2.0).
+It contains a tiny synthesized waveform and no third-party recordings.
