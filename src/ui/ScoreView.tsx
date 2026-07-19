@@ -85,7 +85,15 @@ function flattenBars(song: Song, useFlats: boolean, lyrics?: SectionLyrics[]): B
 }
 
 /** メロディ+コードネーム (+仮歌詞) のリードシート表示 (§4.4)。 */
-export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics[] }) {
+export function ScoreView({
+  song,
+  lyrics,
+  onSeek,
+}: {
+  song: Song;
+  lyrics?: SectionLyrics[];
+  onSeek?: (beat: number) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,5 +169,24 @@ export function ScoreView({ song, lyrics }: { song: Song; lyrics?: SectionLyrics
     });
   }, [song, lyrics]);
 
-  return <div className="score-scroll" ref={containerRef} />;
+  return (
+    <div
+      className="score-scroll"
+      ref={containerRef}
+      onClick={(event) => {
+        if (!onSeek) return;
+        const svg = containerRef.current?.querySelector("svg");
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const line = Math.max(0, Math.floor((y - 20) / LINE_HEIGHT));
+        const column = x < 10 + FIRST_BAR_EXTRA + BAR_WIDTH
+          ? 0
+          : Math.min(BARS_PER_LINE - 1, Math.floor((x - 10 - FIRST_BAR_EXTRA) / BAR_WIDTH) + 1);
+        const bar = Math.min(song.totalBars - 1, line * BARS_PER_LINE + column);
+        onSeek(bar * song.meter.barBeats);
+      }}
+    />
+  );
 }

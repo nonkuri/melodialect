@@ -215,3 +215,177 @@ export class SongPlayer {
     }
   }
 }
+
+export interface PlayOptions {
+  startBeat?: number;
+  endBeat?: number;
+  loop?: boolean;
+  metronome?: boolean;
+  countInBars?: number;
+}
+
+function createPartBuses(ctx: BaseAudioContext): Record<Part, AudioNode> {
+  const master = ctx.createGain();
+  master.gain.value = 0.6;
+  const comp = ctx.createDynamicsCompressor();
+  master.connect(comp);
+  comp.connect(ctx.destination);
+  const buses: Record<Part, AudioNode> = {} as Record<Part, AudioNode>;
+  for (const part of ["melody", "piano", "bass"] as const) {
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = TIMBRES[part].lowpassHz;
+    filter.connect(master);
+    buses[part] = filter;
+  }
+  return buses;
+}
+
+function scheduleSongRange(
+  ctx: BaseAudioContext,
+  song: Song,
+  time: number,
+  startBeat: number,
+  endBeat: number,
+): number {
+  const buses = createPartBuses(ctx);
+  const secPerBeat = 60 / song.bpm;
+  for (const section of song.sections) {
+    const sectionOffset = section.startBar * song.meter.barBeats;
+    const parts: Array<[Part, NoteEvent[]]> = [
+      ["melody", section.melody],
+      ["piano", section.piano],
+      ["bass", section.bass],
+    ];
+    for (const [part, notes] of parts) {
+      for (const note of notes) {
+        const absoluteStart = sectionOffset + note.start;
+        const absoluteEnd = absoluteStart + note.duration;
+        if (absoluteEnd <= startBeat || absoluteStart >= endBeat) continue;
+        const clippedStart = Math.max(startBeat, absoluteStart);
+        const clippedEnd = Math.min(endBeat, absoluteEnd);
+        scheduleNote(
+          ctx,
+          buses[part],
+          part,
+          note,
+          time + (clippedStart - startBeat) * secPerBeat,
+          (clippedEnd - clippedStart) * secPerBeat,
+        );
+      }
+    }
+  }
+  return (endBeat - startBeat) * secPerBeat;
+}
+
+function scheduleClick(ctx: BaseAudioContext, time: number, accent: boolean): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = accent ? 1320 : 880;
+  gain.gain.setValueAtTime(0.14, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.045);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(time);
+  osc.stop(time + 0.05);
+}
+
+function scheduleMetronomeRange(
+  ctx: BaseAudioContext,
+  song: Song,
+  time: number,
+  startBeat: number,
+  endBeat: number,
+): void {
+  const secPerBeat = 60 / song.bpm;
+  for (let beat = Math.ceil(startBeat); beat < endBeat; beat++) {
+    const barBeat = ((beat % song.meter.barBeats) + song.meter.barBeats) % song.meter.barBeats;
+    scheduleClick(ctx, time + (beat - startBeat) * secPerBeat, barBeat < 1e-9);
+  }
+}
+
+/** Range-aware transport used by the editor. */
+export class TransportPlayer {
+  private ctx: AudioContext | null = null;
+  private musicStartTime = 0;
+  private bpm = 120;
+  private looping = false;
+  private rangeStart = 0;
+  private rangeLength = 0;
+  private endTimer: ReturnType<typeof setTimeout> | null = null;
+
+  get isPlaying(): boolean {
+    return this.ctx !== null;
+  }
+
+  get positionBeats(): number | null {
+    if (!this.ctx) return null;
+    const elapsed = Math.max(0, this.ctx.currentTime - this.musicStartTime);
+    const beats = elapsed * (this.bpm / 60);
+    if (this.looping && this.rangeLength > 0) {
+      return this.rangeStart + beats % this.rangeLength;
+    }
+    return Math.min(this.rangeStart + beats, this.rangeStart + this.rangeLength);
+  }
+
+  play(song: Song, onEnded?: () => void, options: PlayOptions = {}): void {
+    this.stop();
+    const ctx = new AudioContext();
+    this.ctx = ctx;
+    this.bpm = song.bpm;
+    const totalBeats = song.totalBars * song.meter.barBeats;
+    this.rangeStart = Math.max(0, Math.min(options.startBeat ?? 0, totalBeats));
+    const endBeat = Math.max(
+      this.rangeStart + 0.25,
+      Math.min(options.endBeat ?? totalBeats, totalBeats),
+    );
+    this.rangeLength = endBeat - this.rangeStart;
+    this.looping = options.loop ?? song.ending === "loop";
+
+    const secPerBeat = 60 / song.bpm;
+    const countInBeats = (options.countInBars ?? 0) * song.meter.barBeats;
+    const contextStart = ctx.currentTime + 0.08;
+    this.musicStartTime = contextStart + countInBeats * secPerBeat;
+    for (let beat = 0; beat < countInBeats; beat++) {
+      scheduleClick(ctx, contextStart + beat * secPerBeat, beat % song.meter.barBeats === 0);
+    }
+
+    const iterationSec = scheduleSongRange(ctx, song, this.musicStartTime, this.rangeStart, endBeat);
+    const scheduleIteration = (time: number) => {
+      scheduleSongRange(ctx, song, time, this.rangeStart, endBeat);
+      if (options.metronome) {
+        scheduleMetronomeRange(ctx, song, time, this.rangeStart, endBeat);
+      }
+    };
+    if (options.metronome) {
+      scheduleMetronomeRange(ctx, song, this.musicStartTime, this.rangeStart, endBeat);
+    }
+
+    if (this.looping) {
+      let scheduledIterations = 2;
+      scheduleIteration(this.musicStartTime + iterationSec);
+      const scheduleNext = () => {
+        scheduleIteration(this.musicStartTime + scheduledIterations * iterationSec);
+        scheduledIterations++;
+        this.endTimer = setTimeout(scheduleNext, iterationSec * 1000);
+      };
+      this.endTimer = setTimeout(scheduleNext, iterationSec * 1000);
+    } else {
+      this.endTimer = setTimeout(() => {
+        this.stop();
+        onEnded?.();
+      }, (countInBeats * secPerBeat + iterationSec + 0.25) * 1000);
+    }
+  }
+
+  stop(): void {
+    if (this.endTimer !== null) {
+      clearTimeout(this.endTimer);
+      this.endTimer = null;
+    }
+    if (this.ctx) {
+      void this.ctx.close();
+      this.ctx = null;
+    }
+  }
+}

@@ -236,6 +236,168 @@ button:disabled {
   font-size: 11.5px;
 }
 
+.project-toolbar,
+.transport-bar,
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #20242e;
+  border-bottom: 1px solid #363b48;
+  min-height: 42px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.project-toolbar input,
+.project-toolbar select,
+.transport-bar input,
+.editor-toolbar input {
+  background: #2a2e39;
+  color: #d8dce6;
+  border: 1px solid #4a4f5e;
+  border-radius: 5px;
+  padding: 5px 7px;
+}
+
+.project-title {
+  width: 210px;
+  font-weight: 600;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 24px;
+  background: #4a4f5e;
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+.transport-bar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.transport-bar label input[type="number"] {
+  width: 58px;
+}
+
+.transport-slider {
+  flex: 1;
+  min-width: 180px;
+  accent-color: #4a74dd;
+}
+
+.transport-position {
+  width: 96px;
+  color: #aeb6c8;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.editor-toolbar {
+  padding: 5px 8px;
+  border: 1px solid #363b48;
+  border-radius: 7px;
+  min-height: 38px;
+}
+
+.editor-toolbar button {
+  padding: 4px 8px;
+}
+
+.chord-input {
+  width: 72px;
+}
+
+.view-area {
+  flex: 1;
+  min-height: 150px;
+}
+
+.piano-roll-scroll {
+  flex: 1;
+  min-height: 150px;
+  cursor: crosshair;
+}
+
+.roll-note,
+.roll-chord {
+  cursor: pointer;
+  user-select: none;
+}
+
+.roll-note:active {
+  cursor: grabbing;
+}
+
+.timeline-block {
+  color: #fff;
+  border: 2px solid transparent;
+  justify-content: center;
+}
+
+.timeline-block.selected {
+  border-color: #f5d76e;
+  box-shadow: 0 0 0 1px rgba(245, 215, 110, 0.3);
+}
+
+.save-status {
+  align-self: center;
+  margin-left: 8px;
+  color: #6d7688;
+  font-size: 10px;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1000px) {
+  .tagline {
+    display: none;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .header-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .settings {
+    width: 180px;
+  }
+}
+
+@media (max-width: 720px) {
+  .body {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .settings {
+    width: 100%;
+    max-height: 260px;
+    border-right: none;
+    border-bottom: 1px solid #363b48;
+  }
+
+  .main {
+    min-height: 520px;
+  }
+
+  .timeline {
+    overflow-x: auto;
+  }
+}
+
 .custom-form input {
   background: #2a2e39;
   color: #d8dce6;

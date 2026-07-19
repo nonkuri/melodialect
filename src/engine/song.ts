@@ -56,6 +56,19 @@ export interface GenerateOptions {
    * "loop" は半終止のまま曲頭へ戻るシームレスなリピート用
    */
   ending?: EndingMode;
+  /** Per-section seed used for stable partial regeneration. */
+  sectionSeeds?: number[];
+  /** Fixed phrase lengths used while partially regenerating an existing song. */
+  sectionPhraseLengths?: number[][];
+}
+
+/** Derive an independent deterministic seed for each section. */
+function sectionSeed(seed: number, index: number): number {
+  let x = (seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0;
+  x ^= x >>> 16;
+  x = Math.imul(x, 0x85ebca6b) >>> 0;
+  x ^= x >>> 13;
+  return x >>> 0;
 }
 
 /** pitch に最も近い chordPitches のコードトーン (ループ継ぎ目の調整用) */
@@ -78,7 +91,6 @@ function nearestChordTone(pitch: number, chordPitches: number[]): number {
 /** 生成パイプライン全体 (§4.2)。同じオプション+シードなら常に同じ曲を返す。 */
 export function generateSong(options: GenerateOptions): Song {
   const { dialect: mainDialect, seed } = options;
-  const rng = createRng(seed);
   const keyName = options.keyName ?? mainDialect.defaults.key;
   const key: KeySignature = {
     tonic: parseKeyName(keyName),
@@ -113,8 +125,16 @@ export function generateSong(options: GenerateOptions): Song {
   entries.forEach(({ type, dialect }, i) => {
     const isLastEntry = i === entries.length - 1;
     // ループモードでは最終セクションも半終止で終え、曲頭の I へ戻れるようにする
+    const rng = createRng(options.sectionSeeds?.[i] ?? sectionSeed(seed, i));
     const isFinalSection = ending === "final" && isLastEntry;
-    const plan = planSection(type, dialect, rng);
+    const fixedPhraseLengths = options.sectionPhraseLengths?.[i];
+    const plan = fixedPhraseLengths
+      ? {
+          type,
+          phraseLengths: [...fixedPhraseLengths],
+          bars: fixedPhraseLengths.reduce((sum, bars) => sum + bars, 0),
+        }
+      : planSection(type, dialect, rng);
 
     // 転調 (§4.1): セクションタイプ別の転調傾向 (通常は bridge)。最終セクションは主調のまま
     let sectionKey = key;
