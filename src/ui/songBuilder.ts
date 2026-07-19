@@ -34,6 +34,28 @@ export function resolveFullGenerationSeed(
   return candidate === currentSongSeed ? (candidate + 1) % 1_000_000 : candidate;
 }
 
+/**
+ * Reuse compatible section edits while updating sections that still inherit
+ * the song's previous base tempo. Explicit per-section BPM values are kept.
+ */
+export function resolveFullGenerationSectionControls(
+  settings: Settings,
+  controls: SectionControl[] | undefined,
+  currentSongBpm: number,
+): SectionControl[] | undefined {
+  if (!controls) return undefined;
+  const entries = parseForm(settings.form);
+  const matches = entries.length === controls.length && controls.every((control, index) => {
+    const entry = entries[index]!;
+    const dialectId = settings.sectionDialects[index] || entry.dialectName || settings.dialectId;
+    return control.type === entry.type && control.dialectId === dialectId;
+  });
+  if (!matches) return undefined;
+  return controls.map((control) => control.bpm === currentSongBpm
+    ? { ...control, bpm: settings.bpm }
+    : { ...control });
+}
+
 /** Build a song from UI settings while keeping engine-specific wiring in one place. */
 export function buildSong(settings: Settings, overrides: BuildOverrides = {}): Song {
   const dialect = dialects[settings.dialectId];

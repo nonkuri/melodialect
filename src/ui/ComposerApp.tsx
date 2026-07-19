@@ -18,14 +18,17 @@ import { downloadMusicXml } from "../export/musicxml.js";
 import { downloadSunoText } from "../export/text.js";
 import { generateLyrics } from "../engine/lyrics.js";
 import { DEFAULT_COMPOSITION, normalizeArrangement, normalizeComposition } from "../engine/controls.js";
-import { parseForm } from "../engine/structure.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { ScoreView } from "./ScoreView.js";
 import { EditablePianoRoll } from "./EditablePianoRoll.js";
 import { ProjectToolbar } from "./ProjectToolbar.js";
 import { TransportBar, type TransportState } from "./TransportBar.js";
 import { EditorToolbar } from "./EditorToolbar.js";
-import { buildSong, resolveFullGenerationSeed } from "./songBuilder.js";
+import {
+  buildSong,
+  resolveFullGenerationSectionControls,
+  resolveFullGenerationSeed,
+} from "./songBuilder.js";
 import { ArrangementPanel, type MixerLevels } from "./ArrangementPanel.js";
 import { StructureEditor } from "./StructureEditor.js";
 import { HelpGuide } from "./HelpGuide.js";
@@ -105,16 +108,6 @@ function emptyLevels(): MixerLevels {
     },
     clipping: false,
   };
-}
-
-function sectionControlsMatchSettings(settings: Settings, controls: SectionControl[] | undefined): boolean {
-  if (!controls) return false;
-  const entries = parseForm(settings.form);
-  return entries.length === controls.length && controls.every((control, index) => {
-    const entry = entries[index]!;
-    const dialectId = settings.sectionDialects[index] || entry.dialectName || settings.dialectId;
-    return control.type === entry.type && control.dialectId === dialectId;
-  });
 }
 
 function defaultSettings(): Settings {
@@ -509,18 +502,22 @@ export function ComposerApp() {
       const seed = resolveFullGenerationSeed(settings.seed, song.seed);
       const generationSettings = seed === settings.seed ? settings : { ...settings, seed };
       const composition = {
-        ...workspace.composition!,
-        mode: generationSettings.mode ?? workspace.composition!.mode,
+        ...draftComposition,
+        mode: generationSettings.mode ?? draftComposition.mode,
       };
-      const sectionControls = sectionControlsMatchSettings(generationSettings, workspace.sectionControls)
-        ? workspace.sectionControls
-        : undefined;
+      const arrangement = draftArrangement;
+      const sectionControls = resolveFullGenerationSectionControls(
+        generationSettings,
+        workspace.sectionControls,
+        song.bpm,
+      );
       const generated = buildSong(generationSettings, {
-        arrangement: workspace.arrangement, composition, mixer: workspace.mixer, sectionControls,
+        arrangement, composition, mixer: workspace.mixer, sectionControls,
       });
       const next = normalizeWorkspace({
         ...cloneWorkspace(workspace),
         settings: generationSettings,
+        arrangement,
         composition,
         song: generated,
         sectionControls,
@@ -561,6 +558,8 @@ export function ComposerApp() {
     settings,
     song.seed,
     workspace,
+    draftArrangement,
+    draftComposition,
     project,
     addVariationSnapshot,
     commitWorkspace,
