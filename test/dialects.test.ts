@@ -277,6 +277,10 @@ describe("作曲分析の 6 要素 (§4.1)", () => {
 });
 
 describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
+  it("Bossa: 表示名がピアノとギターに共通する特徴を表す", () => {
+    expect(bossa.name).toBe("Bossa (ルートレス和音+2小節シンコペーション)");
+  });
+
   it("Serene: デフォルト拍子が 3/4 になり、休符から入る小節がある", () => {
     const song = generateSong({ dialect: serene, seed: 1 });
     expect(song.meter.name).toBe("3/4");
@@ -322,6 +326,50 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
       );
     }
     expect(found).toBe(true);
+  });
+
+  it("Bossa: 専用ピアノとギター、先取りベース、2小節クロススティックを使う", () => {
+    const song = generateSong({
+      dialect: bossa,
+      seed: 7,
+      form: ["verse"],
+      ending: "loop",
+    });
+    const section = song.sections[0]!;
+    const hasStartNear = (notes: typeof section.piano, target: number) =>
+      notes.some((note) => Math.abs(note.start - target) < 0.04);
+
+    expect(song.arrangement).toMatchObject({
+      pianoPattern: "bossa",
+      guitarPattern: "bossa",
+      drumPattern: "bossa",
+      swing: 0.02,
+    });
+    expect(section.chords[0]!.symbol).toBe("I△9");
+    expect(section.chords.some((chord) => chord.pitches.length >= 5)).toBe(true);
+    expect(section.annotations.some((annotation) => annotation.ruleId === "bossa-groove")).toBe(true);
+
+    for (const target of [0, 1.5, 3, 4.5, 6, 7.5]) {
+      expect(hasStartNear(section.piano, target)).toBe(true);
+    }
+    for (const target of [0.5, 1.5, 2, 3.5, 4.5, 5, 6.5, 7, 7.5]) {
+      expect(hasStartNear(section.guitar, target)).toBe(true);
+    }
+    for (const target of [0, 1.5, 2, 3.5]) {
+      expect(hasStartNear(section.bass, target)).toBe(true);
+    }
+    const crossStick = section.drums.filter((note) => note.pitch === 37);
+    for (const target of [0.5, 1.5, 3, 5, 6.5]) {
+      expect(hasStartNear(crossStick, target)).toBe(true);
+    }
+  });
+
+  it("Bossa: コーダも専用ボイシングのピアノとギターで終止する", () => {
+    const song = generateSong({ dialect: bossa, seed: 7, form: ["verse"] });
+    const section = song.sections[0]!;
+    const codaStart = (section.plan.bars - 1) * song.meter.barBeats;
+    expect(section.piano.some((note) => Math.abs(note.start - codaStart) < 0.04)).toBe(true);
+    expect(section.guitar.some((note) => Math.abs(note.start - codaStart) < 0.04)).toBe(true);
   });
 
   it("Orchestral: 半音階クリシェ (転回ベース) が適用される", () => {

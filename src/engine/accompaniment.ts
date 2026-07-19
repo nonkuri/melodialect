@@ -10,7 +10,7 @@ import type {
 } from "./types.js";
 import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
-import { scaleOf } from "./harmony.js";
+import { chordAtBeat, scaleOf } from "./harmony.js";
 
 import { normalizeArrangement } from "./controls.js";
 export interface AccompanimentResult {
@@ -134,19 +134,24 @@ export function generateAccompaniment(
 
   const config = normalizeArrangement({ ...dialect.defaults.arrangement, ...arrangement });
   if (config.pianoPattern !== "block") {
-    piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern));
+    piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern, meter));
   }
-  guitar.push(...generateGuitar(chords, config.guitarPattern));
+  guitar.push(...generateGuitar(chords, config.guitarPattern, meter));
   drums.push(...generateDrums(plan.bars, meter, config.drumPattern));
   const sectionBeats = plan.bars * meter.barBeats;
   if (dialect.groove?.accentPattern.length) {
-    bass.splice(0, bass.length, ...generateGrooveBass(chords, meter, dialect.groove, sectionBeats));
+    const grooveBass = dialect.groove.bassPattern === "bossa" && meter.name === "4/4"
+      ? generateBossaBass(chords, sectionBeats)
+      : generateGrooveBass(chords, meter, dialect.groove, sectionBeats);
+    bass.splice(0, bass.length, ...grooveBass);
     annotations.push({
       bar: 0,
-      ruleId: "groove-profile",
-      text: `グルーヴ: 小節内 ${dialect.groove.accentPattern.join("-")} 拍を強調${
-        dialect.groove.anticipation ? `、コードを ${dialect.groove.anticipation} 拍先取り` : ""
-      }`,
+      ruleId: dialect.groove.bassPattern === "bossa" ? "bossa-groove" : "groove-profile",
+      text: dialect.groove.bassPattern === "bossa"
+        ? "ボサ・グルーヴ: ルートと5度の低音に次のコードの8分先取りを重ねる"
+        : `グルーヴ: 小節内 ${dialect.groove.accentPattern.join("-")} 拍を強調${
+          dialect.groove.anticipation ? `、コードを ${dialect.groove.anticipation} 拍先取り` : ""
+        }`,
     });
   }
   for (const notes of [piano, bass, guitar, drums]) {
@@ -159,7 +164,10 @@ export function generateAccompaniment(
 function generatePianoPattern(
   chords: ChordEvent[],
   pattern: ArrangementSettings["pianoPattern"],
+  meter: Meter,
 ): NoteEvent[] {
+  if (pattern === "off") return [];
+  if (pattern === "bossa") return generateBossaPiano(chords, meter);
   const notes: NoteEvent[] = [];
   let previousVoicing: number[] | undefined;
   for (const chord of chords) {
@@ -221,6 +229,44 @@ function generatePianoPattern(
   return notes;
 }
 
+/**
+ * ギターの刻みを埋め尽くさない、疎なボサノヴァ・ピアノ型。
+ * ルートをベースへ任せ、3rd/7th/9th を中心に2小節で声部連結する。
+ */
+function generateBossaPiano(chords: ChordEvent[], meter: Meter): NoteEvent[] {
+  const notes: NoteEvent[] = [];
+  const sectionBeats = chords.at(-1)!.start + chords.at(-1)!.durationBeats;
+  const bb = meter.barBeats;
+  let previousVoicing: number[] | undefined;
+
+  for (let bar = 0; bar * bb < sectionBeats - 1e-9; bar++) {
+    const barStart = bar * bb;
+    const pulses = meter.name === "4/4"
+      ? bar % 2 === 0 ? [0, 1.5, 3] : [0.5, 2, 3.5]
+      : [0, Math.max(0.5, bb / 2)].filter((pulse) => pulse < bb);
+    for (const pulse of pulses) {
+      const start = barStart + pulse;
+      if (start >= sectionBeats - 1e-9) continue;
+      const chord = chordAtBeat(chords, start);
+      const guideTones = chord.pitches.length >= 5
+        ? [chord.pitches[1]!, chord.pitches[3]!, chord.pitches[4]!]
+        : chord.pitches.length >= 4 ? chord.pitches.slice(1) : chord.pitches;
+      const voicing = voiceLead(guideTones, previousVoicing);
+      previousVoicing = voicing;
+      const chordEnd = chord.start + chord.durationBeats;
+      const duration = Math.min(pulse % 1 === 0 ? 0.9 : 0.58, chordEnd - start);
+      if (duration < 0.08) continue;
+      voicing.forEach((pitch, index) => notes.push({
+        start: start + index * 0.018,
+        duration: Math.max(0.08, duration - index * 0.018),
+        pitch,
+        velocity: (pulse % 1 === 0 ? 57 : 62) - index * 2,
+      }));
+    }
+  }
+  return notes;
+}
+
 function voiceLead(pitches: number[], previous?: number[]): number[] {
   if (!previous?.length) return [...pitches];
   return pitches.map((pitch, index) => {
@@ -234,8 +280,10 @@ function voiceLead(pitches: number[], previous?: number[]): number[] {
 function generateGuitar(
   chords: ChordEvent[],
   pattern: ArrangementSettings["guitarPattern"],
+  meter: Meter,
 ): NoteEvent[] {
   if (pattern === "off") return [];
+  if (pattern === "bossa") return generateBossaGuitar(chords, meter);
   const notes: NoteEvent[] = [];
   for (const chord of chords) {
     const pitches = chord.pitches.map((pitch) => pitch + 12);
@@ -282,6 +330,45 @@ function generateGuitar(
   return notes;
 }
 
+/**
+ * 2 小節で呼吸するボサノヴァのナイロンギター型。
+ * 低音はベースへ任せ、3rd/7th/9th を含む上声を滑らかにつなぐ。
+ */
+function generateBossaGuitar(chords: ChordEvent[], meter: Meter): NoteEvent[] {
+  const notes: NoteEvent[] = [];
+  const sectionBeats = chords.at(-1)!.start + chords.at(-1)!.durationBeats;
+  const bb = meter.barBeats;
+  let previousVoicing: number[] | undefined;
+
+  for (let bar = 0; bar * bb < sectionBeats - 1e-9; bar++) {
+    const barStart = bar * bb;
+    const pulses = meter.name === "4/4"
+      ? bar % 2 === 0
+        ? [0.5, 1.5, 2, 3.5]
+        : [0.5, 1, 2.5, 3, 3.5]
+      : Array.from({ length: Math.floor(bb) }, (_, index) => index + 0.5);
+
+    for (const pulse of pulses) {
+      const start = barStart + pulse;
+      if (start >= sectionBeats - 1e-9) continue;
+      const chord = chordAtBeat(chords, start);
+      const upperTones = chord.pitches.length >= 4 ? chord.pitches.slice(1) : chord.pitches;
+      const voicing = voiceLead(upperTones.map((pitch) => pitch + 12), previousVoicing);
+      previousVoicing = voicing;
+      const chordEnd = chord.start + chord.durationBeats;
+      const strokeDuration = Math.min(pulse % 1 === 0 ? 0.58 : 0.38, chordEnd - start);
+      if (strokeDuration < 0.08) continue;
+      voicing.forEach((pitch, index) => notes.push({
+        start: start + index * 0.014,
+        duration: Math.max(0.08, strokeDuration - index * 0.014),
+        pitch,
+        velocity: (pulse % 1 === 0 ? 62 : 70) - Math.min(index, 3),
+      }));
+    }
+  }
+  return notes;
+}
+
 function generateDrums(
   bars: number,
   meter: Meter,
@@ -319,17 +406,25 @@ function generateDrums(
       for (const t of [1, 2.5]) if (t < bb) hit(start + t, 37, 82);
       continue;
     }
-    const hatStep = pattern === "bossa" ? 1 : 0.5;
-    for (let t = 0; t < bb; t += hatStep) hit(start + t, 42, t % 1 === 0 ? 70 : 58);
+    if (pattern === "bossa" && meter.name === "4/4") {
+      for (let t = 0; t < bb; t += 0.5) {
+        hit(start + t, 42, t % 1 === 0 ? 62 : 54);
+      }
+      hit(start, 36, 88);
+      hit(start + 1.5, 36, 55);
+      hit(start + 2, 36, 76);
+      hit(start + 3.5, 36, 52);
+      const crossStick = bar % 2 === 0 ? [0.5, 1.5, 3] : [1, 2.5];
+      crossStick.forEach((offset, index) => hit(start + offset, 37, index === 0 ? 72 : 66));
+      continue;
+    }
+    for (let t = 0; t < bb; t += 0.5) hit(start + t, 42, t % 1 === 0 ? 70 : 58);
     hit(start, 36, 98);
-    if (bb >= 3) hit(start + 2, pattern === "bossa" ? 37 : 38, 88);
+    if (bb >= 3) hit(start + 2, 38, 88);
     if (pattern === "rock" && bb >= 4) {
       hit(start + 1, 38, 86);
       hit(start + 3, 38, 92);
       hit(start + 2.5, 36, 82);
-    } else if (pattern === "bossa" && bb >= 4) {
-      hit(start + 1.5, 36, 76);
-      hit(start + 3, 37, 78);
     }
   }
   return notes;
@@ -367,6 +462,35 @@ function applyGroove(
     );
   }
   notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}
+
+/** 4/4 ボサの低音。1・3 拍のルートと5度、コード直前の8分先取りを使う。 */
+function generateBossaBass(chords: ChordEvent[], sectionBeats: number): NoteEvent[] {
+  const notes: NoteEvent[] = [];
+  const pulses = [0, 1.5, 2, 3.5];
+  for (let barStart = 0; barStart < sectionBeats - 1e-9; barStart += 4) {
+    for (const pulse of pulses) {
+      const start = barStart + pulse;
+      if (start >= sectionBeats - 1e-9) continue;
+      const chord = chordAtBeat(chords, start);
+      const nextChord = chords.find((candidate) =>
+        candidate.start > start + 1e-9 && Math.abs(candidate.start - start - 0.5) < 1e-9);
+      const anticipatesChange = nextChord !== undefined;
+      const rootPulse = pulse === 0 || pulse === 2;
+      notes.push({
+        start,
+        duration: Math.min(
+          anticipatesChange ? 0.38 : rootPulse ? 1.2 : 0.42,
+          sectionBeats - start,
+        ),
+        pitch: anticipatesChange
+          ? nextChord.bassPitch
+          : rootPulse ? chord.bassPitch : chord.bassPitch + 7,
+        velocity: anticipatesChange ? 76 : rootPulse ? 88 : 80,
+      });
+    }
+  }
+  return notes;
 }
 
 function generateGrooveBass(

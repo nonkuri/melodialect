@@ -61,8 +61,10 @@ export interface NoteEvent {
 
 
 export type PianoPattern =
+  | "off"
   | "block"
   | "arpeggio"
+  | "bossa"
   | "eighth"
   | "ballad"
   | "syncopated"
@@ -71,6 +73,7 @@ export type GuitarPattern =
   | "off"
   | "strum"
   | "arpeggio"
+  | "bossa"
   | "syncopated"
   | "interlocking";
 export type DrumPattern = "off" | "basic" | "rock" | "bossa" | "shuffle" | "interlock";
@@ -248,6 +251,8 @@ export interface GrooveProfile {
   accentPattern: number[];
   /** 次のコードを何拍早く先取りするか。0 なら先取りなし。 */
   anticipation?: number;
+  /** アクセント位置の単純なルート反復以外に、専用ベース型を使う。 */
+  bassPattern?: "bossa";
 }
 
 /** セクション単位で構成・和声語彙を上書きするルール。 */

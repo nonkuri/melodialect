@@ -223,8 +223,31 @@ export function generateSong(options: GenerateOptions): Song {
       durationBeats: bb,
       bar: codaBar,
     });
-    for (const pitch of lastChord.pitches) {
-      lastSection.piano.push({ start: tailStart, duration: bb, pitch, velocity: 64 });
+    const finalDialect = entries.at(-1)!.dialect;
+    const finalArrangement = normalizeArrangement({
+      ...finalDialect.defaults.arrangement,
+      ...options.arrangement,
+    });
+    if (finalArrangement.pianoPattern !== "off") {
+      const tones = finalArrangement.pianoPattern === "bossa" && lastChord.pitches.length >= 5
+        ? [lastChord.pitches[1]!, lastChord.pitches[3]!, lastChord.pitches[4]!]
+        : finalArrangement.pianoPattern === "bossa" && lastChord.pitches.length >= 4
+          ? lastChord.pitches.slice(1)
+          : lastChord.pitches;
+      for (const pitch of tones) {
+        lastSection.piano.push({ start: tailStart, duration: bb, pitch, velocity: 64 });
+      }
+    }
+    if (finalArrangement.guitarPattern !== "off") {
+      const tones = finalArrangement.guitarPattern === "bossa" && lastChord.pitches.length >= 4
+        ? lastChord.pitches.slice(1)
+        : lastChord.pitches;
+      tones.forEach((pitch, index) => lastSection.guitar.push({
+        start: tailStart + index * 0.014,
+        duration: Math.max(0.1, bb - index * 0.014),
+        pitch: pitch + 12,
+        velocity: 62 - Math.min(index, 3),
+      }));
     }
     lastSection.bass.push({
       start: tailStart, duration: bb, pitch: lastChord.bassPitch, velocity: 78,

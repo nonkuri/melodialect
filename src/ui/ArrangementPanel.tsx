@@ -166,14 +166,16 @@ export function ArrangementPanel(props: Props) {
         <div className="control-grid pattern-grid">
           <label title="伴奏ノートを作り直します">ピアノ<select value={arrangement.pianoPattern} onChange={(event) =>
             updateArrangement("pianoPattern", event.target.value as ArrangementSettings["pianoPattern"])}>
-            <option value="block">ブロック</option><option value="arpeggio">アルペジオ</option>
+            <option value="off">なし</option><option value="block">ブロック</option><option value="arpeggio">アルペジオ</option>
+            <option value="bossa">ボサノヴァ</option>
             <option value="eighth">8分刻み</option><option value="ballad">バラード</option>
             <option value="syncopated">シンコペーション</option><option value="voice-led">声部連結</option>
           </select></label>
           <label title="伴奏ノートを作り直します">ギター<select value={arrangement.guitarPattern} onChange={(event) =>
             updateArrangement("guitarPattern", event.target.value as ArrangementSettings["guitarPattern"])}>
             <option value="off">なし</option><option value="strum">ストラム</option>
-            <option value="arpeggio">アルペジオ</option><option value="syncopated">シンコペーション</option>
+            <option value="arpeggio">アルペジオ</option><option value="bossa">ボサノヴァ</option>
+            <option value="syncopated">シンコペーション</option>
             <option value="interlocking">インターロック</option>
           </select></label>
           <label title="伴奏ノートを作り直します">ドラム<select value={arrangement.drumPattern} onChange={(event) =>
