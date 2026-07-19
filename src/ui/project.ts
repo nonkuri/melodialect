@@ -125,6 +125,23 @@ export function cloneWorkspace(workspace: WorkspaceState): WorkspaceState {
   return structuredClone(workspace);
 }
 
+/** Apply mixer/master values together so one preset load cannot overwrite the other. */
+export function applyAudioSettings(
+  workspace: WorkspaceState,
+  values: { mixer?: MixerSettings; master?: MasterSettings },
+): WorkspaceState {
+  const next = cloneWorkspace(workspace);
+  if (values.mixer) {
+    next.mixer = structuredClone(values.mixer);
+    next.song.mixer = structuredClone(values.mixer);
+  }
+  if (values.master) {
+    next.master = { ...values.master };
+    next.song.master = { ...values.master };
+  }
+  return next;
+}
+
 export function normalizeWorkspace(workspace: WorkspaceState): WorkspaceState {
   const song = normalizeSongControls(workspace.song);
   const mode = workspace.settings.mode ?? song.key.mode;

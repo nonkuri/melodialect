@@ -30,6 +30,7 @@ interface Props {
   onArrangementChange: (value: ArrangementSettings) => void;
   onMixerChange: (value: MixerSettings, commit?: boolean) => void;
   onMasterChange: (value: MasterSettings, commit?: boolean) => void;
+  onMixerPresetLoad: (mixer: MixerSettings, master: MasterSettings) => void;
   onCompositionChange: (value: CompositionControls) => void;
   onApply: () => void;
   onCancel: () => void;
@@ -153,13 +154,14 @@ export function ArrangementPanel(props: Props) {
         <span>{dirty ? "未適用の変更があります" : "適用済みと一致"}</span>
         <button className="primary" disabled={!dirty} onClick={props.onApply}>適用</button>
         <button disabled={!dirty} onClick={props.onCancel}>キャンセル</button>
-        <button onClick={props.onReset}>ダイアレクト推奨値へ戻す</button>
+        <button title="ダイアレクト推奨値へ戻す" onClick={props.onReset}>推奨値に戻す</button>
         <button disabled={!canCompare} className={comparisonSide === "before" ? "active" : ""} onClick={props.onCompare}>
           A/B: {comparisonSide === "before" ? "変更前" : "変更後"}
         </button>
       </div>
 
-      <details open>
+      <div className="parameter-sections">
+        <details open>
         <summary>伴奏アレンジ <span className="change-badge rebuild">再構築</span></summary>
         <div className="control-grid pattern-grid">
           <label title="伴奏ノートを作り直します">ピアノ<select value={arrangement.pianoPattern} onChange={(event) =>
@@ -187,9 +189,9 @@ export function ArrangementPanel(props: Props) {
           <RangeRow label="ベロシティ" help="伴奏ノートの強さをまとめて調整します。" value={arrangement.velocityScale} min={0.5} max={1.5}
             format={(value) => value.toFixed(2)} onChange={(value) => updateArrangement("velocityScale", value)} />
         </div>
-      </details>
+        </details>
 
-      <details open>
+        <details open>
         <summary>ミキサーと音色 <span className="change-badge audio-only">音のみ</span></summary>
         <div className="master-strip">
           <strong>MASTER</strong>
@@ -213,8 +215,10 @@ export function ArrangementPanel(props: Props) {
           <select value="" onChange={(event) => {
             const preset = presets[Number(event.target.value)];
             if (preset) {
-              onMixerChange(structuredClone(preset.mixer), true);
-              onMasterChange({ ...preset.master }, true);
+              props.onMixerPresetLoad(
+                structuredClone(preset.mixer),
+                { ...preset.master },
+              );
             }
           }}>
             <option value="">プリセットを読込…</option>
@@ -250,9 +254,9 @@ export function ArrangementPanel(props: Props) {
             );
           })}
         </div>
-      </details>
+        </details>
 
-      <details>
+        <details>
         <summary>作曲パラメータ <span className="change-badge rebuild">再構築</span></summary>
         <div className="range-pair">
           <label title="メロディを再構築します">最低音<input type="number" min="36" max={composition.melodyHigh - 1} value={composition.melodyLow}
@@ -270,7 +274,8 @@ export function ArrangementPanel(props: Props) {
               onChange={(value) => updateComposition(key, value as never)} />
           ))}
         </div>
-      </details>
+        </details>
+      </div>
     </aside>
   );
 }

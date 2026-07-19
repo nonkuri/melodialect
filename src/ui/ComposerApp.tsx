@@ -25,7 +25,7 @@ import { EditablePianoRoll } from "./EditablePianoRoll.js";
 import { ProjectToolbar } from "./ProjectToolbar.js";
 import { TransportBar, type TransportState } from "./TransportBar.js";
 import { EditorToolbar } from "./EditorToolbar.js";
-import { buildSong } from "./songBuilder.js";
+import { buildSong, resolveFullGenerationSeed } from "./songBuilder.js";
 import { ArrangementPanel, type MixerLevels } from "./ArrangementPanel.js";
 import { StructureEditor } from "./StructureEditor.js";
 import { HelpGuide } from "./HelpGuide.js";
@@ -60,6 +60,7 @@ import {
   type RegenerationTarget,
 } from "./editor.js";
 import {
+  applyAudioSettings,
   cloneWorkspace,
   createId,
   createProject,
@@ -168,7 +169,9 @@ export function ComposerApp() {
   const [renderingWav, setRenderingWav] = useState(false);
   const [renderingStems, setRenderingStems] = useState(false);
   const [status, setStatus] = useState("自動保存");
+  const [fullGenerationFeedback, setFullGenerationFeedback] = useState<string | null>(null);
   const [historyTick, setHistoryTick] = useState(0);
+  const [parameterHeight, setParameterHeight] = useState<number | null>(null);
   const [viewHeight, setViewHeight] = useState<number | null>(null);
   const [showProjects, setShowProjects] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -207,6 +210,22 @@ export function ComposerApp() {
   const player = playerRef.current;
   const pastRef = useRef<WorkspaceState[]>([]);
   const futureRef = useRef<WorkspaceState[]>([]);
+  const fullGenerationFeedbackTimerRef = useRef<number | null>(null);
+  const showFullGenerationFeedback = useCallback((message: string) => {
+    if (fullGenerationFeedbackTimerRef.current !== null) {
+      window.clearTimeout(fullGenerationFeedbackTimerRef.current);
+    }
+    setFullGenerationFeedback(message);
+    fullGenerationFeedbackTimerRef.current = window.setTimeout(() => {
+      setFullGenerationFeedback(null);
+      fullGenerationFeedbackTimerRef.current = null;
+    }, 1_800);
+  }, []);
+  useEffect(() => () => {
+    if (fullGenerationFeedbackTimerRef.current !== null) {
+      window.clearTimeout(fullGenerationFeedbackTimerRef.current);
+    }
+  }, []);
   const parameterDirty = JSON.stringify(draftArrangement) !== JSON.stringify(workspace.arrangement) ||
     JSON.stringify(draftComposition) !== JSON.stringify(workspace.composition);
 
@@ -240,6 +259,31 @@ export function ComposerApp() {
     const move = (moveEvent: PointerEvent) => {
       const next = startHeight + moveEvent.clientY - startY;
       setViewHeight(Math.min(Math.max(next, 120), maximum));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  }, []);
+
+  const onParameterSplitterDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const parameterArea = event.currentTarget.previousElementSibling;
+    if (!(parameterArea instanceof HTMLElement)) return;
+    const startY = event.clientY;
+    const startHeight = parameterArea.getBoundingClientRect().height;
+    const splitterBottom = event.currentTarget.getBoundingClientRect().bottom;
+    const mainBottom =
+      event.currentTarget.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight;
+    // Reserve space for the editor view, its lower splitter, and the annotation header.
+    const maximum = Math.max(80, startHeight + mainBottom - splitterBottom - 205);
+    const move = (moveEvent: PointerEvent) => {
+      const next = startHeight + moveEvent.clientY - startY;
+      setParameterHeight(Math.min(Math.max(next, 80), maximum));
     };
     const stop = () => {
       window.removeEventListener("pointermove", move);
@@ -461,39 +505,67 @@ export function ComposerApp() {
   }, []);
 
   const generateFullSong = useCallback(() => {
-    const composition = { ...workspace.composition!, mode: settings.mode ?? workspace.composition!.mode };
-    const sectionControls = sectionControlsMatchSettings(settings, workspace.sectionControls)
-      ? workspace.sectionControls
-      : undefined;
-    const generated = buildSong(settings, {
-      arrangement: workspace.arrangement, composition, mixer: workspace.mixer, sectionControls,
-    });
-    const next = normalizeWorkspace({
-      ...cloneWorkspace(workspace), composition, song: generated, sectionControls,
-      locks: emptyLocks(), sectionSeeds: [],
-    });
     try {
-      createProjectSnapshot(project, "全体生成前");
+      const seed = resolveFullGenerationSeed(settings.seed, song.seed);
+      const generationSettings = seed === settings.seed ? settings : { ...settings, seed };
+      const composition = {
+        ...workspace.composition!,
+        mode: generationSettings.mode ?? workspace.composition!.mode,
+      };
+      const sectionControls = sectionControlsMatchSettings(generationSettings, workspace.sectionControls)
+        ? workspace.sectionControls
+        : undefined;
+      const generated = buildSong(generationSettings, {
+        arrangement: workspace.arrangement, composition, mixer: workspace.mixer, sectionControls,
+      });
+      const next = normalizeWorkspace({
+        ...cloneWorkspace(workspace),
+        settings: generationSettings,
+        composition,
+        song: generated,
+        sectionControls,
+        locks: emptyLocks(),
+        sectionSeeds: [],
+      });
+      let snapshotWarning: string | null = null;
+      try {
+        createProjectSnapshot(project, "全体生成前");
+      } catch (error) {
+        snapshotWarning = error instanceof Error
+          ? error.message
+          : "生成前スナップショットを保存できませんでした";
+      }
+      setProject((current) => ({
+        ...current,
+        variations: addVariationSnapshot(
+          current,
+          workspace,
+          "生成 " + new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+        ),
+      }));
+      commitWorkspace(next, { seedHistory: true });
+      setDraftArrangement(next.arrangement!);
+      setDraftComposition(next.composition!);
+      setSelectedSection(0);
+      setNoteSelection(null);
+      setChordSelection(null);
+      setTransport((current) => ({ ...current, positionBeat: 0, rangeEndBar: generated.totalBars }));
+      const dialect = dialects[generationSettings.dialectId];
+      showFullGenerationFeedback(`✓ ${dialect ? shortName(dialect) : "全体"} 生成済み`);
+      if (snapshotWarning) setStatus(`全体生成済み（${snapshotWarning}）`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "生成前スナップショットを保存できませんでした");
-      return;
+      setStatus(error instanceof Error ? error.message : "全体生成に失敗しました");
+      showFullGenerationFeedback("! 生成失敗");
     }
-    setProject((current) => ({
-      ...current,
-      variations: addVariationSnapshot(
-        current,
-        workspace,
-        "生成 " + new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-      ),
-    }));
-    commitWorkspace(next, { seedHistory: true });
-    setDraftArrangement(next.arrangement!);
-    setDraftComposition(next.composition!);
-    setSelectedSection(0);
-    setNoteSelection(null);
-    setChordSelection(null);
-    setTransport((current) => ({ ...current, positionBeat: 0, rangeEndBar: generated.totalBars }));
-  }, [settings, workspace, project, addVariationSnapshot, commitWorkspace]);
+  }, [
+    settings,
+    song.seed,
+    workspace,
+    project,
+    addVariationSnapshot,
+    commitWorkspace,
+    showFullGenerationFeedback,
+  ]);
 
   const createVariation = useCallback(() => {
     const nextSeed = Math.floor(Math.random() * 1_000_000);
@@ -568,15 +640,7 @@ export function ComposerApp() {
     mixer?: MixerSettings;
     master?: MasterSettings;
   }, commit = false) => {
-    const next = cloneWorkspace(workspace);
-    if (values.mixer) {
-      next.mixer = values.mixer;
-      next.song.mixer = values.mixer;
-    }
-    if (values.master) {
-      next.master = values.master;
-      next.song.master = values.master;
-    }
+    const next = applyAudioSettings(workspace, values);
     if (!commit && !audioGestureRef.current) audioGestureRef.current = cloneWorkspace(workspace);
     if (commit && audioGestureRef.current) {
       pastRef.current.push(audioGestureRef.current);
@@ -817,7 +881,9 @@ export function ComposerApp() {
           <button onClick={() => setShowProjects(true)}>プロジェクト一覧</button>
           <button disabled={pastRef.current.length === 0} onClick={undo}>↶ Undo</button>
           <button disabled={futureRef.current.length === 0} onClick={redo}>↷ Redo</button>
-          <button className="primary" onClick={generateFullSong}>♪ 全体生成</button>
+          <button type="button" className="primary" onClick={generateFullSong}>
+            {fullGenerationFeedback ?? "♪ 全体生成"}
+          </button>
           <button onClick={() => downloadMidi(song)}>MIDI</button>
           <button onClick={saveWav} disabled={renderingWav}>
             {renderingWav ? "書出中…" : "WAV"}
@@ -1039,27 +1105,44 @@ export function ComposerApp() {
             }}
           />
 
-          <ArrangementPanel
-            arrangement={draftArrangement}
-            mixer={workspace.mixer!}
-            master={workspace.master!}
-            composition={draftComposition}
-            dirty={parameterDirty}
-            canCompare={Boolean(comparisonBefore)}
-            comparisonSide={comparisonSide}
-            levels={levels}
-            onArrangementChange={setDraftArrangement}
-            onCompositionChange={setDraftComposition}
-            onMixerChange={(mixer, commit) => commitAudioSettings({ mixer }, commit)}
-            onMasterChange={(master, commit) => commitAudioSettings({ master }, commit)}
-            onApply={applyParameterDraft}
-            onCancel={() => {
-              setDraftArrangement(workspace.arrangement!);
-              setDraftComposition(workspace.composition!);
-            }}
-            onReset={resetParameterDraft}
-            onCompare={toggleComparison}
-            onOpenSoundFonts={() => setShowSoundFonts(true)}
+          <div
+            className="parameter-area"
+            style={parameterHeight === null ? undefined : { height: parameterHeight }}
+          >
+            <ArrangementPanel
+              arrangement={draftArrangement}
+              mixer={workspace.mixer!}
+              master={workspace.master!}
+              composition={draftComposition}
+              dirty={parameterDirty}
+              canCompare={Boolean(comparisonBefore)}
+              comparisonSide={comparisonSide}
+              levels={levels}
+              onArrangementChange={setDraftArrangement}
+              onCompositionChange={setDraftComposition}
+              onMixerChange={(mixer, commit) => commitAudioSettings({ mixer }, commit)}
+              onMasterChange={(master, commit) => commitAudioSettings({ master }, commit)}
+              onMixerPresetLoad={(mixer, master) =>
+                commitAudioSettings({ mixer, master }, true)}
+              onApply={applyParameterDraft}
+              onCancel={() => {
+                setDraftArrangement(workspace.arrangement!);
+                setDraftComposition(workspace.composition!);
+              }}
+              onReset={resetParameterDraft}
+              onCompare={toggleComparison}
+              onOpenSoundFonts={() => setShowSoundFonts(true)}
+            />
+          </div>
+
+          <div
+            className="splitter parameter-splitter"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="編集パネルとピアノロールの表示領域を調整"
+            title="ドラッグして編集パネルの高さを調整（ダブルクリックで初期値）"
+            onPointerDown={onParameterSplitterDown}
+            onDoubleClick={() => setParameterHeight(null)}
           />
 
           <div

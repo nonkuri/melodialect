@@ -206,6 +206,18 @@ button:disabled {
   gap: 6px;
 }
 
+.parameter-area {
+  flex: 0 0 auto;
+  height: 184px;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.parameter-area > .p1-controls {
+  height: 100%;
+  max-height: none;
+}
+
 .splitter {
   flex-shrink: 0;
   height: 7px;
@@ -218,6 +230,27 @@ button:disabled {
 .splitter:hover,
 .splitter:active {
   background: #4a74dd;
+}
+
+.parameter-splitter {
+  position: relative;
+}
+
+.parameter-splitter::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 42px;
+  height: 3px;
+  border-radius: 2px;
+  background: #737c91;
+  transform: translateX(-50%);
+}
+
+.parameter-splitter:hover::after,
+.parameter-splitter:active::after {
+  background: #d7e0f5;
 }
 
 .annotations {
@@ -555,9 +588,10 @@ button:disabled {
 .p1-controls {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
   gap: 6px;
   max-height: 184px;
-  overflow: auto;
+  overflow: hidden;
   padding: 6px;
   border: 1px solid #363b48;
   border-radius: 7px;
@@ -565,7 +599,16 @@ button:disabled {
   font-size: 11px;
 }
 
+.parameter-sections {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+  overflow: auto;
+}
+
 .p1-controls details {
+  flex: 0 0 auto;
   min-width: 250px;
   border-right: 1px solid #363b48;
   padding-right: 8px;
@@ -607,7 +650,9 @@ button:disabled {
 .timeline-block[draggable="true"]:active { cursor: grabbing; opacity: 0.72; }
 
 @media (max-width: 900px) {
-  .p1-controls { flex-direction: column; max-height: 250px; }
+  .parameter-area { height: 250px; }
+  .p1-controls { max-height: 250px; }
+  .parameter-sections { flex-direction: column; }
   .p1-controls details { border-right: 0; border-bottom: 1px solid #363b48; padding-bottom: 6px; }
   .structure-hint { display: none; }
 }
@@ -646,15 +691,18 @@ button:disabled {
 .change-badge.audio-only { color: #bfe8d0; background: #234b39; border: 1px solid #39795b; }
 
 .parameter-staging {
-  min-width: 310px;
-  flex-wrap: wrap;
-  align-content: center;
-  padding: 6px 8px;
-  border-right: 1px solid #363b48;
+  flex: 0 0 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  padding: 3px 5px 6px;
+  border-bottom: 1px solid #363b48;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
+.parameter-staging > * { flex: 0 0 auto; }
 .parameter-staging > span:not(.change-badge) { color: #8993a9; }
-.parameter-staging button { padding: 4px 8px; }
+.parameter-staging button { padding: 3px 7px; font-size: 11px; }
 .help-dot { padding: 0 4px; margin-left: 3px; border-radius: 50%; font-size: 9px; }
 
 .master-strip {

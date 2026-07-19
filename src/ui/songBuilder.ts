@@ -20,6 +20,20 @@ export interface BuildOverrides {
   sectionControls?: SectionControl[];
 }
 
+/**
+ * Keep a seed the user explicitly selected, but advance it when Generate is
+ * pressed again for the currently generated song.
+ */
+export function resolveFullGenerationSeed(
+  requestedSeed: number,
+  currentSongSeed: number,
+  random: () => number = Math.random,
+): number {
+  if (requestedSeed !== currentSongSeed) return requestedSeed;
+  const candidate = Math.floor(random() * 1_000_000);
+  return candidate === currentSongSeed ? (candidate + 1) % 1_000_000 : candidate;
+}
+
 /** Build a song from UI settings while keeping engine-specific wiring in one place. */
 export function buildSong(settings: Settings, overrides: BuildOverrides = {}): Song {
   const dialect = dialects[settings.dialectId];

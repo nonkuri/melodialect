@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { chromatic } from "../src/dialects/index.js";
 import { generateSong } from "../src/engine/song.js";
-import { DEFAULT_ARRANGEMENT, DEFAULT_COMPOSITION, defaultMixer } from "../src/engine/controls.js";
+import {
+  DEFAULT_ARRANGEMENT,
+  DEFAULT_COMPOSITION,
+  DEFAULT_MASTER,
+  defaultMixer,
+} from "../src/engine/controls.js";
 import { beatToSeconds, secondsToBeat } from "../src/audio/player.js";
-import { createProject, emptyLocks, parseProject } from "../src/ui/project.js";
+import {
+  applyAudioSettings,
+  createProject,
+  emptyLocks,
+  parseProject,
+} from "../src/ui/project.js";
 
 describe("P1 arrangement and controls", () => {
   it("ピアノパターン、ギター、ドラムを決定的に生成する", () => {
@@ -78,5 +88,31 @@ describe("P1 arrangement and controls", () => {
     expect(migrated.workspace.arrangement).toEqual(DEFAULT_ARRANGEMENT);
     expect(migrated.workspace.mixer).toEqual(defaultMixer());
     expect(migrated.workspace.sectionControls).toHaveLength(song.sections.length);
+  });
+
+  it("ミキサープリセットの各パートとMasterを一度に反映する", () => {
+    const song = generateSong({ dialect: chromatic, seed: 3, form: ["verse"] });
+    const before = createProject("preset", {
+      settings: {
+        dialectId: "chromatic-cliche", keyName: "C", bpm: 96, seed: 3, meterName: "4/4",
+        form: "v", sectionDialects: [""], ending: "final" as const,
+      },
+      song,
+      locks: emptyLocks(),
+      sectionSeeds: [],
+    }).workspace;
+    const mixer = defaultMixer();
+    mixer.melody = { ...mixer.melody, volume: 0.37, pan: -0.4, mute: true, timbre: "lead" };
+    mixer.piano = { ...mixer.piano, volume: 0.62, pan: 0.3, solo: true, timbre: "organ" };
+    const master = { ...DEFAULT_MASTER, volume: 0.55, limiter: false };
+
+    const applied = applyAudioSettings(before, { mixer, master });
+
+    expect(applied.mixer).toEqual(mixer);
+    expect(applied.master).toEqual(master);
+    expect(applied.song.mixer).toEqual(mixer);
+    expect(applied.song.master).toEqual(master);
+    expect(before.mixer).not.toEqual(mixer);
+    expect(before.master).not.toEqual(master);
   });
 });
