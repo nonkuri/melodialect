@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArrangementSettings, CompositionControls, MixerSettings, NoteEvent, SectionControl, Song } from "../engine/types.js";
 import { dialects, shortName } from "../dialects/index.js";
 import { TransportPlayer } from "../audio/player.js";
@@ -125,6 +125,7 @@ export function ComposerApp() {
   const [renderingWav, setRenderingWav] = useState(false);
   const [status, setStatus] = useState("自動保存");
   const [historyTick, setHistoryTick] = useState(0);
+  const [viewHeight, setViewHeight] = useState<number | null>(null);
   const [transport, setTransport] = useState<TransportState>(() => ({
     positionBeat: 0,
     loopRange: false,
@@ -141,6 +142,30 @@ export function ComposerApp() {
   const player = playerRef.current;
   const pastRef = useRef<WorkspaceState[]>([]);
   const futureRef = useRef<WorkspaceState[]>([]);
+
+  const onSplitterDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const viewArea = event.currentTarget.previousElementSibling;
+    if (!(viewArea instanceof HTMLElement)) return;
+    const startY = event.clientY;
+    const startHeight = viewArea.getBoundingClientRect().height;
+    const splitterBottom = event.currentTarget.getBoundingClientRect().bottom;
+    const mainBottom =
+      event.currentTarget.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight;
+    const maximum = Math.max(120, startHeight + mainBottom - splitterBottom - 44);
+    const move = (moveEvent: PointerEvent) => {
+      const next = startHeight + moveEvent.clientY - startY;
+      setViewHeight(Math.min(Math.max(next, 120), maximum));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  }, []);
 
   const stopPlayback = useCallback((reset = false) => {
     player.stop();
@@ -737,7 +762,10 @@ export function ComposerApp() {
             onMixerChange={updateMixer}
           />
 
-          <div className="view-area">
+          <div
+            className="view-area"
+            style={viewHeight === null ? undefined : { flex: "0 0 auto", height: viewHeight }}
+          >
             {view === "roll" ? (
               <EditablePianoRoll
                 song={song}
@@ -780,6 +808,15 @@ export function ComposerApp() {
               </>
             )}
           </div>
+
+          <div
+            className="splitter"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={"\u8b5c\u9762\u3068\u751f\u6210\u6839\u62e0\u306e\u8868\u793a\u9818\u57df\u3092\u8abf\u6574"}
+            title={"\u30c9\u30e9\u30c3\u30b0\u3057\u3066\u8868\u793a\u9818\u57df\u306e\u9ad8\u3055\u3092\u8abf\u6574"}
+            onPointerDown={onSplitterDown}
+          />
 
           <div className="annotations">
             <button className="link" onClick={() => setShowAnnotations((value) => !value)}>
