@@ -181,7 +181,7 @@ export function ArrangementPanel(props: Props) {
           <label title="伴奏ノートを作り直します">ドラム<select value={arrangement.drumPattern} onChange={(event) =>
             updateArrangement("drumPattern", event.target.value as ArrangementSettings["drumPattern"])}>
             <option value="off">なし</option><option value="basic">ベーシック</option>
-            <option value="rock">ロック</option><option value="bossa">ボサ</option>
+            <option value="rock">ロック</option><option value="bossa">ボサノヴァ</option>
             <option value="shuffle">シャッフル</option><option value="interlock">インターロック</option>
           </select></label>
         </div>

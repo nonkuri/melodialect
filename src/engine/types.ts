@@ -48,6 +48,8 @@ export interface ChordEvent {
   pitches: number[];
   /** ベース音 (スラッシュコードの場合はルート以外になる) */
   bassPitch: number;
+  /** v0.9: コードがどの経路で決まったか。未指定は通常生成。 */
+  origin?: "generated" | "user" | "completed" | "reharmonized";
 }
 
 export interface NoteEvent {
@@ -209,6 +211,70 @@ export interface Song {
   mixer?: MixerSettings;
   master?: MasterSettings;
   composition?: CompositionControls;
+  /** 編集済みの仮歌詞。未指定時はシードから生成する。 */
+  lyrics?: EditableSectionLyrics[];
+}
+
+export type HarmonyGenerationMode = "auto" | "fixed" | "complete" | "reharmonize";
+export type ChordDraftOrigin = "user" | "completed" | "reharmonized";
+
+/** キー相対のローマ数字で保持する、入力コード 1 スロット。空文字は補完対象。 */
+export interface ChordDraftSlot {
+  symbol: string;
+  start: number;
+  durationBeats: number;
+  origin: ChordDraftOrigin;
+}
+
+export type CadenceChoice = "dialect" | "authentic" | "plagal" | "deceptive" | "modal" | "half";
+export type ChorusVariation = "same" | "light" | "large";
+
+export interface SectionExpression {
+  /** 0..1 */
+  tension: number;
+  /** 0..1 */
+  density: number;
+  /** 0..1 */
+  brightness: number;
+  cadence: CadenceChoice;
+}
+
+export interface FixedMotifNote {
+  offset: number;
+  duration: number;
+  /** モチーフ先頭音からの半音差。 */
+  interval: number;
+  velocity: number;
+}
+
+export interface FixedMotif {
+  sectionType: SectionType;
+  /** セクション先頭からの固定位置。 */
+  anchorBeat: number;
+  lengthBeats: number;
+  rootPitch: number;
+  sourceTonic: number;
+  notes: FixedMotifNote[];
+}
+
+/** v0.9 の作曲設計。WorkspaceState に保存し、全体生成時に適用する。 */
+export interface CompositionDesign {
+  harmonyMode: HarmonyGenerationMode;
+  chordDrafts: ChordDraftSlot[][];
+  originalChordDrafts?: ChordDraftSlot[][];
+  chorusVariation: ChorusVariation;
+  sectionExpressions: SectionExpression[];
+  motif?: FixedMotif;
+}
+
+export type LyricsLanguage = "ja" | "en" | "scat";
+
+export interface EditableSectionLyrics {
+  language: LyricsLanguage;
+  /** メロディの各音に対応する音節。 */
+  syllables: string[];
+  /** 直接編集する表示・出力用の行。 */
+  lines: string[];
 }
 /** 重み付きリズムテンプレート。beats の負値は休符 (絶対値が長さ)。合計は 1 小節分 */
 export interface RhythmTemplate {

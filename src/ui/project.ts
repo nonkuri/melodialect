@@ -2,6 +2,7 @@ import type {
   ArrangementSettings,
   ChordEvent,
   CompositionControls,
+  CompositionDesign,
   MasterSettings,
   MixerSettings,
   NoteEvent,
@@ -17,6 +18,7 @@ import {
   normalizeMixer,
   normalizeSongControls,
 } from "../engine/controls.js";
+import { normalizeCompositionDesign } from "../engine/design.js";
 
 export type LockPart = "melody" | "chords" | "accompaniment";
 
@@ -38,6 +40,8 @@ export interface WorkspaceState {
   master?: MasterSettings;
   composition?: CompositionControls;
   sectionControls?: SectionControl[];
+  /** v0.9: コード原案、モチーフ、セクション表現。 */
+  design?: CompositionDesign;
 }
 
 export interface Variation {
@@ -149,16 +153,25 @@ export function normalizeWorkspace(workspace: WorkspaceState): WorkspaceState {
   const mixer = normalizeMixer(workspace.mixer ?? song.mixer);
   const master = normalizeMaster(workspace.master ?? song.master);
   const composition = normalizeComposition(workspace.composition ?? song.composition, mode);
-  const sectionControls = workspace.sectionControls?.length === song.sections.length
+  const design = normalizeCompositionDesign(workspace.design, song, composition);
+  const sourceSectionControls = workspace.sectionControls?.length === song.sections.length
     ? workspace.sectionControls
     : song.sections.map((section, index) => ({
         id: "section-" + index + "-" + Date.now().toString(36),
         type: section.plan.type,
         dialectId: section.dialectId,
-        bars: section.plan.phraseLengths.reduce((sum, bars) => sum + bars, 0),
+        bars: section.plan.bars,
         transpose: 0,
         bpm: section.bpm ?? song.bpm,
       }));
+  // SectionControl.bars is the visible section length. For a final ending this
+  // includes the one-bar coda, while phraseLengths describes only the body.
+  // Reconcile saved v0.9 workspaces that accidentally persisted the body length;
+  // otherwise partial regeneration shortens the candidate and leaves a silent bar.
+  const sectionControls = sourceSectionControls.map((control, index) => ({
+    ...control,
+    bars: song.sections[index]?.plan.bars ?? control.bars,
+  }));
   const settings = { ...workspace.settings, mode };
   song.arrangement = arrangement;
   song.mixer = mixer;
@@ -172,6 +185,7 @@ export function normalizeWorkspace(workspace: WorkspaceState): WorkspaceState {
     mixer,
     master,
     composition,
+    design,
     sectionControls,
     locks: {
       sections: workspace.locks?.sections ?? [],

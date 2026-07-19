@@ -1,6 +1,7 @@
 import type {
   ArrangementSettings,
   CompositionControls,
+  CompositionDesign,
   MixerSettings,
   SectionControl,
   Song,
@@ -18,6 +19,7 @@ export interface BuildOverrides {
   composition?: CompositionControls;
   mixer?: MixerSettings;
   sectionControls?: SectionControl[];
+  design?: CompositionDesign;
 }
 
 /**
@@ -83,6 +85,7 @@ export function buildSong(settings: Settings, overrides: BuildOverrides = {}): S
     arrangement: overrides.arrangement,
     composition: overrides.composition,
     sectionControls: overrides.sectionControls,
+    design: overrides.design,
   });
   song.mixer = overrides.mixer;
   return song;

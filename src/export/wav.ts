@@ -1,5 +1,6 @@
 import type { Song, SongPart } from "../engine/types.js";
 import { beatToSeconds, scheduleSong } from "../audio/player.js";
+import { SOUNDFONT_OUTPUT_GAIN } from "../audio/mix.js";
 import { renderSoundFontPcm } from "../audio/soundfontOffline.js";
 
 /**
@@ -70,7 +71,8 @@ function mixedAudioBuffer(
     const oscillatorData = oscillator.getChannelData(Math.min(channel, oscillator.numberOfChannels - 1));
     const soundfontData = soundfont[channel]!;
     for (let index = 0; index < oscillator.length; index++) {
-      const mixed = oscillatorData[index]! + soundfontData[index]! * 0.55 * master;
+      const mixed = oscillatorData[index]! +
+        soundfontData[index]! * SOUNDFONT_OUTPUT_GAIN * master;
       // The realtime graph uses a limiter. A smooth saturation here keeps mixed
       // oscillator/SoundFont exports equally resistant to inter-sample clipping.
       channels[channel]![index] = song.master?.limiter ?? true ? Math.tanh(mixed) : mixed;

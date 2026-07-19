@@ -2,6 +2,7 @@ import type {
   Annotation,
   ArrangementSettings,
   CompositionControls,
+  CompositionDesign,
   Mode,
   Dialect,
   EndingMode,
@@ -17,6 +18,13 @@ import { planSection, type FormEntry } from "./structure.js";
 import { chordAtBeat, generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment } from "./accompaniment.js";
+import {
+  annotateChordOrigins,
+  applyMotifAndChorusDesign,
+  completeChordDraft,
+  dialectWithCadence,
+  materializeChordDraft,
+} from "./design.js";
 
 import {
   applyCompositionControls,
@@ -74,6 +82,8 @@ export interface GenerateOptions {
   arrangement?: ArrangementSettings;
   composition?: CompositionControls;
   sectionControls?: SectionControl[];
+  /** v0.9: ユーザーコード、セクション表現、モチーフ等の作曲設計。 */
+  design?: CompositionDesign;
 }
 
 /** Derive an independent deterministic seed for each section. */
@@ -122,7 +132,7 @@ export function generateSong(options: GenerateOptions): Song {
   const ending: EndingMode = options.ending ?? "final";
 
   // 各セクションのダイアレクトを解決 (合作モード §4.2)
-  const entries = form.map((e) => {
+  const entries = form.map((e, index) => {
     const entry: FormEntry = typeof e === "string" ? { type: e } : e;
     let sectionDialect = mainDialect;
     if (entry.dialectName) {
@@ -130,7 +140,17 @@ export function generateSong(options: GenerateOptions): Song {
       if (!resolved) throw new Error(`unknown dialect in form: ${entry.dialectName}`);
       sectionDialect = resolved;
     }
-    return { type: entry.type, dialect: options.composition ? dialectWithControls(sectionDialect, controls) : sectionDialect };
+    const expression = options.design?.sectionExpressions[index];
+    const sectionControls = expression
+      ? { ...controls, tension: expression.tension, density: expression.density, brightness: expression.brightness }
+      : controls;
+    const controlled = options.composition || expression
+      ? dialectWithControls(sectionDialect, sectionControls)
+      : sectionDialect;
+    return {
+      type: entry.type,
+      dialect: dialectWithCadence(controlled, entry.type, expression?.cadence ?? "dialect"),
+    };
   });
 
   const sections: GeneratedSection[] = [];
@@ -143,8 +163,10 @@ export function generateSong(options: GenerateOptions): Song {
     const rng = createRng(options.sectionSeeds?.[i] ?? sectionSeed(seed, i));
     const isFinalSection = ending === "final" && isLastEntry;
     const sectionControl = options.sectionControls?.[i];
+    // SectionControl の bars は画面に見えるコーダ込みの長さ。生成前の本体では
+    // final コーダ 1 小節を差し引き、再生成のたびに小節が増えないようにする。
     const fixedPhraseLengths = sectionControl
-      ? [Math.max(1, Math.round(sectionControl.bars))]
+      ? [Math.max(1, Math.round(sectionControl.bars) - (isFinalSection ? 1 : 0))]
       : options.sectionPhraseLengths?.[i];
     const plan = fixedPhraseLengths
       ? {
@@ -182,9 +204,49 @@ export function generateSong(options: GenerateOptions): Song {
         text: "セクション移調: " + (semis > 0 ? "+" : "") + semis + " 半音",
       });
     }
-    const { chords, annotations: harmonyNotes } = generateProgression(
+    const generatedHarmony = generateProgression(
       plan, dialect, sectionKey, meter, rng, { isFinalSection },
     );
+    let chords = generatedHarmony.chords;
+    let harmonyNotes = generatedHarmony.annotations;
+    const harmonyMode = options.design?.harmonyMode ?? "auto";
+    if (harmonyMode !== "auto") {
+      const sourceDraft = options.design?.chordDrafts[i];
+      if (!sourceDraft?.length) throw new Error(`${i + 1}番目のセクションにコード原案がありません`);
+      const orderedDraft = [...sourceDraft].sort((a, b) => a.start - b.start);
+      const expected = plan.bars * meter.barBeats;
+      const end = Math.max(...orderedDraft.map((slot) => slot.start + slot.durationBeats));
+      if (Math.abs(end - expected) > 1e-7) {
+        throw new Error(`${i + 1}番目のセクションのコード拍数が ${expected} 拍と一致しません`);
+      }
+      orderedDraft.forEach((slot, slotIndex) => {
+        const previous = orderedDraft[slotIndex - 1];
+        const expectedStart = previous ? previous.start + previous.durationBeats : 0;
+        if (Math.abs(slot.start - expectedStart) > 1e-7) {
+          throw new Error(slot.start < expectedStart
+            ? `${i + 1}番目のセクションでコードが重複しています`
+            : `${i + 1}番目のセクションでコードの拍数が不足しています`);
+        }
+      });
+      let resolvedDraft = structuredClone(orderedDraft);
+      if (harmonyMode === "complete") {
+        resolvedDraft = completeChordDraft(resolvedDraft, generatedHarmony.chords, dialect, rng);
+      } else if (resolvedDraft.some((slot) => !slot.symbol)) {
+        throw new Error("固定コード進行に空欄があります。空欄補完モードを選んでください");
+      }
+      if (harmonyMode === "fixed") {
+        resolvedDraft.forEach((slot) => { slot.origin = "user"; });
+      }
+      const materialized = materializeChordDraft(resolvedDraft, sectionKey);
+      chords = materialized.chords.map((chord) => ({
+        ...chord,
+        bar: Math.floor(chord.start / meter.barBeats),
+      }));
+      harmonyNotes = [...materialized.annotations, ...annotateChordOrigins(chords, meter)];
+    } else {
+      chords = chords.map((chord) => ({ ...chord, origin: "generated" as const }));
+      harmonyNotes = [...harmonyNotes, ...annotateChordOrigins(chords, meter)];
+    }
     const melody = generateMelody(plan, chords, dialect, sectionKey, meter, rng, {
       startPitch: prevMelodyEnd,
     });
@@ -203,7 +265,14 @@ export function generateSong(options: GenerateOptions): Song {
       guitar: accomp.guitar,
       drums: accomp.drums,
       bpm: sectionControl?.bpm ?? bpm,
-      annotations: [...modAnnotations, ...harmonyNotes, ...melody.annotations, ...accomp.annotations].sort(
+      annotations: [
+        ...modAnnotations,
+        ...harmonyNotes,
+        { bar: 0, ruleId: "dialect-melody", text: `${dialect.name} の旋律輪郭・リズム語彙・モチーフ・非和声音規則を適用` },
+        ...melody.annotations,
+        { bar: 0, ruleId: "dialect-accompaniment", text: `${dialect.name} のグルーヴ・ボイシング・推奨パターンを伴奏へ適用` },
+        ...accomp.annotations,
+      ].sort(
         (a, b) => a.bar - b.bar,
       ),
     });
@@ -290,5 +359,8 @@ export function generateSong(options: GenerateOptions): Song {
     sections,
     totalBars: startBar,
   };
-  return options.composition ? applyCompositionControls(song, controls) : song;
+  const controlled = options.composition || options.design?.sectionExpressions
+    ? applyCompositionControls(song, controls, options.design?.sectionExpressions)
+    : song;
+  return options.design ? applyMotifAndChorusDesign(controlled, options.design) : controlled;
 }

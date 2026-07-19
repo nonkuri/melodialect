@@ -6,6 +6,7 @@ import { beatToSeconds } from "./player.js";
 import {
   AUDIO_PARTS,
   SOUNDFONT_PART_CHANNEL,
+  SOUNDFONT_OUTPUT_GAIN,
   isPartAudible,
   soundFontChannelConfig,
 } from "./mix.js";
@@ -171,7 +172,7 @@ export async function previewSoundFontNote(
     const synth = new WorkletSynthesizer(context, { eventsEnabled: false });
     synth.setSystemParameter("voiceCap", 24);
     const gain = context.createGain();
-    gain.gain.value = 0.55;
+    gain.gain.value = SOUNDFONT_OUTPUT_GAIN;
     gain.connect(context.destination);
     synth.connect(gain);
     await synth.soundBankManager.addSoundBank(await getSoundFontBuffer(sourceId), sourceId);

@@ -1,4 +1,4 @@
-import type { Song } from "./types.js";
+import type { EditableSectionLyrics, LyricsLanguage, Song } from "./types.js";
 import { createRng } from "./rng.js";
 
 /**
@@ -19,18 +19,34 @@ const SYLLABLES = [
   "は", "ひ", "ほ",
   "や", "ゆ", "よ", "わ",
 ];
+const ENGLISH_SYLLABLES = [
+  "love", "light", "dream", "home", "stay", "go", "time", "heart",
+  "blue", "night", "day", "free", "rise", "fall", "near", "away",
+];
+const SCAT_SYLLABLES = ["la", "da", "doo", "ba", "sha", "na", "di", "ya", "oh", "hey"];
 
-export interface SectionLyrics {
+export interface SectionLyrics extends EditableSectionLyrics {
   /** メロディの各音に対応する音節 (長い音は「ー」付き) */
   syllables: string[];
   /** フレーズごとにまとめた行 */
   lines: string[];
 }
 
-/** 各セクションのメロディに音節を割り当てる */
-export function generateLyrics(song: Song): SectionLyrics[] {
-  return song.sections.map((section, sectionIndex) => {
-    const rng = createRng((song.seed * 31 + sectionIndex * 7 + 1) >>> 0);
+function syllablePool(language: LyricsLanguage): string[] {
+  return language === "en" ? ENGLISH_SYLLABLES : language === "scat" ? SCAT_SYLLABLES : SYLLABLES;
+}
+
+/** 1 セクションだけを言語別に再生成する。 */
+export function generateSectionLyrics(
+  song: Song,
+  sectionIndex: number,
+  language: LyricsLanguage = "ja",
+  salt = 0,
+): SectionLyrics {
+    const section = song.sections[sectionIndex];
+    if (!section) return { language, syllables: [], lines: [] };
+    const rng = createRng((song.seed * 31 + sectionIndex * 7 + salt * 131 + 1) >>> 0);
+    const pool = syllablePool(language);
 
     // フレーズ境界 (拍単位) を求めて行分けに使う
     const phraseStartBeats: number[] = [];
@@ -62,14 +78,23 @@ export function generateLyrics(song: Song): SectionLyrics[] {
         if (currentLine.length > 0) currentLine.push(" ");
       }
 
-      let syl = rng.pick(SYLLABLES);
-      if (note.duration >= 2) syl += "ー"; // 長い音は伸ばす
+      let syl = rng.pick(pool);
+      if (note.duration >= 2) syl += language === "ja" ? "ー" : "–"; // 長い音は伸ばす
       syllables.push(syl);
       currentLine.push(syl);
       wordRemaining--;
     }
     if (currentLine.length > 0) lines.push(currentLine.join(""));
 
-    return { syllables, lines };
+    return { language, syllables, lines };
+}
+
+/** 各セクションの編集済み歌詞を優先し、未編集部分だけ決定的に生成する。 */
+export function generateLyrics(song: Song): SectionLyrics[] {
+  return song.sections.map((_, sectionIndex) => {
+    const edited = song.lyrics?.[sectionIndex];
+    return edited
+      ? { language: edited.language ?? "ja", syllables: [...edited.syllables], lines: [...edited.lines] }
+      : generateSectionLyrics(song, sectionIndex, "ja");
   });
 }

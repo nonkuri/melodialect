@@ -1,6 +1,11 @@
 import type { NoteEvent, Song, SongPart } from "../engine/types.js";
 import type { SoundFontFallback, SoundFontSession } from "./soundfontPlayer.js";
-import { AUDIO_PARTS, isPartAudible } from "./mix.js";
+import {
+  AUDIO_PARTS,
+  OSCILLATOR_OUTPUT_GAIN,
+  SOUNDFONT_OUTPUT_GAIN,
+  isPartAudible,
+} from "./mix.js";
 
 /**
  * Web Audio API による再生 (§4.4)。M2 は軽量な自前シンセ
@@ -157,7 +162,7 @@ function scheduleNote(
 /** 曲全体をコンテキストにスケジュールする。戻り値は曲の長さ (秒)。 */
 function scheduleSongLegacy(ctx: BaseAudioContext, song: Song, startTime: number): number {
   const master = ctx.createGain();
-  master.gain.value = 0.6;
+  master.gain.value = OSCILLATOR_OUTPUT_GAIN;
   const comp = ctx.createDynamicsCompressor();
   // ポンピングノイズを避ける控えめな設定
   comp.threshold.value = -14;
@@ -400,7 +405,8 @@ function createPartBuses(
   applyMaster = true,
 ): Record<Part, AudioNode> {
   const master = ctx.createGain();
-  master.gain.value = 0.6 * (applyMaster ? song.master?.volume ?? 0.8 : 1);
+  master.gain.value = OSCILLATOR_OUTPUT_GAIN *
+    (applyMaster ? song.master?.volume ?? 0.8 : 1);
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -14;
   comp.knee.value = 20;
@@ -637,7 +643,7 @@ export class TransportPlayer {
 
     const soundfont = await import("./soundfontPlayer.js");
     const soundfontTrim = ctx.createGain();
-    soundfontTrim.gain.value = 0.55;
+    soundfontTrim.gain.value = SOUNDFONT_OUTPUT_GAIN;
     soundfontTrim.connect(masterInput);
     const soundFontSession = await soundfont.createSoundFontSession(ctx, song, soundfontTrim);
     if (generation !== this.generation || this.ctx !== ctx) {

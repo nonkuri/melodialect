@@ -14,6 +14,7 @@ import {
   isBarLocked,
   isNoteLocked,
   lockBar,
+  normalizeWorkspace,
   parseProject,
   toggleNoteLock,
   toggleSectionLock,
@@ -65,6 +66,25 @@ describe("P0 project and editing", () => {
     expect(after.song.sections[0]!.chords).toEqual(chords);
     expect(after.song.sections[0]!.melody).not.toEqual(before.song.sections[0]!.melody);
     expect(after.sectionSeeds[0]).toBeGreaterThan(0);
+  });
+
+  it("最終セクションの再生成でもコーダまで音を保ち、末尾に無音小節を作らない", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.424242);
+    const initial = normalizeWorkspace(workspace());
+    const lastIndex = initial.song.sections.length - 1;
+    const lastBefore = initial.song.sections[lastIndex]!;
+    // v0.9で保存され得た、コーダを数えない誤った値も読み込み時に修復する。
+    initial.sectionControls![lastIndex]!.bars = lastBefore.plan.bars - 1;
+    const before = normalizeWorkspace(initial);
+    expect(before.sectionControls![lastIndex]!.bars).toBe(lastBefore.plan.bars);
+
+    const after = regenerateWorkspace(before, lastIndex, "all");
+    const lastAfter = after.song.sections[lastIndex]!;
+    const sectionBeats = lastAfter.plan.bars * after.song.meter.barBeats;
+    const bassEnd = Math.max(...lastAfter.bass.map((note) => note.start + note.duration));
+    expect(lastAfter.plan.bars).toBe(lastBefore.plan.bars);
+    expect(after.song.totalBars).toBe(before.song.totalBars);
+    expect(bassEnd).toBeCloseTo(sectionBeats);
   });
 
   it("セクションロックと小節ロックを部分再生成が尊重する", () => {

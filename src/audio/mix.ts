@@ -1,6 +1,15 @@
 import type { MixerSettings, Song, SongPart, SoundFontAssignment } from "../engine/types.js";
 
 export const AUDIO_PARTS: readonly SongPart[] = ["melody", "piano", "guitar", "bass", "drums"];
+
+/**
+ * Source-level calibration shared by realtime playback, preview, and WAV export.
+ * SpessaSynth keeps substantially more polyphony headroom than Web Audio's
+ * built-in oscillators, so its nominal output needs a larger makeup gain.
+ */
+export const OSCILLATOR_OUTPUT_GAIN = 0.6;
+export const SOUNDFONT_OUTPUT_GAIN = 3.4;
+
 export const SOUNDFONT_PART_CHANNEL: Readonly<Record<SongPart, number>> = {
   melody: 0,
   piano: 1,

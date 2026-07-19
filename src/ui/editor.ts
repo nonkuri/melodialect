@@ -22,6 +22,7 @@ import {
 } from "./project.js";
 
 export type RegenerationTarget = "all" | LockPart;
+export type DesignRegenerationTarget = "melody" | "accompaniment";
 export type NotePart = "melody" | "piano" | "guitar" | "bass" | "drums";
 
 export interface NoteSelection {
@@ -143,6 +144,7 @@ export function applyControlChanges(
     composition,
     mixer: workspace.mixer,
     sectionControls: workspace.sectionControls,
+    design: workspace.design,
   });
   next.arrangement = arrangement;
   next.composition = composition;
@@ -195,6 +197,7 @@ export function regenerateWorkspace(
     composition: workspace.composition,
     mixer: workspace.mixer,
     sectionControls: workspace.sectionControls,
+    design: workspace.design,
   });
   const currentSection = workspace.song.sections[sectionIndex];
   const candidateSection = candidate.sections[sectionIndex];
@@ -255,6 +258,45 @@ export function regenerateWorkspace(
     { bar: 0, ruleId: "partial-regeneration", text: "部分再生成: " + target },
   ];
   next.song.sections[sectionIndex] = section;
+  return next;
+}
+
+/** v0.9: 現在のコード制約を一切変更せず、指定パートだけを全セクション再生成する。 */
+export function regenerateCompositionParts(
+  workspace: WorkspaceState,
+  target: DesignRegenerationTarget,
+): WorkspaceState {
+  if (!workspace.design || workspace.design.harmonyMode === "auto") return workspace;
+  const next = cloneWorkspace(workspace);
+  const candidate = buildSong(workspace.settings, {
+    seed: (workspace.song.seed + 1) >>> 0,
+    sectionPhraseLengths: workspace.song.sections.map((section) => section.plan.phraseLengths),
+    arrangement: workspace.arrangement,
+    composition: workspace.composition,
+    mixer: workspace.mixer,
+    sectionControls: workspace.sectionControls,
+    design: workspace.design,
+  });
+  next.song.sections.forEach((section, index) => {
+    const generated = candidate.sections[index];
+    if (!generated || isSectionLocked(workspace.locks, index)) return;
+    if (target === "melody") {
+      section.melody = mergeNotes(section.melody, generated.melody, workspace, index, "melody");
+    } else {
+      section.piano = mergeNotes(section.piano, generated.piano, workspace, index, "accompaniment");
+      section.guitar = mergeNotes(section.guitar, generated.guitar, workspace, index, "accompaniment");
+      section.bass = mergeNotes(section.bass, generated.bass, workspace, index, "accompaniment");
+      section.drums = mergeNotes(section.drums, generated.drums, workspace, index, "accompaniment");
+    }
+    section.annotations = [
+      ...section.annotations.filter((annotation) => annotation.ruleId !== "design-part-generation"),
+      {
+        bar: 0,
+        ruleId: "design-part-generation",
+        text: `固定コードに対してダイアレクトの${target === "melody" ? "旋律" : "伴奏"}規則だけを適用`,
+      },
+    ];
+  });
   return next;
 }
 

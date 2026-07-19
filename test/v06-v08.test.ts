@@ -16,7 +16,12 @@ import {
   estimatePartLevels,
   playbackBeatAtElapsed,
 } from "../src/audio/player.js";
-import { isPartAudible, soundFontChannelConfig } from "../src/audio/mix.js";
+import {
+  OSCILLATOR_OUTPUT_GAIN,
+  SOUNDFONT_OUTPUT_GAIN,
+  isPartAudible,
+  soundFontChannelConfig,
+} from "../src/audio/mix.js";
 import { buildMusicXml } from "../src/export/musicxml.js";
 import {
   applyControlChanges,
@@ -186,6 +191,13 @@ describe("v0.7 output and audio quality", () => {
       expect(Math.max(...normalized) - Math.min(...normalized)).toBeLessThan(1);
       expect(PART_LEVEL_TARGETS_DBFS[part as keyof typeof PART_LEVEL_TARGETS_DBFS].peakMax).toBeLessThan(0);
     }
+  });
+
+  it("calibrates SoundFont headroom to the oscillator reference level", () => {
+    const calibrationDb = linearToDb(SOUNDFONT_OUTPUT_GAIN / OSCILLATOR_OUTPUT_GAIN);
+    expect(OSCILLATOR_OUTPUT_GAIN).toBe(0.6);
+    expect(calibrationDb).toBeGreaterThan(15);
+    expect(calibrationDb).toBeLessThan(16);
   });
 
   it("applies mute, solo, volume and pan consistently after a SoundFont switch", () => {

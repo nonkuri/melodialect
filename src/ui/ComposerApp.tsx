@@ -34,6 +34,7 @@ import { StructureEditor } from "./StructureEditor.js";
 import { HelpGuide } from "./HelpGuide.js";
 import { ProjectManager } from "./ProjectManager.js";
 import { SoundFontLibrary } from "./SoundFontLibrary.js";
+import { CompositionDesignDialog } from "./CompositionDesignDialog.js";
 import { validateSoundFontAssignments } from "../audio/soundfonts.js";
 import {
   addNote,
@@ -49,6 +50,7 @@ import {
   quantizeSelectedNotes,
   quantizeNote,
   regenerateWorkspace,
+  regenerateCompositionParts,
   replaceChord,
   setSelectedNoteVelocity,
   transposeSelectedChords,
@@ -169,6 +171,7 @@ export function ComposerApp() {
   const [showProjects, setShowProjects] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSoundFonts, setShowSoundFonts] = useState(false);
+  const [showCompositionDesign, setShowCompositionDesign] = useState(false);
   const [soundFontIssues, setSoundFontIssues] = useState<string[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(() =>
     typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_KEY) !== "done");
@@ -512,8 +515,9 @@ export function ComposerApp() {
         song.bpm,
       );
       const generated = buildSong(generationSettings, {
-        arrangement, composition, mixer: workspace.mixer, sectionControls,
+        arrangement, composition, mixer: workspace.mixer, sectionControls, design: workspace.design,
       });
+      generated.lyrics = workspace.song.lyrics ? structuredClone(workspace.song.lyrics) : undefined;
       const next = normalizeWorkspace({
         ...cloneWorkspace(workspace),
         settings: generationSettings,
@@ -574,13 +578,17 @@ export function ComposerApp() {
       settings: nextSettings,
       song: buildSong(nextSettings, {
         arrangement: workspace.arrangement, composition, mixer: workspace.mixer,
-        sectionControls: workspace.sectionControls,
+        sectionControls: workspace.sectionControls, design: workspace.design,
       }),
       locks: emptyLocks(),
       sectionSeeds: [],
       arrangement: workspace.arrangement, mixer: workspace.mixer, composition,
       sectionControls: workspace.sectionControls,
+      design: workspace.design,
     });
+    nextWorkspace.song.lyrics = workspace.song.lyrics
+      ? structuredClone(workspace.song.lyrics)
+      : undefined;
     setProject((current) => ({
       ...current,
       variations: [
@@ -619,7 +627,9 @@ export function ComposerApp() {
       : next.settings;
     const song = buildSong(nextSettings, {
       arrangement, composition, mixer: next.mixer, sectionControls,
+      design: values.sectionControls ? undefined : next.design,
     });
+    song.lyrics = next.song.lyrics ? structuredClone(next.song.lyrics) : undefined;
     song.mixer = next.mixer;
     const normalized = normalizeWorkspace({
       ...next, settings: nextSettings, song, arrangement, composition, sectionControls,
@@ -877,6 +887,7 @@ export function ComposerApp() {
         </div>
         <div className="header-actions">
           <button onClick={() => setShowHelp(true)}>使い方</button>
+          <button onClick={() => setShowCompositionDesign(true)}>作曲設計 v0.9</button>
           <button onClick={() => setShowProjects(true)}>プロジェクト一覧</button>
           <button disabled={pastRef.current.length === 0} onClick={undo}>↶ Undo</button>
           <button disabled={futureRef.current.length === 0} onClick={redo}>↷ Redo</button>
@@ -1319,6 +1330,19 @@ export function ComposerApp() {
           onClose={() => {
             localStorage.setItem(ONBOARDING_KEY, "done");
             setShowOnboarding(false);
+          }}
+        />
+      )}
+      {showCompositionDesign && (
+        <CompositionDesignDialog
+          workspace={workspace}
+          selectedSection={selectedSection}
+          noteSelections={noteSelections}
+          onClose={() => setShowCompositionDesign(false)}
+          onCommit={(next, message, regenerate) => {
+            const applied = regenerate ? regenerateCompositionParts(next, regenerate) : next;
+            commitWorkspace(normalizeWorkspace(applied));
+            setStatus(message);
           }}
         />
       )}

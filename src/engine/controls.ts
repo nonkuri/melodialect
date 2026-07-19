@@ -5,6 +5,7 @@ import type {
   MasterSettings,
   MixerSettings,
   NoteEvent,
+  SectionExpression,
   Song,
   SongPart,
 } from "./types.js";
@@ -209,13 +210,29 @@ function shapeMelody(
 export function applyCompositionControls(
   song: Song,
   controls: CompositionControls,
+  sectionExpressions?: SectionExpression[],
 ): Song {
   const next = structuredClone(song);
   next.composition = controls;
   next.key.mode = controls.mode;
-  for (const section of next.sections) {
+  for (let index = 0; index < next.sections.length; index++) {
+    const section = next.sections[index]!;
+    const expression = sectionExpressions?.[index];
+    const sectionControls = expression ? {
+      ...controls,
+      tension: expression.tension,
+      density: expression.density,
+      brightness: expression.brightness,
+    } : controls;
     section.key.mode = controls.mode;
-    section.melody = shapeMelody(section.melody, controls, next.meter.barBeats);
+    section.melody = shapeMelody(section.melody, sectionControls, next.meter.barBeats);
+    if (expression) {
+      section.annotations.push({
+        bar: 0,
+        ruleId: "section-expression",
+        text: `緊張度 ${Math.round(expression.tension * 100)}%・密度 ${Math.round(expression.density * 100)}%・明るさ ${Math.round(expression.brightness * 100)}%`,
+      });
+    }
   }
   return next;
 }

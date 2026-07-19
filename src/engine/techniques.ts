@@ -35,6 +35,11 @@ export function registerCliche(name: string, fn: ClicheFn): void {
   registry.set(name, fn);
 }
 
+/** ユーザー定義ダイアレクトが安全に参照できる、実装済み技法名。 */
+export function registeredClicheNames(): string[] {
+  return [...registry.keys()].sort();
+}
+
 export function applyCliche(
   name: string,
   chords: ChordEvent[],
