@@ -2,7 +2,13 @@
   "id": "orchestral-inversion",
   "name": "Orchestral (転回ベース+浮遊和声のポップ)",
   "stylePrompt": "mid 1960s orchestral pop, layered vocal harmonies, inverted bass lines under floating chords, sleigh bells and baroque keyboards, tender falsetto vocal, bittersweet major key",
-  "defaults": { "key": "Ab", "mode": "major", "bpm": 84 },
+  "defaults": {
+    "key": "Ab", "mode": "major", "bpm": 84,
+    "arrangement": {
+      "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic",
+      "swing": 0, "humanize": 0.18, "velocityScale": 0.88
+    }
+  },
   "chord": {
     "vocabulary": ["I", "ii7", "iii", "IV△7", "V7", "vi", "♭VI", "♭VII"],
     "transitions": {

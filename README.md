@@ -8,8 +8,8 @@
 
 ## 特徴
 
-- **9 つのダイアレクト** — Chromatic(半音階クリシェ+歌心のモチーフ反復)、Modal(モーダル進行+語りの同音連打)、Pedal(逆ペダル+掛留のドローン)、Twilight(哀愁進行+大跳躍シンコペーション)、Angular(七の和音+変則フレーズの跳躍ポップ)、Orchestral(転回ベース+浮遊和声のポップ)、Bossa(シンコペ和声+ささやきの同音連打)、Ostinato(機械的リフレイン+ミニマル短調)、Serene(揺れる△7+静謐な 3 拍子)
-- **6 層の作曲分析** — 各ダイアレクトはコード進行 (定型句・カデンツ・ハーモニックリズム)、リズム語彙 (シンコペーション・休符・アウフタクト)、モチーフ反復 (シークエンス)、非和声音 (倚音・掛留・半音階経過音)、セクション対比 (音域・音数)、転調傾向まで定義
+- **14 のダイアレクト** — 従来の Chromatic / Modal / Pedal / Twilight / Angular / Orchestral / Bossa / Ostinato / Serene に、Flow(6/8)、Blue(12小節ブルース)、Lament(和声的短音階)、Interlock(3-3-2)、Voicing(9th和音と声部連結)を追加
+- **8 層の作曲分析** — コード進行、リズム語彙、モチーフ反復、実働する旋律輪郭、非和声音、セクション対比、転調に加え、ダイアレクト固有の音階・グルーヴ・推奨伴奏まで定義
 - **合作モード** — 「Verse は Modal、Chorus は Twilight」のようにセクション別へダイアレクトを割り当て可能
 - **拍子対応** — 4/4 / 3/4(ワルツ伴奏)/ 6/8(複合2拍子)
 - **カスタム構成** — 標準プリセット7種に加え、`i,v,c,b,c,o` のような構成をユーザーが追加・保存可能(ブラウザに永続化)
@@ -83,8 +83,8 @@ npm run generate -- --seed 123 --key G --bpm 110 --form v,c,b,c
 | `--key` | キー(C, Db, D, ... B) | ダイアレクトの推奨キー |
 | `--bpm` | テンポ(40〜200) | ダイアレクトの推奨値 |
 | `--form` | 構成(v=Verse, c=Chorus, b=Bridge, i=Intro, o=Outro をカンマ区切り)。`v:modal,c:twilight` でセクション別ダイアレクト指定(合作モード) | v,c,v,c |
-| `--meter` | 拍子(4/4, 3/4, 6/8) | ダイアレクトの推奨拍子 (通常 4/4、serene は 3/4) |
-| `--dialect` | ダイアレクト名(chromatic / modal / pedal / twilight / angular / orchestral / bossa / ostinato / serene) | chromatic |
+| `--meter` | 拍子(4/4, 3/4, 6/8) | ダイアレクトの推奨拍子 (通常 4/4、serene は 3/4、flow は 6/8) |
+| `--dialect` | ダイアレクト名(chromatic / modal / pedal / twilight / angular / orchestral / bossa / ostinato / serene / flow / blue / lament / interlock / voicing) | chromatic |
 | `--loop` | ループモード(半終止で終わり曲頭へ戻る。コーダなし) | なし (終止+コーダ) |
 | `--out` | 出力先フォルダ | out |
 
@@ -116,7 +116,7 @@ test/         Vitest テスト
 |---|---|---|
 | M1 | 生成エンジン核 (Chromatic ダイアレクト + MIDI 書き出し) | ✅ 完了 |
 | M2 | ブラウザ UI (設定パネル + Web Audio 再生 + ピアノロール) | ✅ 完了 |
-| M3 | 全 4 ダイアレクト・合作モード・譜面表示 | ✅ 完了 |
+| M3 | 全 14 ダイアレクト・合作モード・譜面表示 | ✅ 完了 |
 | M4 | WAV 書き出し・仮歌詞・Suno 用テキスト出力 | ✅ 完了 |
 | M5 | 解説動画出力・ダイアレクトエディタ | 未着手 |
 | M6 | スタンドアロン化 (Electron / Tauri) | 未着手 |

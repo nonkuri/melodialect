@@ -2,7 +2,13 @@
   "id": "bossa-syncopation",
   "name": "Bossa (シンコペ和声+ささやきの同音連打)",
   "stylePrompt": "bossa nova, soft nylon guitar syncopation, subtle jazz seventh chords, intimate hushed vocal, gentle samba sway, warm night mood",
-  "defaults": { "key": "F", "mode": "major", "bpm": 116 },
+  "defaults": {
+    "key": "F", "mode": "major", "bpm": 116,
+    "arrangement": {
+      "pianoPattern": "syncopated", "guitarPattern": "syncopated", "drumPattern": "bossa",
+      "swing": 0.12, "humanize": 0.12, "velocityScale": 0.9
+    }
+  },
   "chord": {
     "vocabulary": ["I△7", "ii7", "II7", "iii7", "IV△7", "V7", "vi", "♭VII"],
     "transitions": {

@@ -1,0 +1,107 @@
+{
+  "id": "harmonic-lament",
+  "name": "Lament (下降短調+導音カデンツ)",
+  "stylePrompt": "dramatic minor-key ballad, descending lament bass, harmonic-minor leading tone, dark piano and low strings, expressive appoggiaturas, restrained cinematic drums",
+  "defaults": {
+    "key": "A",
+    "mode": "minor",
+    "bpm": 70,
+    "meter": "4/4",
+    "arrangement": {
+      "pianoPattern": "ballad",
+      "guitarPattern": "off",
+      "drumPattern": "off",
+      "swing": 0,
+      "humanize": 0.13,
+      "velocityScale": 0.92
+    }
+  },
+  "chord": {
+    "vocabulary": ["i", "ii°", "III", "iv", "V7", "VI", "VII"],
+    "transitions": {
+      "i": { "VII": 0.25, "VI": 0.25, "iv": 0.25, "ii°": 0.15, "V7": 0.1 },
+      "ii°": { "V7": 0.7, "iv": 0.2, "i": 0.1 },
+      "III": { "VI": 0.45, "iv": 0.25, "VII": 0.2, "V7": 0.1 },
+      "iv": { "V7": 0.45, "i": 0.35, "VI": 0.2 },
+      "V7": { "i": 0.7, "VI": 0.2, "iv": 0.1 },
+      "VI": { "VII": 0.35, "iv": 0.3, "ii°": 0.2, "V7": 0.15 },
+      "VII": { "III": 0.35, "VI": 0.3, "i": 0.2, "V7": 0.15 }
+    },
+    "idioms": [
+      { "symbols": ["i", "VII", "VI", "V7"], "weight": 4 },
+      { "symbols": ["i", "iv", "ii°", "V7"], "weight": 2 },
+      { "symbols": ["VI", "III", "iv", "V7"], "weight": 2 }
+    ],
+    "idiomProbability": 0.58,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "i"], "weight": 4 },
+        { "symbols": ["iv", "i"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 4 },
+        { "symbols": ["iv"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.15, "1": 0.85 },
+      "chorus": { "1": 0.75, "2": 0.25 }
+    },
+    "cliches": ["lament-bass"],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [2, 1, 1], "weight": 3 },
+        { "beats": [1.5, 0.5, 2], "weight": 2 },
+        { "beats": [-1, 1, 2], "weight": 2 },
+        { "beats": [1, 1, 1, 1], "weight": 1 },
+        { "beats": [3, 1], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [4], "weight": 3 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.18,
+    "chorusDensityBias": 0.22
+  },
+  "melody": {
+    "pitchCollection": "harmonic-minor",
+    "leapProbability": { "default": 0.16, "chorusHead": 0.6 },
+    "leapRangeSemitones": [6, 9],
+    "afterLeapBias": "down",
+    "contour": "descending",
+    "pedalPoint": false,
+    "motif": { "repeatProbability": 0.6 },
+    "nonChordTones": { "appoggiatura": 0.28, "suspension": 0.14, "chromaticPassing": 0.12 },
+    "registerShift": { "chorus": 3, "bridge": 1 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.08
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "0.5": 0.5, "1": 0.5 } },
+    "chorus": {
+      "idiomProbability": 0.75,
+      "idioms": [
+        { "symbols": ["i", "VI", "III", "V7"], "weight": 3 },
+        { "symbols": ["i", "iv", "ii°", "V7"], "weight": 2 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  },
+  "modulation": {
+    "bridge": {
+      "probability": 0.35,
+      "intervals": [
+        { "semitones": 3, "weight": 2 },
+        { "semitones": 5, "weight": 1 }
+      ]
+    }
+  }
+}

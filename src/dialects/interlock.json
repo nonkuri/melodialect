@@ -1,0 +1,103 @@
+{
+  "id": "interlock-332",
+  "name": "Interlock (3-3-2+交差リズム)",
+  "stylePrompt": "contemporary global pop groove, interlocking 3-3-2 guitar and percussion, syncopated bass anticipation, sparse minor-pentatonic vocal hook, warm keys, relaxed dance pulse",
+  "defaults": {
+    "key": "F#",
+    "mode": "minor",
+    "bpm": 108,
+    "meter": "4/4",
+    "arrangement": {
+      "pianoPattern": "syncopated",
+      "guitarPattern": "interlocking",
+      "drumPattern": "interlock",
+      "swing": 0.04,
+      "humanize": 0.08,
+      "velocityScale": 0.96
+    }
+  },
+  "chord": {
+    "vocabulary": ["i", "III", "iv", "v", "VI", "VII"],
+    "transitions": {
+      "i": { "VI": 0.3, "VII": 0.25, "iv": 0.2, "III": 0.15, "v": 0.1 },
+      "III": { "VII": 0.35, "VI": 0.3, "iv": 0.2, "i": 0.15 },
+      "iv": { "i": 0.4, "VI": 0.25, "VII": 0.2, "v": 0.15 },
+      "v": { "i": 0.5, "VI": 0.25, "VII": 0.25 },
+      "VI": { "VII": 0.35, "i": 0.3, "III": 0.2, "iv": 0.15 },
+      "VII": { "i": 0.45, "VI": 0.25, "III": 0.2, "iv": 0.1 }
+    },
+    "idioms": [
+      { "symbols": ["i", "VI", "III", "VII"], "weight": 3 },
+      { "symbols": ["i", "VII", "VI", "VII"], "weight": 3 },
+      { "symbols": ["i", "iv", "VI", "VII"], "weight": 2 }
+    ],
+    "idiomProbability": 0.62,
+    "cadences": {
+      "final": [
+        { "symbols": ["VII", "i"], "weight": 3 },
+        { "symbols": ["iv", "i"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["VII"], "weight": 2 },
+        { "symbols": ["VI"], "weight": 2 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.5, "1": 0.5 },
+      "chorus": { "0.5": 0.25, "1": 0.75 }
+    },
+    "cliches": [],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [0.75, 0.75, 0.5, 1, 1], "weight": 3 },
+        { "beats": [-0.25, 0.5, 0.75, 0.5, 0.75, 0.75, 0.5], "weight": 3 },
+        { "beats": [0.5, 1, 0.5, 1, 1], "weight": 2 },
+        { "beats": [1.5, 1.5, 1], "weight": 2 },
+        { "beats": [0.25, 0.5, 0.75, 0.5, 0.5, 0.75, 0.75], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [1.5, 1.5, 1], "weight": 2 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.42,
+    "chorusDensityBias": 0.18
+  },
+  "melody": {
+    "pitchCollection": "minor-pentatonic",
+    "leapProbability": { "default": 0.09, "chorusHead": 0.38 },
+    "leapRangeSemitones": [5, 7],
+    "afterLeapBias": "none",
+    "contour": "interlocking",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.32,
+    "motif": { "repeatProbability": 0.82 },
+    "nonChordTones": { "appoggiatura": 0.05, "suspension": 0.08, "chromaticPassing": 0.04 },
+    "registerShift": { "chorus": 2 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  },
+  "groove": {
+    "subdivision": 0.25,
+    "accentPattern": [0, 1.5, 3],
+    "anticipation": 0.25
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "0.5": 0.7, "1": 0.3 } },
+    "chorus": {
+      "idiomProbability": 0.78,
+      "idioms": [
+        { "symbols": ["i", "VI", "III", "VII"], "weight": 3 },
+        { "symbols": ["i", "VII", "VI", "VII"], "weight": 2 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  }
+}

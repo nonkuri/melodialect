@@ -21,6 +21,7 @@ import { generateAccompaniment } from "./accompaniment.js";
 import {
   applyCompositionControls,
   dialectWithControls,
+  normalizeArrangement,
   normalizeComposition,
 } from "./controls.js";
 const NOTE_NAMES: Record<string, number> = {
@@ -252,7 +253,10 @@ export function generateSong(options: GenerateOptions): Song {
   }
 
   const song: Song = {
-    arrangement: options.arrangement,
+    arrangement: normalizeArrangement({
+      ...mainDialect.defaults.arrangement,
+      ...options.arrangement,
+    }),
     dialectId: mainDialect.id,
     seed,
     ending,

@@ -13,7 +13,14 @@ import {
   bossa,
   ostinato,
   serene,
+  flow,
+  blue,
+  lament,
+  interlock,
+  voicing,
+  dialectList,
 } from "../src/dialects/index.js";
+import { scaleOf } from "../src/engine/harmony.js";
 
 describe("新ダイアレクトのコード語彙", () => {
   const keyC = { tonic: 0, mode: "major" as const };
@@ -43,7 +50,10 @@ describe("新ダイアレクトのコード語彙", () => {
 });
 
 describe("各ダイアレクトの生成", () => {
-  for (const dialect of [modal, pedal, twilight, angular, orchestral, bossa, ostinato, serene]) {
+  for (const dialect of [
+    modal, pedal, twilight, angular, orchestral, bossa, ostinato, serene,
+    flow, blue, lament, interlock, voicing,
+  ]) {
     it(`${dialect.id}: シード固定で決定的に生成できる`, () => {
       const a = generateSong({ dialect, seed: 7 });
       const b = generateSong({ dialect, seed: 7 });
@@ -332,6 +342,79 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
       found = song.sections.some((s) => s.plan.bars < 8);
     }
     expect(found).toBe(true);
+  });
+});
+
+describe("追加ダイアレクト D10〜D14", () => {
+  it("全14ダイアレクトが重複なく推奨伴奏を持つ", () => {
+    expect(dialectList).toHaveLength(14);
+    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(14);
+    for (const dialect of dialectList) {
+      expect(dialect.defaults.arrangement).toBeDefined();
+      expect(generateSong({ dialect, seed: 1 }).arrangement).toMatchObject(
+        dialect.defaults.arrangement!,
+      );
+    }
+  });
+
+  it("Flow: 6/8 と推奨アルペジオ伴奏、セクション別構成を使う", () => {
+    const song = generateSong({ dialect: flow, seed: 11, form: ["intro", "chorus"] });
+    expect(song.meter.name).toBe("6/8");
+    expect(song.arrangement).toMatchObject({
+      pianoPattern: "arpeggio",
+      guitarPattern: "arpeggio",
+      drumPattern: "basic",
+    });
+    expect(song.sections[0]!.plan.phraseLengths).toEqual([4]);
+    expect(song.sections[1]!.plan.phraseLengths).toEqual([4, 4]);
+  });
+
+  it("Blue: 12小節形式、ドミナント7th、ブルース音階、シャッフルを使う", () => {
+    const song = generateSong({ dialect: blue, seed: 5, form: ["verse"] });
+    const section = song.sections[0]!;
+    expect(section.plan.bars).toBe(13); // 12 小節本体 + final コーダ
+    expect(section.chords.slice(0, 10).map((chord) => chord.symbol)).toEqual([
+      "I7", "I7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7",
+    ]);
+    expect(section.annotations.some((a) => a.ruleId === "twelve-bar-blues")).toBe(true);
+    expect(song.arrangement?.drumPattern).toBe("shuffle");
+    expect(scaleOf(song.key, blue.melody.pitchCollection)).toEqual([0, 3, 5, 6, 7, 10]);
+  });
+
+  it("Lament: 和声的短音階と i→VII→VI→V7 の下降バスを使う", () => {
+    const song = generateSong({ dialect: lament, seed: 3, form: ["verse"] });
+    expect(song.key.mode).toBe("minor");
+    expect(scaleOf(song.key, lament.melody.pitchCollection)).toContain(8); // A minor の G#
+    expect(song.sections[0]!.chords.slice(0, 4).map((chord) => chord.symbol)).toEqual([
+      "i", "VII", "VI", "V7",
+    ]);
+    expect(song.sections[0]!.annotations.some((a) => a.ruleId === "lament-bass")).toBe(true);
+  });
+
+  it("Interlock: 3-3-2アクセント、先取りベース、専用伴奏を生成する", () => {
+    const song = generateSong({ dialect: interlock, seed: 7, form: ["verse", "chorus"] });
+    expect(song.arrangement).toMatchObject({
+      pianoPattern: "syncopated",
+      guitarPattern: "interlocking",
+      drumPattern: "interlock",
+    });
+    for (const section of song.sections) {
+      expect(section.annotations.some((a) => a.ruleId === "groove-profile")).toBe(true);
+      expect(section.bass.some((note) => Math.abs((note.start % 4) - 1.5) < 0.04)).toBe(true);
+    }
+  });
+
+  it("Voicing: 9th・sus・half diminishedを解釈し、声部連結ピアノを使う", () => {
+    expect(parseRoman("I△9").quality).toBe("maj9");
+    expect(parseRoman("ii9").quality).toBe("min9");
+    expect(parseRoman("V9").quality).toBe("dom9");
+    expect(parseRoman("Vsus4").quality).toBe("sus4");
+    expect(parseRoman("viiø7").quality).toBe("halfDim7");
+    expect(chordFromRoman("I△9", 0, { tonic: 0, mode: "major" }).pitches).toHaveLength(5);
+    const song = generateSong({ dialect: voicing, seed: 9, form: ["chorus"] });
+    expect(song.arrangement?.pianoPattern).toBe("voice-led");
+    expect(song.sections[0]!.chords.some((chord) => chord.pitches.length >= 5)).toBe(true);
+    expect(song.sections[0]!.piano.length).toBeGreaterThan(song.sections[0]!.chords.length);
   });
 });
 

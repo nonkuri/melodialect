@@ -1,0 +1,107 @@
+{
+  "id": "compound-flow",
+  "name": "Flow (複合拍子+循環アルペジオ)",
+  "stylePrompt": "flowing acoustic pop in 6/8, rolling piano and fingerpicked guitar arpeggios, broad lyrical melody, warm bass, gentle compound-meter drums",
+  "defaults": {
+    "key": "D",
+    "mode": "major",
+    "bpm": 84,
+    "meter": "6/8",
+    "arrangement": {
+      "pianoPattern": "arpeggio",
+      "guitarPattern": "arpeggio",
+      "drumPattern": "basic",
+      "swing": 0,
+      "humanize": 0.12,
+      "velocityScale": 0.92
+    }
+  },
+  "chord": {
+    "vocabulary": ["I", "ii7", "IV", "V7", "vi", "♭VII"],
+    "transitions": {
+      "I": { "V7": 0.25, "vi": 0.25, "IV": 0.3, "♭VII": 0.2 },
+      "ii7": { "V7": 0.6, "IV": 0.25, "vi": 0.15 },
+      "IV": { "I": 0.35, "V7": 0.35, "vi": 0.2, "ii7": 0.1 },
+      "V7": { "I": 0.55, "vi": 0.3, "IV": 0.15 },
+      "vi": { "IV": 0.4, "ii7": 0.25, "V7": 0.2, "I": 0.15 },
+      "♭VII": { "IV": 0.5, "I": 0.35, "V7": 0.15 }
+    },
+    "idioms": [
+      { "symbols": ["I", "V7", "vi", "IV"], "weight": 3 },
+      { "symbols": ["I", "♭VII", "IV", "I"], "weight": 2 },
+      { "symbols": ["vi", "IV", "I", "V7"], "weight": 2 }
+    ],
+    "idiomProbability": 0.5,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "I"], "weight": 2 },
+        { "symbols": ["IV", "I"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 2 },
+        { "symbols": ["IV"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.25, "1": 0.75 },
+      "chorus": { "1": 1 }
+    },
+    "cliches": [],
+    "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "6/8": [
+        { "beats": [1.5, 1.5], "weight": 3 },
+        { "beats": [0.5, 0.5, 0.5, 1.5], "weight": 3 },
+        { "beats": [1, 0.5, 1.5], "weight": 2 },
+        { "beats": [-0.5, 0.5, 0.5, 1.5], "weight": 2 },
+        { "beats": [1.5, 0.5, 0.5, 0.5], "weight": 2 }
+      ]
+    },
+    "finalTemplates": {
+      "6/8": [
+        { "beats": [3], "weight": 2 },
+        { "beats": [1.5, 1.5], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.4,
+    "chorusDensityBias": 0.25
+  },
+  "melody": {
+    "pitchCollection": "major-pentatonic",
+    "leapProbability": { "default": 0.12, "chorusHead": 0.5 },
+    "leapRangeSemitones": [5, 8],
+    "afterLeapBias": "down",
+    "contour": "arch",
+    "pedalPoint": false,
+    "motif": { "repeatProbability": 0.72 },
+    "nonChordTones": { "appoggiatura": 0.1, "suspension": 0.15, "chromaticPassing": 0.02 },
+    "registerShift": { "chorus": 3 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.05
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "0.5": 0.45, "1": 0.55 } },
+    "chorus": {
+      "phraseLengths": [4, 4],
+      "idiomProbability": 0.7,
+      "idioms": [
+        { "symbols": ["I", "V7", "vi", "IV"], "weight": 3 },
+        { "symbols": ["vi", "IV", "I", "V7"], "weight": 2 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  },
+  "modulation": {
+    "bridge": {
+      "probability": 0.35,
+      "intervals": [
+        { "semitones": 5, "weight": 2 },
+        { "semitones": 2, "weight": 1 }
+      ]
+    }
+  }
+}

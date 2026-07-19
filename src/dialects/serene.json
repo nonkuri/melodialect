@@ -2,7 +2,13 @@
   "id": "serene-waltz",
   "name": "Serene (揺れる△7+静謐な 3 拍子)",
   "stylePrompt": "slow French impressionist waltz, dreamy major seventh chords rocking gently, sparse solo piano, melancholy floating melody, quiet and still, late night salon",
-  "defaults": { "key": "D", "mode": "major", "bpm": 66, "meter": "3/4" },
+  "defaults": {
+    "key": "D", "mode": "major", "bpm": 66, "meter": "3/4",
+    "arrangement": {
+      "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "off",
+      "swing": 0, "humanize": 0.16, "velocityScale": 0.82
+    }
+  },
   "chord": {
     "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi"],
     "transitions": {

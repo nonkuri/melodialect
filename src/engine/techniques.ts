@@ -1,7 +1,7 @@
 import type { Annotation, ChordEvent, KeySignature, SectionPlan } from "./types.js";
 import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
-import { chordFromRoman, pcToPitch } from "./harmony.js";
+import { chordFromRoman, parseRoman, pcToPitch } from "./harmony.js";
 
 /**
  * 技法レジストリ (§6.2)。
@@ -18,6 +18,18 @@ export type ClicheFn = (
 ) => void;
 
 const registry = new Map<string, ClicheFn>();
+
+function replaceChordSymbol(chords: ChordEvent[], index: number, symbol: string, key: KeySignature): void {
+  const current = chords[index];
+  if (!current) return;
+  chords[index] = chordFromRoman(
+    symbol,
+    current.bar,
+    key,
+    current.start,
+    current.durationBeats,
+  );
+}
 
 export function registerCliche(name: string, fn: ClicheFn): void {
   registry.set(name, fn);
@@ -77,5 +89,55 @@ registerCliche("descending-bass", (chords, annotations, key, rng, plan, meter) =
       ruleId: "chromatic-cliche",
       text: `${p.symbol}: 半音階クリシェ (ベースが半音下降)`,
     });
+  });
+});
+
+/** 12 小節ブルース。最後のカデンツは生成器が決めた終止/半終止を保持する。 */
+registerCliche("twelve-bar-blues", (chords, annotations, key, _rng, plan, meter) => {
+  if (plan.bars < 12) return;
+  const bb = meter.barBeats;
+  const firstBlock = chords.slice(0, 12);
+  if (firstBlock.length < 12 || firstBlock.some((chord, i) =>
+    chord.start !== i * bb || chord.durationBeats !== bb)) return;
+
+  const finalResolvesToTonic = (() => {
+    try {
+      return parseRoman(firstBlock.at(-1)!.symbol).degree === 1;
+    } catch {
+      return false;
+    }
+  })();
+  const pattern = ["I7", "I7", "I7", "I7", "IV7", "IV7", "I7", "I7", "V7", "IV7", "I7"];
+  const limit = finalResolvesToTonic ? 10 : 11;
+  for (let i = 0; i < limit; i++) replaceChordSymbol(chords, i, pattern[i]!, key);
+  annotations.push({
+    bar: 0,
+    ruleId: "twelve-bar-blues",
+    text: "12小節ブルース: I7×4 → IV7×2 → I7×2 → V7 → IV7 → ターンアラウンド",
+  });
+});
+
+/** 短調の定番下降バス i→VII→VI→V7。 */
+registerCliche("lament-bass", (chords, annotations, key, _rng, plan, meter) => {
+  if (plan.bars < 4) return;
+  const bb = meter.barBeats;
+  const cutoff = 4 * bb;
+  const tail = chords
+    .filter((chord) => chord.start + chord.durationBeats > cutoff)
+    .map((chord) => chord.start < cutoff
+      ? {
+          ...chord,
+          start: cutoff,
+          durationBeats: chord.start + chord.durationBeats - cutoff,
+          bar: 4,
+        }
+      : chord);
+  const head = ["i", "VII", "VI", "V7"].map((symbol, bar) =>
+    chordFromRoman(symbol, bar, key, bar * bb, bb));
+  chords.splice(0, chords.length, ...head, ...tail);
+  annotations.push({
+    bar: 0,
+    ruleId: "lament-bass",
+    text: "ラメント・バス: i → VII → VI → V7 と低音が順次下降",
   });
 });

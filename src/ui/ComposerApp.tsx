@@ -6,6 +6,7 @@ import { downloadMidi } from "../export/download.js";
 import { downloadWav } from "../export/wav.js";
 import { downloadSunoText } from "../export/text.js";
 import { generateLyrics } from "../engine/lyrics.js";
+import { normalizeArrangement } from "../engine/controls.js";
 import { parseForm } from "../engine/structure.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { ScoreView } from "./ScoreView.js";
@@ -589,8 +590,22 @@ export function ComposerApp() {
       <div className="body">
         <SettingsPanel
           settings={settings}
-          onChange={(nextSettings) =>
-            commitWorkspace({ ...cloneWorkspace(workspace), settings: nextSettings }, { history: false })}
+          onChange={(nextSettings) => {
+            const next = cloneWorkspace(workspace);
+            next.settings = nextSettings;
+            if (nextSettings.dialectId !== settings.dialectId) {
+              const dialect = dialects[nextSettings.dialectId];
+              if (dialect) {
+                next.arrangement = normalizeArrangement(dialect.defaults.arrangement);
+                next.song.arrangement = next.arrangement;
+                next.composition = {
+                  ...next.composition!,
+                  mode: dialect.defaults.mode,
+                };
+              }
+            }
+            commitWorkspace(next, { history: false });
+          }}
         />
 
         <main className="main">

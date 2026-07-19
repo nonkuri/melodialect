@@ -8,6 +8,11 @@ import orchestralJson from "./orchestral.json" with { type: "json" };
 import bossaJson from "./bossa.json" with { type: "json" };
 import ostinatoJson from "./ostinato.json" with { type: "json" };
 import sereneJson from "./serene.json" with { type: "json" };
+import flowJson from "./flow.json" with { type: "json" };
+import blueJson from "./blue.json" with { type: "json" };
+import lamentJson from "./lament.json" with { type: "json" };
+import interlockJson from "./interlock.json" with { type: "json" };
+import voicingJson from "./voicing.json" with { type: "json" };
 
 /** ダイアレクト JSON の読み込みと軽量バリデーション (§6.2) */
 export function loadDialect(data: unknown): Dialect {
@@ -30,6 +35,11 @@ export const orchestral: Dialect = loadDialect(orchestralJson);
 export const bossa: Dialect = loadDialect(bossaJson);
 export const ostinato: Dialect = loadDialect(ostinatoJson);
 export const serene: Dialect = loadDialect(sereneJson);
+export const flow: Dialect = loadDialect(flowJson);
+export const blue: Dialect = loadDialect(blueJson);
+export const lament: Dialect = loadDialect(lamentJson);
+export const interlock: Dialect = loadDialect(interlockJson);
+export const voicing: Dialect = loadDialect(voicingJson);
 
 /** id と短縮名の両方で引ける */
 export const dialects: Record<string, Dialect> = {
@@ -42,6 +52,11 @@ export const dialects: Record<string, Dialect> = {
   [bossa.id]: bossa,
   [ostinato.id]: ostinato,
   [serene.id]: serene,
+  [flow.id]: flow,
+  [blue.id]: blue,
+  [lament.id]: lament,
+  [interlock.id]: interlock,
+  [voicing.id]: voicing,
   chromatic,
   modal,
   pedal,
@@ -51,6 +66,11 @@ export const dialects: Record<string, Dialect> = {
   bossa,
   ostinato,
   serene,
+  flow,
+  blue,
+  lament,
+  interlock,
+  voicing,
 };
 
 /** UI 表示用の重複なしリスト */
@@ -64,6 +84,11 @@ export const dialectList: Dialect[] = [
   bossa,
   ostinato,
   serene,
+  flow,
+  blue,
+  lament,
+  interlock,
+  voicing,
 ];
 
 /** "Chromatic (〜)" → "Chromatic" のような短縮表示名 */

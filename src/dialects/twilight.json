@@ -2,7 +2,13 @@
   "id": "twilight-ballad",
   "name": "Twilight (哀愁進行+大跳躍シンコペーション)",
   "stylePrompt": "1970s Japanese city pop ballad, twilight mood, electric piano and soft strings, wide upward melodic leaps that gently descend, wistful female vocal, slow tempo",
-  "defaults": { "key": "F", "mode": "major", "bpm": 72 },
+  "defaults": {
+    "key": "F", "mode": "major", "bpm": 72,
+    "arrangement": {
+      "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic",
+      "swing": 0.05, "humanize": 0.17, "velocityScale": 0.9
+    }
+  },
   "chord": {
     "vocabulary": ["I△7", "IV△7", "III7", "vi", "ii7", "V7", "♭VII"],
     "transitions": {

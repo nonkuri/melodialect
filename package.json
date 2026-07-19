@@ -1,6 +1,6 @@
 {
   "name": "melodialect",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "作曲家の「音楽的方言」をルールベースで再現する楽曲ジェネレーター",

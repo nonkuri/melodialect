@@ -2,7 +2,13 @@
   "id": "inverted-pedal",
   "name": "Pedal (逆ペダル+掛留のドローン)",
   "stylePrompt": "late 1960s British rock, drone-like pedal tone melody, mixolydian color, contemplative male vocal, gentle electric guitar arpeggio",
-  "defaults": { "key": "D", "mode": "major", "bpm": 88 },
+  "defaults": {
+    "key": "D", "mode": "major", "bpm": 88,
+    "arrangement": {
+      "pianoPattern": "arpeggio", "guitarPattern": "arpeggio", "drumPattern": "basic",
+      "swing": 0, "humanize": 0.14, "velocityScale": 0.9
+    }
+  },
   "chord": {
     "vocabulary": ["I", "♭VII", "IV", "II7", "V7", "vi", "ii7"],
     "transitions": {

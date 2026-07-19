@@ -1,0 +1,93 @@
+{
+  "id": "blue-shuffle",
+  "name": "Blue (12小節循環+ブルーノート)",
+  "stylePrompt": "mid-tempo blues shuffle, twelve-bar dominant-seventh progression, call-and-response vocal melody, walking bass, swung piano and guitar, dry live drums",
+  "defaults": {
+    "key": "C",
+    "mode": "major",
+    "bpm": 92,
+    "meter": "4/4",
+    "arrangement": {
+      "pianoPattern": "syncopated",
+      "guitarPattern": "strum",
+      "drumPattern": "shuffle",
+      "swing": 0.72,
+      "humanize": 0.14,
+      "velocityScale": 1
+    }
+  },
+  "chord": {
+    "vocabulary": ["I7", "IV7", "V7"],
+    "transitions": {
+      "I7": { "I7": 0.45, "IV7": 0.4, "V7": 0.15 },
+      "IV7": { "I7": 0.55, "IV7": 0.2, "V7": 0.25 },
+      "V7": { "I7": 0.65, "IV7": 0.25, "V7": 0.1 }
+    },
+    "idioms": [
+      { "symbols": ["I7", "I7", "IV7", "IV7"], "weight": 2 },
+      { "symbols": ["V7", "IV7", "I7"], "weight": 3 }
+    ],
+    "idiomProbability": 0.45,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "I7"], "weight": 3 },
+        { "symbols": ["IV7", "I7"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 3 },
+        { "symbols": ["IV7"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": { "default": { "1": 1 } },
+    "cliches": ["twelve-bar-blues"],
+    "borrowedChords": true
+  },
+  "rhythm": {
+    "templates": {
+      "4/4": [
+        { "beats": [0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333, 0.666667, 0.333333], "weight": 3 },
+        { "beats": [1, 0.666667, 0.333333, 1, 1], "weight": 2 },
+        { "beats": [-1, 1, 0.666667, 0.333333, 1], "weight": 2 },
+        { "beats": [1.5, 0.5, 1, 1], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [4], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.25,
+    "chorusDensityBias": 0.1
+  },
+  "melody": {
+    "pitchCollection": "blues",
+    "leapProbability": { "default": 0.1, "chorusHead": 0.35 },
+    "leapRangeSemitones": [5, 7],
+    "afterLeapBias": "down",
+    "contour": "call-response",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.18,
+    "motif": { "repeatProbability": 0.68 },
+    "nonChordTones": { "appoggiatura": 0.08, "suspension": 0.06, "chromaticPassing": 0.08 },
+    "registerShift": { "chorus": 2 }
+  },
+  "structure": {
+    "phraseLengths": [4, 4, 4],
+    "irregularPhraseProbability": 0
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4] },
+    "verse": { "phraseLengths": [4, 4, 4] },
+    "chorus": { "phraseLengths": [4, 4, 4] },
+    "bridge": {
+      "phraseLengths": [4, 4],
+      "idioms": [
+        { "symbols": ["IV7", "IV7", "I7", "I7"], "weight": 2 },
+        { "symbols": ["V7", "IV7", "I7"], "weight": 3 }
+      ],
+      "idiomProbability": 0.7
+    },
+    "outro": { "phraseLengths": [4] }
+  }
+}

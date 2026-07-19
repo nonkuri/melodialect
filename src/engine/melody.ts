@@ -3,6 +3,7 @@ import type {
   ChordEvent,
   Dialect,
   KeySignature,
+  MelodicContour,
   NoteEvent,
   RhythmTemplate,
   SectionPlan,
@@ -123,6 +124,53 @@ function clampReflect(pitch: number, scalePcs: number[], low: number, high: numb
   return pitch;
 }
 
+const CONTOUR_LABELS: Record<MelodicContour, string> = {
+  stepwise: "順次進行を中心に滑らかにつなぐ",
+  repetitive: "同音反復を軸に語るように進む",
+  pedal: "固定音を保ちながら和声だけを動かす",
+  "leap-then-descend": "跳躍後に下降して着地する",
+  angular: "方向を切り替えながら角張って進む",
+  "syncopated-narrow": "狭い音域で細かく往復する",
+  ostinato: "短い音型を機械的に反復する",
+  floating: "音域中央の周囲を漂う",
+  arch: "フレーズ前半で上昇し後半で下降する",
+  "call-response": "上行する呼びかけと下降する応答を交互に置く",
+  descending: "下降方向を優先して緊張を深める",
+  interlocking: "短い上下動を噛み合わせて反復する",
+  "voice-led": "共通音と近接音を優先して滑らかに移る",
+};
+
+function contourMovement(
+  contour: MelodicContour,
+  progress: number,
+  noteIndex: number,
+  pitch: number,
+  center: number,
+  rng: Rng,
+): { dir: -1 | 1; steps: number } {
+  if (contour === "arch") {
+    return { dir: progress < 0.5 ? 1 : -1, steps: 1 };
+  }
+  if (contour === "call-response") {
+    return { dir: Math.floor(progress * 4) % 2 === 0 ? 1 : -1, steps: noteIndex % 4 === 3 ? 2 : 1 };
+  }
+  if (contour === "descending") {
+    return { dir: rng.chance(0.82) ? -1 : 1, steps: rng.chance(0.82) ? 1 : 2 };
+  }
+  if (contour === "interlocking") {
+    const directions: Array<-1 | 1> = [1, -1, 1, -1, -1, 1];
+    return { dir: directions[noteIndex % directions.length]!, steps: noteIndex % 3 === 2 ? 2 : 1 };
+  }
+  if (contour === "voice-led" || contour === "floating") {
+    const towardCenter: -1 | 1 = pitch > center ? -1 : 1;
+    return { dir: rng.chance(0.7) ? towardCenter : (towardCenter === 1 ? -1 : 1), steps: 1 };
+  }
+  if (contour === "syncopated-narrow" || contour === "stepwise") {
+    return { dir: rng.chance(0.5) ? 1 : -1, steps: 1 };
+  }
+  return { dir: rng.chance(0.5) ? 1 : -1, steps: rng.chance(0.7) ? 1 : 2 };
+}
+
 /** リズムスロット: テンプレートを小節内の (開始位置, 長さ, 休符, アウフタクト) に展開したもの */
 interface Slot {
   offset: number;
@@ -203,9 +251,13 @@ export function generateMelody(
   rng: Rng,
   opts: { startPitch?: number } = {},
 ): MelodyResult {
-  const scalePcs = scaleOf(key);
+  const scalePcs = scaleOf(key, dialect.melody.pitchCollection);
   const notes: NoteEvent[] = [];
-  const annotations: Annotation[] = [];
+  const annotations: Annotation[] = [{
+    bar: 0,
+    ruleId: "melodic-contour",
+    text: `旋律輪郭: ${CONTOUR_LABELS[dialect.melody.contour]}`,
+  }];
   const { leapProbability, leapRangeSemitones, afterLeapBias, pedalPoint } = dialect.melody;
   const repeatProb = dialect.melody.repeatNoteProbability ?? 0;
   const nct = dialect.melody.nonChordTones ?? {};
@@ -313,6 +365,7 @@ export function generateMelody(
     const capture = motif === null;
     const capturedSlots: MotifSlot[] = [];
     let captureHead: number | null = null;
+    let phraseNoteIndex = 0;
 
     for (let bar = phrase.startBar; bar < phraseEndBar; bar++) {
       const barStart = bar * bb;
@@ -436,6 +489,7 @@ export function generateMelody(
           } else {
             // 順次進行: 1〜2 度の移動。掛留/半音階の解決・跳躍後バイアス中は方向を固定
             let dir: number;
+            let contourSteps = 1;
             if (forcedStepDir !== 0) {
               dir = forcedStepDir;
               forcedStepDir = 0;
@@ -443,7 +497,17 @@ export function generateMelody(
               dir = afterLeapBias === "down" ? -1 : 1;
               biasRemaining--;
             } else {
-              dir = rng.chance(0.5) ? 1 : -1;
+              const progress = (slot.offset - phraseStartBeat) / Math.max(phrase.bars * bb, 1);
+              const movement = contourMovement(
+                dialect.melody.contour,
+                progress,
+                phraseNoteIndex,
+                prevPitch,
+                center,
+                rng,
+              );
+              dir = movement.dir;
+              contourSteps = movement.steps;
             }
 
             if (chromaticP > 0 && !strong && rng.chance(chromaticP)) {
@@ -459,8 +523,7 @@ export function generateMelody(
                 });
               }
             } else {
-              const steps = rng.chance(0.7) ? 1 : 2;
-              pitch = stepOnScale(prevPitch, dir * steps, scalePcs);
+              pitch = stepOnScale(prevPitch, dir * contourSteps, scalePcs);
             }
           }
         }
@@ -488,6 +551,7 @@ export function generateMelody(
         pitch = clampReflect(pitch, scalePcs, low, high);
 
         notes.push({ start: slot.offset, duration: slot.duration, pitch, velocity });
+        phraseNoteIndex++;
 
         if (capture) {
           if (captureHead === null) captureHead = pitch;

@@ -2,7 +2,13 @@
   "id": "ostinato-minimal",
   "name": "Ostinato (機械的リフレイン+ミニマル短調)",
   "stylePrompt": "late 1970s electronic pop, robotic synthesizer ostinato, minor key minimal chords, precise sequenced eighth notes, vocoder-like deadpan vocal, steady motorik pulse",
-  "defaults": { "key": "A", "mode": "minor", "bpm": 120 },
+  "defaults": {
+    "key": "A", "mode": "minor", "bpm": 120,
+    "arrangement": {
+      "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "basic",
+      "swing": 0, "humanize": 0.02, "velocityScale": 1
+    }
+  },
   "chord": {
     "vocabulary": ["i", "III", "iv", "v", "VI", "VII"],
     "transitions": {

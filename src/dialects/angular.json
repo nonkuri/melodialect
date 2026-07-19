@@ -2,7 +2,13 @@
   "id": "angular-sevenths",
   "name": "Angular (七の和音+変則フレーズの跳躍ポップ)",
   "stylePrompt": "1960s sophisticated orchestral pop, lush seventh chords, unexpected chord changes, syncopated angular melody with wide leaps, flugelhorn and strings, smooth female vocal",
-  "defaults": { "key": "Bb", "mode": "major", "bpm": 112 },
+  "defaults": {
+    "key": "Bb", "mode": "major", "bpm": 112,
+    "arrangement": {
+      "pianoPattern": "syncopated", "guitarPattern": "strum", "drumPattern": "basic",
+      "swing": 0.08, "humanize": 0.12, "velocityScale": 1
+    }
+  },
   "chord": {
     "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi", "♭VII", "II7"],
     "transitions": {

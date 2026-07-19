@@ -5,6 +5,7 @@ import type {
   Dialect,
   KeySignature,
   ParsedRoman,
+  PitchCollection,
   SectionPlan,
   WeightedProgression,
 } from "./types.js";
@@ -14,6 +15,15 @@ import { applyCliche } from "./techniques.js";
 
 const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11] as const;
 const NATURAL_MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10] as const;
+
+const PITCH_COLLECTIONS: Record<PitchCollection, readonly number[]> = {
+  major: MAJOR_SCALE,
+  "natural-minor": NATURAL_MINOR_SCALE,
+  "harmonic-minor": [0, 2, 3, 5, 7, 8, 11],
+  "major-pentatonic": [0, 2, 4, 7, 9],
+  "minor-pentatonic": [0, 3, 5, 7, 10],
+  blues: [0, 3, 5, 6, 7, 10],
+};
 
 const DEGREE_MAP: Record<string, number> = {
   i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7,
@@ -26,23 +36,40 @@ const QUALITY_INTERVALS: Record<ChordQuality, number[]> = {
   maj7: [0, 4, 7, 11],
   min7: [0, 3, 7, 10],
   dim: [0, 3, 6],
+  sus2: [0, 2, 7],
+  sus4: [0, 5, 7],
+  add9: [0, 4, 7, 14],
+  maj9: [0, 4, 7, 11, 14],
+  min9: [0, 3, 7, 10, 14],
+  dom9: [0, 4, 7, 10, 14],
+  halfDim7: [0, 3, 6, 10],
 };
 
 /** "♭VII", "ii7", "IV△7" などのローマ数字表記をパースする */
 export function parseRoman(symbol: string): ParsedRoman {
-  const m = symbol.match(/^(♭|b)?([iIvV]+)(°|dim)?(△7|maj7|M7|7)?$/);
+  const m = symbol.match(
+    /^(♭|b)?([iIvV]+)(ø7|°7|°|dim|sus2|sus4|add9|△9|maj9|M9|9|△7|maj7|M7|7)?$/,
+  );
   if (!m) throw new Error(`invalid roman numeral: ${symbol}`);
-  const [, flatMark, numeral, dimMark, seventh] = m;
+  const [, flatMark, numeral, suffix] = m;
   const degree = DEGREE_MAP[numeral!.toLowerCase()];
   if (degree === undefined) throw new Error(`invalid roman numeral: ${symbol}`);
   const isMinorTriad = numeral === numeral!.toLowerCase();
 
   let quality: ChordQuality;
-  if (dimMark) {
+  if (suffix === "ø7") {
+    quality = "halfDim7";
+  } else if (suffix === "°" || suffix === "°7" || suffix === "dim") {
     quality = "dim";
-  } else if (seventh === "7") {
+  } else if (suffix === "sus2" || suffix === "sus4" || suffix === "add9") {
+    quality = suffix;
+  } else if (suffix === "9") {
+    quality = isMinorTriad ? "min9" : "dom9";
+  } else if (suffix === "△9" || suffix === "maj9" || suffix === "M9") {
+    quality = "maj9";
+  } else if (suffix === "7") {
     quality = isMinorTriad ? "min7" : "dom7";
-  } else if (seventh) {
+  } else if (suffix) {
     quality = "maj7";
   } else {
     quality = isMinorTriad ? "min" : "maj";
@@ -50,8 +77,10 @@ export function parseRoman(symbol: string): ParsedRoman {
   return { degree, flat: Boolean(flatMark), quality };
 }
 
-export function scaleOf(key: KeySignature): number[] {
-  const base = key.mode === "major" ? MAJOR_SCALE : NATURAL_MINOR_SCALE;
+export function scaleOf(key: KeySignature, collection?: PitchCollection): number[] {
+  const base = collection
+    ? PITCH_COLLECTIONS[collection]
+    : key.mode === "major" ? MAJOR_SCALE : NATURAL_MINOR_SCALE;
   return base.map((offset) => (key.tonic + offset) % 12);
 }
 
@@ -98,6 +127,8 @@ const FLAT_NAMES = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A"
 
 const QUALITY_SUFFIX: Record<ChordQuality, string> = {
   maj: "", min: "m", dom7: "7", maj7: "△7", min7: "m7", dim: "dim",
+  sus2: "sus2", sus4: "sus4", add9: "add9", maj9: "△9", min9: "m9",
+  dom9: "9", halfDim7: "m7♭5",
 };
 
 /**
@@ -161,7 +192,9 @@ function planChordSlots(
   cadenceBars: number,
 ): ChordSlot[] {
   const bb = meter.barBeats;
+  const sectionRule = dialect.sectionRules?.[plan.type];
   const hr =
+    sectionRule?.harmonicRhythm ??
     dialect.chord.harmonicRhythm?.[plan.type] ??
     dialect.chord.harmonicRhythm?.["default"] ??
     { "1": 1 };
@@ -239,6 +272,7 @@ export function generateProgression(
   opts: { isFinalSection: boolean },
 ): ProgressionResult {
   const { vocabulary, transitions } = dialect.chord;
+  const sectionRule = dialect.sectionRules?.[plan.type];
   const annotations: Annotation[] = [];
   const tonic = tonicSymbolOf(dialect);
 
@@ -251,8 +285,8 @@ export function generateProgression(
   symbols[0] = tonic;
   let current = tonic;
 
-  const idioms = dialect.chord.idioms ?? [];
-  const idiomP = dialect.chord.idiomProbability ?? 0;
+  const idioms = sectionRule?.idioms ?? dialect.chord.idioms ?? [];
+  const idiomP = sectionRule?.idiomProbability ?? dialect.chord.idiomProbability ?? 0;
 
   let i = 1;
   while (i < bodySlots) {
@@ -291,7 +325,9 @@ export function generateProgression(
 
   // カデンツ (§4.1): 最終セクションは 2 コードの終止形、途中セクションは半終止
   if (opts.isFinalSection && cadenceSlots >= 2) {
-    const options = dialect.chord.cadences?.final ?? [{ symbols: ["V7", tonic], weight: 1 }];
+    const options = sectionRule?.cadences?.final ?? dialect.chord.cadences?.final ?? [
+      { symbols: ["V7", tonic], weight: 1 },
+    ];
     const pair = rng.weighted<WeightedProgression>(options.map((c) => [c, c.weight])).symbols;
     symbols[slots.length - 2] = pair[0]!;
     symbols[slots.length - 1] = pair[1]!;
@@ -301,7 +337,9 @@ export function generateProgression(
       text: `${finalCadenceLabel(pair)}: ${pair.join(" → ")}`,
     });
   } else if (cadenceSlots >= 1) {
-    const options = dialect.chord.cadences?.half ?? [{ symbols: ["V7"], weight: 1 }];
+    const options = sectionRule?.cadences?.half ?? dialect.chord.cadences?.half ?? [
+      { symbols: ["V7"], weight: 1 },
+    ];
     const pick = rng.weighted<WeightedProgression>(options.map((c) => [c, c.weight])).symbols;
     symbols[slots.length - 1] = pick[0]!;
     annotations.push({
@@ -316,7 +354,7 @@ export function generateProgression(
   );
 
   // 名前付き技法の適用 (技法レジストリ方式 §6.2)
-  for (const name of dialect.chord.cliches) {
+  for (const name of [...dialect.chord.cliches, ...(sectionRule?.cliches ?? [])]) {
     applyCliche(name, chords, annotations, key, rng, plan, meter);
   }
 

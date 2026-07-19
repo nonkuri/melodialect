@@ -2,7 +2,13 @@
   "id": "modal-irregular",
   "name": "Modal (モーダル進行+語りの同音連打)",
   "stylePrompt": "1960s British rock, modal borrowed chords, raw and honest male vocal, repetitive hypnotic melody, irregular phrase lengths, mid-tempo",
-  "defaults": { "key": "G", "mode": "major", "bpm": 104 },
+  "defaults": {
+    "key": "G", "mode": "major", "bpm": 104,
+    "arrangement": {
+      "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "rock",
+      "swing": 0, "humanize": 0.15, "velocityScale": 1
+    }
+  },
   "chord": {
     "vocabulary": ["I", "♭VII", "♭VI", "iv", "IV", "V7", "vi", "ii7"],
     "transitions": {

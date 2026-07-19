@@ -7,7 +7,8 @@ import type { Rng } from "./rng.js";
  * フレーズを 1 小節削って 7 小節構成などの変則化を行う (Modal / §4.1 D1)。
  */
 export function planSection(type: SectionType, dialect: Dialect, rng: Rng): SectionPlan {
-  const phraseLengths = dialect.structure.phraseLengths.map((len) => {
+  const configured = dialect.sectionRules?.[type]?.phraseLengths ?? dialect.structure.phraseLengths;
+  const phraseLengths = configured.map((len) => {
     if (len > 2 && rng.chance(dialect.structure.irregularPhraseProbability)) {
       return len - 1;
     }

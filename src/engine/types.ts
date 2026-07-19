@@ -10,7 +10,20 @@ export interface KeySignature {
   mode: Mode;
 }
 
-export type ChordQuality = "maj" | "min" | "dom7" | "maj7" | "min7" | "dim";
+export type ChordQuality =
+  | "maj"
+  | "min"
+  | "dom7"
+  | "maj7"
+  | "min7"
+  | "dim"
+  | "sus2"
+  | "sus4"
+  | "add9"
+  | "maj9"
+  | "min9"
+  | "dom9"
+  | "halfDim7";
 
 export interface ParsedRoman {
   /** スケール度数 1..7 */
@@ -47,9 +60,20 @@ export interface NoteEvent {
 }
 
 
-export type PianoPattern = "block" | "arpeggio" | "eighth" | "ballad";
-export type GuitarPattern = "off" | "strum" | "arpeggio" | "syncopated";
-export type DrumPattern = "off" | "basic" | "rock" | "bossa";
+export type PianoPattern =
+  | "block"
+  | "arpeggio"
+  | "eighth"
+  | "ballad"
+  | "syncopated"
+  | "voice-led";
+export type GuitarPattern =
+  | "off"
+  | "strum"
+  | "arpeggio"
+  | "syncopated"
+  | "interlocking";
+export type DrumPattern = "off" | "basic" | "rock" | "bossa" | "shuffle" | "interlock";
 export type SongPart = "melody" | "piano" | "guitar" | "bass" | "drums";
 
 export interface ArrangementSettings {
@@ -176,6 +200,50 @@ export interface WeightedProgression {
   weight: number;
 }
 
+export type PitchCollection =
+  | "major"
+  | "natural-minor"
+  | "harmonic-minor"
+  | "major-pentatonic"
+  | "minor-pentatonic"
+  | "blues";
+
+export type MelodicContour =
+  | "stepwise"
+  | "repetitive"
+  | "pedal"
+  | "leap-then-descend"
+  | "angular"
+  | "syncopated-narrow"
+  | "ostinato"
+  | "floating"
+  | "arch"
+  | "call-response"
+  | "descending"
+  | "interlocking"
+  | "voice-led";
+
+/** ダイアレクト固有の拍節。accentPattern は小節内の拍位置。 */
+export interface GrooveProfile {
+  subdivision: number;
+  accentPattern: number[];
+  /** 次のコードを何拍早く先取りするか。0 なら先取りなし。 */
+  anticipation?: number;
+}
+
+/** セクション単位で構成・和声語彙を上書きするルール。 */
+export interface DialectSectionRule {
+  phraseLengths?: number[];
+  idioms?: WeightedProgression[];
+  idiomProbability?: number;
+  cadences?: {
+    final?: WeightedProgression[];
+    half?: WeightedProgression[];
+  };
+  harmonicRhythm?: Record<string, number>;
+  cliches?: string[];
+}
+
 /** ダイアレクト定義 (§6.2 の JSON フォーマットに対応)。新フィールドはすべて省略可 (後方互換) */
 export interface Dialect {
   id: string;
@@ -183,7 +251,14 @@ export interface Dialect {
   /** Suno 等の外部サービスに渡すスタイル記述 (§4.5 テキスト出力) */
   stylePrompt?: string;
   /** meter はダイアレクトの推奨拍子 ("3/4" 等)。省略時 4/4 */
-  defaults: { key: string; mode: Mode; bpm: number; meter?: string };
+  defaults: {
+    key: string;
+    mode: Mode;
+    bpm: number;
+    meter?: string;
+    /** 未指定時に使う推奨伴奏。既存ダイアレクトは従来値へフォールバックする。 */
+    arrangement?: Partial<ArrangementSettings>;
+  };
   chord: {
     vocabulary: string[];
     transitions: Record<string, Record<string, number>>;
@@ -225,6 +300,8 @@ export interface Dialect {
     chorusDensityBias?: number;
   };
   melody: {
+    /** 旋律に使う音集合。省略時は調性に応じた長音階/自然短音階。 */
+    pitchCollection?: PitchCollection;
     /**
      * 跳躍確率。default はフレーズ頭、chorusHead はサビ (chorus) セクション頭。
      * フレーズ途中の跳躍確率は default の 35% (エンジン内ヒューリスティック)
@@ -232,7 +309,7 @@ export interface Dialect {
     leapProbability: { default: number; chorusHead: number };
     leapRangeSemitones: [number, number];
     afterLeapBias: "down" | "up" | "none";
-    contour: string;
+    contour: MelodicContour;
     /** 逆ペダルポイント (Pedal §4.1 D3): メロディを固定音に留めコードのみ変化させる */
     pedalPoint: boolean;
     /** 同音連打の確率 (Modal §4.1 D1)。省略時 0 */
@@ -255,6 +332,10 @@ export interface Dialect {
     phraseLengths: number[];
     irregularPhraseProbability: number;
   };
+  /** 3-3-2 など、伴奏とアクセントへ適用するダイアレクト固有グルーヴ。 */
+  groove?: GrooveProfile;
+  /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
+  sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**
    * セクション単位の転調傾向 (通常は bridge)。probability で発動し、
    * intervals から移調量 (半音) を重み付きで選ぶ

@@ -70,6 +70,7 @@ describe("P1 arrangement and controls", () => {
     const project = createProject("migration", workspace);
     const raw = JSON.parse(JSON.stringify(project));
     delete raw.workspace.arrangement;
+    delete raw.workspace.song.arrangement;
     delete raw.workspace.mixer;
     delete raw.workspace.composition;
     delete raw.workspace.sectionControls;
