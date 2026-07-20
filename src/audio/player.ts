@@ -364,6 +364,23 @@ export interface PlayOptions {
   onSoundFontFallback?: (fallbacks: SoundFontFallback[]) => void;
 }
 
+const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 6_000;
+
+async function resumeAudioContext(context: AudioContext): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = globalThis.setTimeout(
+      () => reject(new Error("AudioContextの起動がタイムアウトしました")),
+      AUDIO_CONTEXT_RESUME_TIMEOUT_MS,
+    );
+  });
+  try {
+    await Promise.race([context.resume(), timeout]);
+  } finally {
+    if (timer !== undefined) globalThis.clearTimeout(timer);
+  }
+}
+
 /** Resolve the playhead across a partial first pass and full later loops. */
 export function playbackBeatAtElapsed(
   song: Song,
@@ -652,7 +669,7 @@ export class TransportPlayer {
     }
     this.soundFontSession = soundFontSession;
     if (soundFontSession.fallbacks.length) options.onSoundFontFallback?.(soundFontSession.fallbacks);
-    await ctx.resume();
+    await resumeAudioContext(ctx);
 
     const contextStart = ctx.currentTime + 0.08;
     this.musicStartTime = contextStart + countInBeats * secPerBeat;

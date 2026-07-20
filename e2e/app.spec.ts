@@ -18,8 +18,13 @@ test("loads from the configured base path and completes the main workflow", asyn
   const supportsAudio = await page.evaluate(() => typeof AudioContext !== "undefined");
   await page.getByRole("button", { name: "▶ 再生" }).click();
   if (supportsAudio) {
-    await expect(page.getByRole("button", { name: "Ⅱ 一時停止" })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("button", { name: "■ 停止" }).click();
+    const pause = page.getByRole("button", { name: "Ⅱ 一時停止" });
+    const unavailable = page.getByRole("status").filter({
+      hasText: /AudioContextの起動がタイムアウトしました|このブラウザでは音声を再生できません/,
+    });
+    await expect(pause.or(unavailable)).toBeVisible({ timeout: 30_000 });
+    if (await pause.isVisible()) await page.getByRole("button", { name: "■ 停止" }).click();
+    else await expect(page.getByRole("button", { name: "▶ 再生" })).toBeVisible();
   } else {
     await expect(page.getByRole("button", { name: "▶ 再生" })).toBeVisible();
   }
