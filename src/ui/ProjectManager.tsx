@@ -29,11 +29,13 @@ export function ProjectManager({
   onClose,
   onOpen,
   onProjectsChanged,
+  onCreateSample,
 }: {
   currentId: string;
   onClose: () => void;
   onOpen: (project: ProjectDocument) => void;
   onProjectsChanged: () => void;
+  onCreateSample: () => void;
 }) {
   const [projects, setProjects] = useState<ProjectDocument[]>([]);
   const [trash, setTrash] = useState<TrashEntry[]>([]);
@@ -188,7 +190,10 @@ export function ProjectManager({
             </article>
           ))}
 
-          {tab === "projects" && projects.length === 0 && <p>保存されたプロジェクトはありません。</p>}
+          {tab === "projects" && projects.length === 0 && <div className="empty-state">
+            <p>保存されたプロジェクトはありません。サンプルから操作を試すか、新しい曲を作成してください。</p>
+            <button type="button" onClick={onCreateSample}>サンプル曲を開く</button>
+          </div>}
           {tab === "trash" && trash.length === 0 && <p>ゴミ箱は空です。</p>}
         </div>
       </section>

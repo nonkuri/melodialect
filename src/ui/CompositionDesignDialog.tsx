@@ -16,13 +16,10 @@ import {
 import { generateLyrics, generateSectionLyrics } from "../engine/lyrics.js";
 import {
   dialects,
-  downloadDialectJson,
-  listUserDialects,
-  readUserDialectFile,
-  removeUserDialect,
 } from "../dialects/index.js";
 import { cloneWorkspace, type WorkspaceState } from "./project.js";
 import type { NoteSelection } from "./editor.js";
+import { DialectManager } from "./DialectManager.js";
 import {
   deleteChordTemplate,
   listChordTemplates,
@@ -61,7 +58,7 @@ const TOOL_COPY: Record<CompositionTool, {
   },
   dialects: {
     title: "ダイアレクトを管理",
-    description: "ユーザー定義ダイアレクトの読み込み、書き出し、削除を行います。",
+    description: "内蔵定義を複製し、主要項目の編集・検証・試し生成・再利用を行います。",
   },
 };
 
@@ -104,8 +101,6 @@ export function CompositionDesignDialog({
   const [templates, setTemplates] = useState(listChordTemplates);
   const [templateId, setTemplateId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [dialectIssues, setDialectIssues] = useState<string[]>([]);
-  const [userDialectTick, setUserDialectTick] = useState(0);
   const regenerationSalt = useRef(1);
 
   const parsedDrafts = useMemo(() => workspace.song.sections.map((section, index) => {
@@ -210,8 +205,6 @@ export function CompositionDesignDialog({
       return next;
     });
   };
-
-  const userDialects = useMemo(() => listUserDialects(), [userDialectTick]);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
@@ -387,35 +380,22 @@ export function CompositionDesignDialog({
           </div>
         </section>}
 
-        {tool === "dialects" && <section className="design-section" aria-label="ユーザー定義ダイアレクト">
-          <p className="design-help">JSONは128KBまで。値域、ローマ数字、参照可能な内蔵技法を項目別に検証し、端末内へ保存します。</p>
-          <div className="manager-actions">
-            <label className="file-button">JSONを読み込む<input type="file" accept="application/json,.json" onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.currentTarget.value = "";
-              if (!file) return;
-              void readUserDialectFile(file).then((dialect) => {
-                setDialectIssues([]);
-                setUserDialectTick((value) => value + 1);
-                setMessage(`${dialect.name} を保存しました`);
-              }).catch((error: unknown) => setDialectIssues(
-                (error instanceof Error ? error.message : "読み込みに失敗しました").split("\n"),
-              ));
-            }} /></label>
-          </div>
-          {dialectIssues.length > 0 && <ul className="dialect-issues">{dialectIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
-          <div className="user-dialect-list">
-            {userDialects.length === 0 && <p>保存済みユーザーダイアレクトはありません。</p>}
-            {userDialects.map((dialect) => <article key={dialect.id}>
-              <span><strong>{dialect.name}</strong><small>{dialect.id}</small></span>
-              <button type="button" onClick={() => downloadDialectJson(dialect)}>JSON書き出し</button>
-              <button type="button" className="danger" onClick={() => {
-                removeUserDialect(dialect.id);
-                setUserDialectTick((value) => value + 1);
-              }}>削除</button>
-            </article>)}
-          </div>
-        </section>}
+        {tool === "dialects" && <DialectManager
+          activeDialectId={workspace.settings.dialectId}
+          onUse={(dialect) => {
+            const next = cloneWorkspace(workspace);
+            next.settings = {
+              ...next.settings,
+              dialectId: dialect.id,
+              keyName: dialect.defaults.key,
+              mode: dialect.defaults.mode,
+              bpm: dialect.defaults.bpm,
+              meterName: dialect.defaults.meter ?? "4/4",
+            };
+            onCommit(next, `${dialect.name} を曲のダイアレクトに選びました`);
+            onClose();
+          }}
+        />}
 
         <footer className="design-footer">
           <button type="button" onClick={onClose}>{tool === "dialects" ? "閉じる" : "キャンセル"}</button>

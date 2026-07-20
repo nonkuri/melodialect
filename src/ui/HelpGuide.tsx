@@ -1,4 +1,12 @@
-export function HelpGuide({ onboarding = false, onClose }: { onboarding?: boolean; onClose: () => void }) {
+export function HelpGuide({
+  onboarding = false,
+  onClose,
+  onStartSample,
+}: {
+  onboarding?: boolean;
+  onClose: () => void;
+  onStartSample?: () => void;
+}) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -29,8 +37,12 @@ export function HelpGuide({ onboarding = false, onClose }: { onboarding?: boolea
         <p className="privacy-note">
           楽曲・設定・取り込んだSF2は端末内だけで処理され、Melodialectのサーバーへ送信されません。
         </p>
+        <p className="privacy-note">
+          アプリ本体のキャッシュ、プロジェクト、ユーザー音源は別データです。更新やアプリキャッシュ修復では作品と音源を削除しません。ブラウザの「サイトデータを削除」はすべて消去するため、先にプロジェクト一覧から全曲バックアップを保存してください。
+        </p>
         <footer>
           <a href="./docs/USER_GUIDE.md" target="_blank" rel="noreferrer">詳しいユーザーガイド</a>
+          {onboarding && onStartSample && <button type="button" onClick={onStartSample}>サンプル曲を開く</button>}
           <button className="primary" onClick={onClose}>はじめる</button>
         </footer>
       </section>

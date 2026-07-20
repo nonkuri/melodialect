@@ -9,6 +9,7 @@ import {
   saveCustomForms,
   validateForm,
 } from "./formPresets.js";
+import { applyStarterPreset, STARTER_PRESETS } from "./starterPresets.js";
 
 export interface Settings {
   dialectId: string;
@@ -83,6 +84,18 @@ export function SettingsPanel({
 
   return (
     <aside className="settings">
+      <label className="starter-preset">
+        目的から始める
+        <select defaultValue="" onChange={(event) => {
+          if (!event.target.value) return;
+          onChange(applyStarterPreset(event.target.value));
+          event.currentTarget.value = "";
+        }}>
+          <option value="" disabled>プリセットを選択…</option>
+          {STARTER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+        </select>
+        <small>{STARTER_PRESETS.map((preset) => preset.label).join(" / ")}</small>
+      </label>
       <div className="panel-heading">
         <strong>曲の土台</strong>
         <span className="change-badge rebuild">全体生成で反映</span>
@@ -176,7 +189,7 @@ export function SettingsPanel({
 
       <label>
         構成
-        <select value={settings.form} onChange={(e) => selectForm(e.target.value)}>
+        <select aria-label="構成" value={settings.form} onChange={(e) => selectForm(e.target.value)}>
           <optgroup label="標準">
             {STANDARD_FORMS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -200,6 +213,7 @@ export function SettingsPanel({
         <span className="custom-form-title">カスタム構成を追加</span>
         <div className="seed-row">
           <input
+            aria-label="カスタム構成"
             type="text"
             placeholder="例: i,v,c,b,c,o"
             value={draftForm}

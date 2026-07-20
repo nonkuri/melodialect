@@ -1,0 +1,21 @@
+# v1.0 リリース手順
+
+## 公開前
+
+1. `npm ci && npm run check && npm run test:performance` を実行する。
+2. `npm run test:e2e:install` の後、`npm run test:e2e` を実行する。
+3. アプリの「プロジェクト一覧」から全曲バックアップを保存し、別ブラウザの空のプロファイルへ一括復元する。
+4. v1 / v2 のプロジェクト移行フィクスチャが CI で通ることを確認する。
+5. `package.json`、画面、ドキュメントのバージョンを一致させる。
+
+## 公開
+
+`v1.0.0` のような注釈付きタグを作り、タグを push する。`Deploy release to GitHub Pages` が、そのタグ名とコミットSHAをビルドIDへ埋め込んで公開する。GitHub の Settings → Pages では Source を GitHub Actions にする。
+
+## ロールバック
+
+1. 最後に正常だったタグを GitHub 上で開く。
+2. Actions の `Deploy release to GitHub Pages` を、そのタグを ref に指定して手動実行する。
+3. 公開URLで画面のバージョン、オフライン再起動、生成、保存済みプロジェクトの読込を確認する。
+
+Service Worker の更新に失敗した利用者は、更新通知の「アプリキャッシュだけ修復」を使う。この操作は localStorage のプロジェクトや IndexedDB / OPFS のユーザー音源を削除しない。ブラウザのサイトデータ削除はすべてを消すため、先に全曲バックアップを保存する。

@@ -76,6 +76,7 @@ function RangeRow(props: {
     <label className="control-range" title={help}>
       <span>{label}{help && <button type="button" className="help-dot" aria-label={`${label}の説明`}>?</button>}<output>{format ? format(value) : Math.round(value * 100)}</output></span>
       <input
+        aria-label={label}
         type="range"
         min={min}
         max={max}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Melodialect">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#253d73"/>
+      <stop offset="1" stop-color="#131a2b"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#7ee0d1"/>
+      <stop offset="1" stop-color="#8aa8ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M88 294c46 0 46-78 92-78s46 78 92 78 46-78 92-78 46 78 92 78" fill="none" stroke="url(#wave)" stroke-width="32" stroke-linecap="round"/>
+  <path d="M184 143v163c0 42-32 68-70 54-33-13-32-57 0-76 18-11 36-10 50-5V143h20zm214-28v163c0 42-32 68-70 54-33-13-32-57 0-76 18-11 36-10 50-5V115h20z" fill="#f5f7ff"/>
+</svg>

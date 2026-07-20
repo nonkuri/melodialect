@@ -35,6 +35,8 @@ import { HelpGuide } from "./HelpGuide.js";
 import { ProjectManager } from "./ProjectManager.js";
 import { SoundFontLibrary } from "./SoundFontLibrary.js";
 import { CompositionDesignDialog, type CompositionTool } from "./CompositionDesignDialog.js";
+import { PwaStatusNotice } from "./PwaStatusNotice.js";
+import { createStarterWorkspace } from "./starterPresets.js";
 import { validateSoundFontAssignments } from "../audio/soundfonts.js";
 import {
   addNote,
@@ -139,6 +141,10 @@ function defaultWorkspace(): WorkspaceState {
 
 function initialProject(): ProjectDocument {
   return loadLatestProject() ?? createProject("新しい曲", defaultWorkspace());
+}
+
+function createSampleProject(): ProjectDocument {
+  return createProject("サンプル: 最初の1曲", createStarterWorkspace("first-song"));
 }
 
 function noteBar(song: Song, selection: NoteSelection): number | null {
@@ -423,7 +429,13 @@ export function ComposerApp() {
     const targetSong = comparisonSide === "before" && comparisonBefore
       ? comparisonBefore.song
       : song;
-    void startPlayback(targetSong);
+    void startPlayback(targetSong).catch((error: unknown) => {
+      player.stop();
+      setPlaying(false);
+      setPlayheadBeat(null);
+      setLevels(emptyLevels());
+      setStatus(error instanceof Error ? error.message : "このブラウザでは音声を再生できません");
+    });
   }, [player, song, comparisonSide, comparisonBefore, startPlayback]);
 
   const undo = useCallback(() => {
@@ -875,8 +887,9 @@ export function ComposerApp() {
 
   return (
     <div className="app">
+      <PwaStatusNotice />
       <header className="header">
-        <h1>Melodialect</h1>
+        <h1>Melodialect <small className="app-version">v{__APP_VERSION__}</small></h1>
         <div className="view-toggle">
           <button className={view === "roll" ? "active" : ""} onClick={() => setView("roll")}>
             ピアノロール
@@ -1315,7 +1328,7 @@ export function ComposerApp() {
             </button>
           );
         })}
-        <span className="save-status">{status} · 履歴 {project.seedHistory.join(", ")}</span>
+        <span className={`save-status ${/失敗|できません|不足/.test(status) ? "error" : ""}`} role="status">{status} · 履歴 {project.seedHistory.join(", ")}</span>
       </footer>
       <span hidden>{historyTick}</span>
       {showProjects && (
@@ -1324,12 +1337,18 @@ export function ComposerApp() {
           onClose={() => setShowProjects(false)}
           onOpen={openProjectDocument}
           onProjectsChanged={() => setRecents(listRecentProjects())}
+          onCreateSample={() => openProjectDocument(createSampleProject())}
         />
       )}
       {showHelp && <HelpGuide onClose={() => setShowHelp(false)} />}
       {showOnboarding && (
         <HelpGuide
           onboarding
+          onStartSample={() => {
+            localStorage.setItem(ONBOARDING_KEY, "done");
+            openProjectDocument(createSampleProject());
+            setShowOnboarding(false);
+          }}
           onClose={() => {
             localStorage.setItem(ONBOARDING_KEY, "done");
             setShowOnboarding(false);
@@ -1344,6 +1363,13 @@ export function ComposerApp() {
           noteSelections={noteSelections}
           onClose={() => setCompositionTool(null)}
           onCommit={(next, message, regenerate) => {
+            if (next.settings.dialectId !== workspace.settings.dialectId) {
+              const selectedDialect = dialects[next.settings.dialectId];
+              if (selectedDialect) {
+                setDraftArrangement(normalizeArrangement(selectedDialect.defaults.arrangement));
+                setDraftComposition((current) => ({ ...current, mode: selectedDialect.defaults.mode }));
+              }
+            }
             const applied = regenerate ? regenerateCompositionParts(next, regenerate) : next;
             commitWorkspace(normalizeWorkspace(applied));
             setStatus(message);

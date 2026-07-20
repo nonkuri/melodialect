@@ -1,0 +1,5 @@
+{
+  "normalMs": 25,
+  "maximumMs": 150,
+  "heapDeltaMb": 64
+}
