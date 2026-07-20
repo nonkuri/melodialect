@@ -8,12 +8,16 @@ import type { Rng } from "./rng.js";
  */
 export function planSection(type: SectionType, dialect: Dialect, rng: Rng): SectionPlan {
   const configured = dialect.sectionRules?.[type]?.phraseLengths ?? dialect.structure.phraseLengths;
-  const phraseLengths = configured.map((len) => {
-    if (len > 2 && rng.chance(dialect.structure.irregularPhraseProbability)) {
-      return len - 1;
-    }
-    return len;
-  });
+  const phraseLengths = [...configured];
+  const candidates = phraseLengths
+    .map((len, index) => ({ len, index }))
+    .filter(({ len }) => len > 2);
+  // 変則化はセクションにつき一度だけ行う。各フレーズを独立に縮めると
+  // [4,4] が意図しない [3,3] (6小節) になり、欠落に聞こえてしまう。
+  if (candidates.length > 0 && rng.chance(dialect.structure.irregularPhraseProbability)) {
+    const picked = rng.pick(candidates);
+    phraseLengths[picked.index] = picked.len - 1;
+  }
   const bars = phraseLengths.reduce((a, b) => a + b, 0);
   return { type, phraseLengths, bars };
 }

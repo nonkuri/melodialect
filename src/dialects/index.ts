@@ -30,7 +30,7 @@ export const MELODIC_CONTOURS = [
   "descending", "interlocking", "voice-led",
 ] as const;
 export const PITCH_COLLECTIONS = [
-  "major", "natural-minor", "harmonic-minor", "major-pentatonic", "minor-pentatonic", "blues",
+  "major", "mixolydian", "natural-minor", "harmonic-minor", "major-pentatonic", "minor-pentatonic", "blues",
 ] as const;
 export const PIANO_PATTERNS = ["off", "block", "arpeggio", "bossa", "eighth", "ballad", "syncopated", "voice-led"] as const;
 export const GUITAR_PATTERNS = ["off", "strum", "arpeggio", "bossa", "syncopated", "interlocking"] as const;
@@ -244,7 +244,7 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       range("groove.subdivision", d.groove.subdivision, 0.125, 4);
       if (!Array.isArray(d.groove.accentPattern) || !d.groove.accentPattern.length || d.groove.accentPattern.length > 32 || d.groove.accentPattern.some((beat) => !finite(beat) || beat < 0 || beat >= 8)) add("groove.accentPattern", "0以上8未満の拍位置を最大32個で指定してください");
       if (d.groove.anticipation !== undefined) range("groove.anticipation", d.groove.anticipation, 0, 4);
-      if (d.groove.bassPattern !== undefined && d.groove.bassPattern !== "bossa") add("groove.bassPattern", "利用可能なベースパターンを指定してください");
+      if (d.groove.bassPattern !== undefined && !["bossa", "melodic", "drone"].includes(d.groove.bassPattern as string)) add("groove.bassPattern", "利用可能なベースパターンを指定してください");
     }
   }
   if (d.sectionRules !== undefined) {

@@ -10,7 +10,7 @@ import type {
 } from "./types.js";
 import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
-import { chordAtBeat, scaleOf } from "./harmony.js";
+import { chordAtBeat, pcToPitch, scaleOf } from "./harmony.js";
 
 import { normalizeArrangement } from "./controls.js";
 export interface AccompanimentResult {
@@ -40,7 +40,9 @@ export function generateAccompaniment(
   const bass: NoteEvent[] = [];
   const annotations: Annotation[] = [];
   const scalePcs = scaleOf(key, dialect.melody.pitchCollection);
-  const melodicBass = dialect.melody.contour === "stepwise"; // Chromatic: メロディックベース (§4.1 D2)
+  // 旧ユーザーダイアレクトとの互換用。内蔵ダイアレクトは groove.bassPattern で
+  // 旋律とベースの役割を独立に指定する。
+  const melodicBass = dialect.melody.contour === "stepwise" && !dialect.groove?.bassPattern;
   const guitar: NoteEvent[] = [];
   const drums: NoteEvent[] = [];
   let annotated = false;
@@ -140,15 +142,27 @@ export function generateAccompaniment(
   drums.push(...generateDrums(plan.bars, meter, config.drumPattern));
   const sectionBeats = plan.bars * meter.barBeats;
   if (dialect.groove?.accentPattern.length) {
-    const grooveBass = dialect.groove.bassPattern === "bossa" && meter.name === "4/4"
+    const bassPattern = dialect.groove.bassPattern;
+    const grooveBass = bassPattern === "bossa" && meter.name === "4/4"
       ? generateBossaBass(chords, sectionBeats)
-      : generateGrooveBass(chords, meter, dialect.groove, sectionBeats);
+      : bassPattern === "melodic"
+        ? generateMelodicBass(chords, meter, scalePcs, sectionBeats)
+        : bassPattern === "drone"
+          ? generateDroneBass(key, meter, sectionBeats)
+          : generateGrooveBass(chords, meter, dialect.groove, sectionBeats);
     bass.splice(0, bass.length, ...grooveBass);
     annotations.push({
       bar: 0,
-      ruleId: dialect.groove.bassPattern === "bossa" ? "bossa-groove" : "groove-profile",
-      text: dialect.groove.bassPattern === "bossa"
+      ruleId: bassPattern === "bossa" ? "bossa-groove"
+        : bassPattern === "melodic" ? "melodic-bass"
+        : bassPattern === "drone" ? "drone-bass"
+        : "groove-profile",
+      text: bassPattern === "bossa"
         ? "ボサ・グルーヴ: ルートと5度の低音に次のコードの8分先取りを重ねる"
+        : bassPattern === "melodic"
+          ? "メロディックベース: コードトーンを結び、次のルートへ半音または順次進行で接近"
+          : bassPattern === "drone"
+            ? "ドローンベース: 調のルートと5度を保ち、上声のコード変化を前景化"
         : `グルーヴ: 小節内 ${dialect.groove.accentPattern.join("-")} 拍を強調${
           dialect.groove.anticipation ? `、コードを ${dialect.groove.anticipation} 拍先取り` : ""
         }`,
@@ -489,6 +503,95 @@ function generateBossaBass(chords: ChordEvent[], sectionBeats: number): NoteEven
         velocity: anticipatesChange ? 76 : rootPulse ? 88 : 80,
       });
     }
+  }
+  return notes;
+}
+
+/** 同じピッチクラスを保ったまま reference に最も近い低音域へ置く。 */
+function nearestBassPitch(pitch: number, reference: number): number {
+  const pc = ((pitch % 12) + 12) % 12;
+  const candidates: number[] = [];
+  for (let candidate = 34; candidate <= 58; candidate++) {
+    if (candidate % 12 === pc) candidates.push(candidate);
+  }
+  return candidates.reduce((best, candidate) =>
+    Math.abs(candidate - reference) < Math.abs(best - reference) ? candidate : best,
+  candidates[0]!);
+}
+
+/**
+ * 低音を単なるルート反復にせず、コード内声と次コードへの接近音で歌わせる。
+ * ルートのオクターブも直前音に近い位置へ置くため、B2→C2 のような不自然な
+ * 11半音下降を避け、B2→C3 と滑らかにつなぐ。
+ */
+function generateMelodicBass(
+  chords: ChordEvent[],
+  meter: Meter,
+  scalePcs: number[],
+  sectionBeats: number,
+): NoteEvent[] {
+  const notes: NoteEvent[] = [];
+  const pulse = meter.name === "6/8" ? 1.5 : 1;
+  let previousPitch = chords[0]?.bassPitch ?? 36;
+
+  chords.forEach((chord, index) => {
+    const end = Math.min(sectionBeats, chord.start + chord.durationBeats);
+    const root = nearestBassPitch(chord.bassPitch, previousPitch);
+    const nextChord = chords[index + 1];
+    const nextRoot = nextChord ? nearestBassPitch(nextChord.bassPitch, root) : root;
+    const starts: number[] = [];
+    for (let start = chord.start; start < end - 1e-9; start += pulse) starts.push(start);
+
+    starts.forEach((start, pulseIndex) => {
+      const isFirst = pulseIndex === 0;
+      const isLast = pulseIndex === starts.length - 1;
+      let pitch = root;
+      if (!isFirst && isLast && nextChord && nextRoot !== root) {
+        const direction = nextRoot > previousPitch ? -1 : 1;
+        const chromaticApproach = nextRoot + direction;
+        const diatonicApproach = passingTone(previousPitch, nextRoot, scalePcs);
+        pitch = Math.abs(chromaticApproach - previousPitch) <= 5
+          ? chromaticApproach
+          : diatonicApproach;
+      } else if (!isFirst) {
+        const progress = pulseIndex / Math.max(starts.length - 1, 1);
+        const target = Math.round(root + (nextRoot - root) * progress);
+        const chordTones = chord.pitches.flatMap((tone) => [
+          nearestBassPitch(tone, target),
+          nearestBassPitch(tone, target) + 12,
+        ]).filter((tone) => tone >= 34 && tone <= 58);
+        pitch = chordTones.reduce((best, tone) =>
+          Math.abs(tone - target) < Math.abs(best - target) ? tone : best,
+        root);
+      }
+      notes.push({
+        start,
+        duration: Math.min(pulse * 0.88, end - start),
+        pitch,
+        velocity: isFirst ? 90 : isLast && nextChord ? 78 : 82,
+      });
+      previousPitch = pitch;
+    });
+  });
+  return notes;
+}
+
+/** 西洋和声のコードが動いても、ルートと5度だけは低声部で保つドローン。 */
+function generateDroneBass(
+  key: KeySignature,
+  meter: Meter,
+  sectionBeats: number,
+): NoteEvent[] {
+  const notes: NoteEvent[] = [];
+  const tonic = pcToPitch(key.tonic, 36);
+  const pulse = meter.name === "4/4" ? 2 : 1.5;
+  for (let start = 0, index = 0; start < sectionBeats - 1e-9; start += pulse, index++) {
+    notes.push({
+      start,
+      duration: Math.min(pulse * 0.94, sectionBeats - start),
+      pitch: index % 2 === 0 ? tonic : tonic + 7,
+      velocity: index % 2 === 0 ? 88 : 78,
+    });
   }
   return notes;
 }

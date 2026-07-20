@@ -5,29 +5,34 @@
   "defaults": {
     "key": "D", "mode": "major", "bpm": 88,
     "arrangement": {
-      "pianoPattern": "arpeggio", "guitarPattern": "arpeggio", "drumPattern": "basic",
+      "pianoPattern": "off", "guitarPattern": "arpeggio", "drumPattern": "basic",
       "swing": 0, "humanize": 0.14, "velocityScale": 0.9
     }
   },
   "chord": {
-    "vocabulary": ["I", "♭VII", "IV", "II7", "V7", "vi", "ii7"],
+    "vocabulary": ["I", "Isus4", "Iadd9", "♭VII", "IV", "IVadd9", "II7", "Vsus4", "V7", "vi", "ii7"],
     "transitions": {
-      "I": { "♭VII": 0.25, "IV": 0.25, "II7": 0.2, "vi": 0.15, "V7": 0.15 },
-      "♭VII": { "IV": 0.4, "I": 0.6 },
-      "IV": { "I": 0.4, "V7": 0.3, "♭VII": 0.3 },
-      "II7": { "V7": 0.6, "IV": 0.4 },
+      "I": { "Isus4": 0.18, "Iadd9": 0.14, "♭VII": 0.22, "IVadd9": 0.18, "II7": 0.12, "vi": 0.08, "Vsus4": 0.08 },
+      "Isus4": { "I": 0.66, "Iadd9": 0.2, "♭VII": 0.14 },
+      "Iadd9": { "♭VII": 0.28, "IVadd9": 0.32, "II7": 0.18, "I": 0.22 },
+      "♭VII": { "IV": 0.32, "IVadd9": 0.24, "I": 0.44 },
+      "IV": { "I": 0.42, "Vsus4": 0.24, "♭VII": 0.22, "IVadd9": 0.12 },
+      "IVadd9": { "I": 0.38, "Vsus4": 0.24, "♭VII": 0.22, "II7": 0.16 },
+      "II7": { "Vsus4": 0.38, "V7": 0.28, "IVadd9": 0.34 },
+      "Vsus4": { "V7": 0.58, "IV": 0.22, "I": 0.2 },
       "V7": { "I": 0.7, "vi": 0.3 },
-      "vi": { "II7": 0.3, "IV": 0.4, "ii7": 0.3 },
-      "ii7": { "V7": 0.7, "I": 0.3 }
+      "vi": { "II7": 0.3, "IVadd9": 0.4, "ii7": 0.3 },
+      "ii7": { "Vsus4": 0.5, "V7": 0.3, "I": 0.2 }
     },
     "idioms": [
-      { "symbols": ["I", "♭VII", "IV", "I"], "weight": 2 },
-      { "symbols": ["I", "II7", "IV", "I"], "weight": 1 }
+      { "symbols": ["I", "♭VII", "IVadd9", "I"], "weight": 3 },
+      { "symbols": ["I", "Isus4", "I", "Iadd9"], "weight": 2 },
+      { "symbols": ["I", "II7", "Vsus4", "V7"], "weight": 1 }
     ],
-    "idiomProbability": 0.3,
+    "idiomProbability": 0.62,
     "cadences": {
       "final": [
-        { "symbols": ["IV", "I"], "weight": 2 },
+        { "symbols": ["IVadd9", "I"], "weight": 3 },
         { "symbols": ["V7", "I"], "weight": 1 },
         { "symbols": ["♭VII", "I"], "weight": 1 }
       ],
@@ -38,7 +43,7 @@
       ]
     },
     "harmonicRhythm": {
-      "default": { "0.5": 0.2, "1": 0.8 }
+      "default": { "0.5": 0.35, "1": 0.65 }
     },
     "cliches": [],
     "borrowedChords": true
@@ -58,16 +63,22 @@
     "chorusDensityBias": 0.15
   },
   "melody": {
+    "pitchCollection": "mixolydian",
     "leapProbability": { "default": 0.06, "chorusHead": 0.25 },
     "leapRangeSemitones": [5, 9],
     "afterLeapBias": "none",
     "contour": "pedal",
     "pedalPoint": true,
-    "nonChordTones": { "appoggiatura": 0.05, "suspension": 0.2 },
+    "nonChordTones": { "appoggiatura": 0.04, "suspension": 0.36, "chromaticPassing": 0.02 },
     "registerShift": { "chorus": 2 }
   },
   "structure": {
     "phraseLengths": [4, 4],
-    "irregularPhraseProbability": 0.1
+    "irregularPhraseProbability": 0.08
+  },
+  "groove": {
+    "subdivision": 2,
+    "accentPattern": [0, 2],
+    "bassPattern": "drone"
   }
 }

@@ -63,10 +63,10 @@ describe("generateSong (Chromatic, seed 固定)", () => {
     expect(symbols(other) + melodyPitches(other)).not.toBe(symbols(song) + melodyPitches(song));
   });
 
-  it("構成は V-C-V-C の各 8 小節+最終セクションにコーダ 1 小節", () => {
+  it("構成は V-C-V-C を基本に、変則7小節と最終コーダを再現可能", () => {
     expect(song.sections.map((s) => s.plan.type)).toEqual(["verse", "chorus", "verse", "chorus"]);
-    expect(song.sections.map((s) => s.plan.bars)).toEqual([8, 8, 8, 9]);
-    expect(song.totalBars).toBe(33);
+    expect(song.sections.map((s) => s.plan.bars)).toEqual([8, 8, 7, 9]);
+    expect(song.totalBars).toBe(32);
   });
 
   it("コードイベントはセクション全体を隙間なく被覆する (ハーモニックリズム)", () => {
@@ -189,7 +189,7 @@ describe("generateSong (Chromatic, seed 固定)", () => {
   it("loop: コーダなし・半終止で終わり、最後の音が曲頭の音に近い", () => {
     const looped = generateSong({ dialect: chromatic, seed: 42, ending: "loop" });
     expect(looped.ending).toBe("loop");
-    expect(looped.totalBars).toBe(32);
+    expect(looped.totalBars).toBe(31);
     const last = looped.sections.at(-1)!;
     const lastChord = last.chords.at(-1)!;
     // 半終止 (V7 / IV) のまま曲頭の I へ戻る

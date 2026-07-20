@@ -10,25 +10,31 @@
     }
   },
   "chord": {
-    "vocabulary": ["I", "ii7", "iii", "IV", "V7", "vi", "♭VII"],
+    "vocabulary": ["I", "ii7", "iii", "III7", "IV", "iv", "V7", "vi", "II7", "♭VII"],
     "transitions": {
-      "I": { "IV": 0.3, "vi": 0.25, "ii7": 0.2, "V7": 0.15, "♭VII": 0.1 },
-      "ii7": { "V7": 0.6, "IV": 0.2, "iii": 0.2 },
-      "iii": { "vi": 0.5, "IV": 0.3, "ii7": 0.2 },
-      "IV": { "V7": 0.4, "I": 0.3, "ii7": 0.15, "♭VII": 0.15 },
-      "V7": { "I": 0.6, "vi": 0.3, "IV": 0.1 },
-      "vi": { "IV": 0.4, "ii7": 0.3, "V7": 0.3 },
+      "I": { "IV": 0.25, "vi": 0.22, "ii7": 0.14, "iii": 0.1, "III7": 0.1, "V7": 0.09, "♭VII": 0.1 },
+      "ii7": { "V7": 0.62, "IV": 0.18, "II7": 0.2 },
+      "iii": { "vi": 0.55, "IV": 0.3, "ii7": 0.15 },
+      "III7": { "vi": 0.68, "IV": 0.2, "ii7": 0.12 },
+      "IV": { "V7": 0.32, "I": 0.24, "iv": 0.22, "ii7": 0.12, "♭VII": 0.1 },
+      "iv": { "I": 0.62, "V7": 0.28, "vi": 0.1 },
+      "V7": { "I": 0.62, "vi": 0.25, "IV": 0.13 },
+      "vi": { "IV": 0.31, "ii7": 0.28, "II7": 0.18, "III7": 0.1, "V7": 0.13 },
+      "II7": { "V7": 0.65, "IV": 0.2, "ii7": 0.15 },
       "♭VII": { "IV": 0.5, "I": 0.5 }
     },
     "idioms": [
-      { "symbols": ["I", "vi", "ii7", "V7"], "weight": 2 },
+      { "symbols": ["I", "vi", "ii7", "V7"], "weight": 3 },
+      { "symbols": ["I", "III7", "vi", "IV"], "weight": 2 },
+      { "symbols": ["I", "iii", "IV", "iv"], "weight": 2 },
       { "symbols": ["IV", "V7", "iii", "vi"], "weight": 1 }
     ],
-    "idiomProbability": 0.35,
+    "idiomProbability": 0.58,
     "cadences": {
       "final": [
         { "symbols": ["V7", "I"], "weight": 3 },
-        { "symbols": ["IV", "I"], "weight": 1 }
+        { "symbols": ["IV", "I"], "weight": 2 },
+        { "symbols": ["iv", "I"], "weight": 2 }
       ],
       "half": [
         { "symbols": ["V7"], "weight": 3 },
@@ -36,8 +42,8 @@
       ]
     },
     "harmonicRhythm": {
-      "default": { "1": 0.85, "2": 0.15 },
-      "chorus": { "1": 0.7, "2": 0.3 }
+      "default": { "1": 0.93, "2": 0.07 },
+      "chorus": { "1": 0.82, "2": 0.18 }
     },
     "cliches": ["descending-bass"],
     "borrowedChords": true
@@ -53,22 +59,27 @@
         { "beats": [1, 1, -0.5, 0.5, 1], "weight": 1 }
       ]
     },
-    "anacrusisProbability": 0.35,
-    "chorusDensityBias": 0.3
+    "anacrusisProbability": 0.45,
+    "chorusDensityBias": 0.38
   },
   "melody": {
-    "leapProbability": { "default": 0.12, "chorusHead": 0.5 },
+    "leapProbability": { "default": 0.14, "chorusHead": 0.52 },
     "leapRangeSemitones": [5, 9],
     "afterLeapBias": "down",
     "contour": "stepwise",
     "pedalPoint": false,
-    "motif": { "repeatProbability": 0.6 },
-    "nonChordTones": { "appoggiatura": 0.15, "suspension": 0.05, "chromaticPassing": 0.1 },
+    "motif": { "repeatProbability": 0.72 },
+    "nonChordTones": { "appoggiatura": 0.14, "suspension": 0.08, "chromaticPassing": 0.14 },
     "registerShift": { "chorus": 3 }
   },
   "structure": {
     "phraseLengths": [4, 4],
-    "irregularPhraseProbability": 0
+    "irregularPhraseProbability": 0.16
+  },
+  "groove": {
+    "subdivision": 1,
+    "accentPattern": [0, 2],
+    "bassPattern": "melodic"
   },
   "modulation": {
     "bridge": { "probability": 0.35, "intervals": [{ "semitones": 5, "weight": 1 }] }

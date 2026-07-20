@@ -290,6 +290,7 @@ export interface WeightedProgression {
 
 export type PitchCollection =
   | "major"
+  | "mixolydian"
   | "natural-minor"
   | "harmonic-minor"
   | "major-pentatonic"
@@ -318,7 +319,7 @@ export interface GrooveProfile {
   /** 次のコードを何拍早く先取りするか。0 なら先取りなし。 */
   anticipation?: number;
   /** アクセント位置の単純なルート反復以外に、専用ベース型を使う。 */
-  bassPattern?: "bossa";
+  bassPattern?: "bossa" | "melodic" | "drone";
 }
 
 /** セクション単位で構成・和声語彙を上書きするルール。 */

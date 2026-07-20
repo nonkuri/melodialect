@@ -18,6 +18,7 @@ const NATURAL_MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10] as const;
 
 const PITCH_COLLECTIONS: Record<PitchCollection, readonly number[]> = {
   major: MAJOR_SCALE,
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
   "natural-minor": NATURAL_MINOR_SCALE,
   "harmonic-minor": [0, 2, 3, 5, 7, 8, 11],
   "major-pentatonic": [0, 2, 4, 7, 9],
@@ -294,8 +295,13 @@ export function generateProgression(
     let placed = false;
     if (idioms.length > 0 && rng.chance(idiomP)) {
       const idiom = rng.weighted<WeightedProgression>(idioms.map((d) => [d, d.weight]));
-      if (i + idiom.symbols.length <= bodySlots) {
-        idiom.symbols.forEach((s, j) => {
+      // 現在の和音から始まる定型句では先頭を重ねない。従来は冒頭の I を
+      // 生成済みなのに I→I→vi… と置き、定型句の推進力を損ねていた。
+      const placement = idiom.symbols[0] === current
+        ? idiom.symbols.slice(1)
+        : idiom.symbols;
+      if (placement.length > 0 && i + placement.length <= bodySlots) {
+        placement.forEach((s, j) => {
           symbols[i + j] = s;
         });
         annotations.push({
@@ -303,7 +309,7 @@ export function generateProgression(
           ruleId: "chord-idiom",
           text: `定型句: ${idiom.symbols.join(" → ")}`,
         });
-        i += idiom.symbols.length;
+        i += placement.length;
         current = idiom.symbols.at(-1)!;
         placed = true;
       }

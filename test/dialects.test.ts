@@ -83,6 +83,15 @@ describe("各ダイアレクトの生成", () => {
     expect(found).toBe(true);
   });
 
+  it("変則フレーズは1セクションで1小節だけ縮まり、6小節にはならない", () => {
+    for (const dialect of [chromatic, modal]) {
+      for (let seed = 1; seed <= 50; seed++) {
+        const song = generateSong({ dialect, seed, form: ["verse"], ending: "loop" });
+        expect(song.sections[0]!.plan.bars).toBeGreaterThanOrEqual(7);
+      }
+    }
+  });
+
   it("Modal: 同音連打が多い (隣接音の反復率が Chromatic より高い)", () => {
     const repeatRate = (dialectId: "modal" | "chromatic") => {
       let repeats = 0;
@@ -121,6 +130,47 @@ describe("各ダイアレクトの生成", () => {
     expect(dominant / sections).toBeGreaterThan(0.6);
     const song = generateSong({ dialect: pedal, seed: 1 });
     expect(song.sections[0]!.annotations.some((a) => a.ruleId === "inverted-pedal")).toBe(true);
+  });
+
+  it("Chromatic: 専用ベースが4分音符で動き、半音接近音を含む", () => {
+    let chromaticMoves = 0;
+    let sections = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const song = generateSong({ dialect: chromatic, seed, form: ["verse"], ending: "loop" });
+      const section = song.sections[0]!;
+      sections++;
+      expect(section.annotations.some((a) => a.ruleId === "melodic-bass")).toBe(true);
+      expect(section.bass.length).toBeGreaterThanOrEqual(section.plan.bars * 3);
+      chromaticMoves += section.bass.slice(1).filter((note, index) =>
+        Math.abs(note.pitch - section.bass[index]!.pitch) === 1).length;
+    }
+    expect(chromaticMoves / sections).toBeGreaterThan(5);
+  });
+
+  it("Modal: ミクソリディアンの♭7とモーダル終止を優先する", () => {
+    expect(scaleOf({ tonic: 7, mode: "major" }, modal.melody.pitchCollection)).toContain(5); // G の F
+    let modalCadences = 0;
+    let authenticCadences = 0;
+    for (let seed = 1; seed <= 50; seed++) {
+      const song = generateSong({ dialect: modal, seed, form: ["verse"], ending: "loop" });
+      const symbol = song.sections[0]!.chords.at(-1)!.symbol;
+      if (symbol === "♭VII" || symbol === "IV") modalCadences++;
+      if (symbol === "V7") authenticCadences++;
+    }
+    expect(modalCadences).toBeGreaterThan(authenticCadences * 2);
+  });
+
+  it("Pedal: ルート・5度ドローンとsus/add9の内声変化を両立する", () => {
+    let coloredChords = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const song = generateSong({ dialect: pedal, seed, form: ["verse"], ending: "loop" });
+      const section = song.sections[0]!;
+      expect(section.annotations.some((a) => a.ruleId === "drone-bass")).toBe(true);
+      expect(new Set(section.bass.map((note) => note.pitch % 12))).toEqual(new Set([2, 9]));
+      coloredChords += section.chords.filter((chord) =>
+        chord.quality === "sus4" || chord.quality === "add9").length;
+    }
+    expect(coloredChords).toBeGreaterThan(20);
   });
 
   it("Twilight: サビ頭で大きく跳躍する (7 半音以上が高頻度)", () => {

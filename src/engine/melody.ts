@@ -165,7 +165,7 @@ function contourMovement(
     const towardCenter: -1 | 1 = pitch > center ? -1 : 1;
     return { dir: rng.chance(0.7) ? towardCenter : (towardCenter === 1 ? -1 : 1), steps: 1 };
   }
-  if (contour === "syncopated-narrow" || contour === "stepwise") {
+  if (contour === "syncopated-narrow" || contour === "stepwise" || contour === "pedal") {
     return { dir: rng.chance(0.5) ? 1 : -1, steps: 1 };
   }
   return { dir: rng.chance(0.5) ? 1 : -1, steps: rng.chance(0.7) ? 1 : 2 };
@@ -427,10 +427,6 @@ export function generateMelody(
           pitch = pendingResolve;
           pendingResolve = null;
           skipChordSnap = true;
-        } else if (pedalPitch !== null && !isPhraseHead && rng.chance(0.62)) {
-          // 逆ペダル: コードが変わってもメロディはペダル音に留まる
-          pitch = pedalPitch;
-          skipChordSnap = true;
         } else if (
           !isFirstNote &&
           !isLastNoteOfSection &&
@@ -448,6 +444,24 @@ export function generateMelody(
             ruleId: "suspension",
             text: "掛留: 前のコードの音を保持してから下に解決",
           });
+        } else if (
+          pedalPitch !== null &&
+          (
+            isPhraseHead ||
+            (prevPitch !== pedalPitch && (
+              (strong && rng.chance(0.58)) ||
+              (chord.start !== prevChordStart && rng.chance(0.55)) ||
+              rng.chance(0.18)
+            )) ||
+            (prevPitch === pedalPitch && rng.chance(
+              strong || chord.start !== prevChordStart ? 0.34 : 0.12,
+            ))
+          )
+        ) {
+          // 逆ペダル: 常時同音にせず、弱拍で隣接音へ離れ、強拍・和声境界・
+          // フレーズ頭で固定音へ戻す。固定音の存在感と歌としての呼吸を両立する。
+          pitch = pedalPitch;
+          skipChordSnap = true;
         } else if (!isFirstNote && repeatProb > 0 && rng.chance(repeatProb)) {
           // 同音連打 (Modal): 直前の音を繰り返す
           pitch = prevPitch;
