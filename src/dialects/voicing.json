@@ -1,7 +1,7 @@
 {
   "id": "extended-voicing",
   "name": "Voicing (拡張和音+滑らかな声部連結)",
-  "stylePrompt": "modern soulful pop, lush ninth chords and suspended dominants, smooth close voice leading on electric piano, restrained pocket drums, intimate expressive melody",
+  "stylePrompt": "modern soulful pop, root-light ninth chords and suspended dominants, smooth four-part close voice leading on electric piano, restrained pocket drums, intimate expressive melody",
   "defaults": {
     "key": "Eb",
     "mode": "major",
@@ -17,13 +17,15 @@
     }
   },
   "chord": {
-    "vocabulary": ["I△9", "Iadd9", "ii9", "iii7", "IV△9", "iv9", "V9", "Vsus4", "vi9", "viiø7", "♭VII△7"],
+    "vocabulary": ["I△9", "Iadd9", "Isus2", "ii9", "iii7", "IV△9", "IVsus2", "iv9", "V9", "Vsus4", "vi9", "viiø7", "♭VII△7"],
     "transitions": {
-      "I△9": { "vi9": 0.25, "IV△9": 0.25, "iii7": 0.15, "ii9": 0.2, "♭VII△7": 0.15 },
+      "I△9": { "vi9": 0.22, "IV△9": 0.22, "iii7": 0.13, "ii9": 0.18, "♭VII△7": 0.13, "Isus2": 0.12 },
       "Iadd9": { "IV△9": 0.35, "vi9": 0.3, "ii9": 0.2, "V9": 0.15 },
-      "ii9": { "V9": 0.45, "Vsus4": 0.2, "iii7": 0.15, "IV△9": 0.2 },
+      "Isus2": { "I△9": 0.5, "IV△9": 0.28, "vi9": 0.22 },
+      "ii9": { "V9": 0.38, "Vsus4": 0.32, "iii7": 0.12, "IV△9": 0.18 },
       "iii7": { "vi9": 0.45, "IV△9": 0.25, "ii9": 0.2, "iv9": 0.1 },
-      "IV△9": { "I△9": 0.3, "iv9": 0.2, "V9": 0.25, "iii7": 0.15, "ii9": 0.1 },
+      "IV△9": { "I△9": 0.25, "iv9": 0.18, "V9": 0.22, "iii7": 0.12, "ii9": 0.08, "IVsus2": 0.15 },
+      "IVsus2": { "IV△9": 0.48, "I△9": 0.27, "V9": 0.25 },
       "iv9": { "I△9": 0.45, "V9": 0.3, "♭VII△7": 0.25 },
       "V9": { "I△9": 0.55, "vi9": 0.25, "IV△9": 0.2 },
       "Vsus4": { "V9": 0.6, "I△9": 0.3, "vi9": 0.1 },
@@ -33,11 +35,12 @@
     },
     "idioms": [
       { "symbols": ["I△9", "iii7", "vi9", "ii9"], "weight": 2 },
-      { "symbols": ["ii9", "V9", "I△9"], "weight": 3 },
+      { "symbols": ["ii9", "Vsus4", "V9", "I△9"], "weight": 4 },
       { "symbols": ["IV△9", "iv9", "I△9"], "weight": 3 },
-      { "symbols": ["vi9", "viiø7", "I△9"], "weight": 2 }
+      { "symbols": ["vi9", "viiø7", "I△9"], "weight": 2 },
+      { "symbols": ["IVsus2", "IV△9", "iv9", "I△9"], "weight": 2 }
     ],
-    "idiomProbability": 0.62,
+    "idiomProbability": 0.72,
     "cadences": {
       "final": [
         { "symbols": ["IV△9", "I△9"], "weight": 3 },
@@ -83,9 +86,9 @@
     "afterLeapBias": "down",
     "contour": "voice-led",
     "pedalPoint": false,
-    "repeatNoteProbability": 0.16,
+    "repeatNoteProbability": 0.24,
     "motif": { "repeatProbability": 0.58 },
-    "nonChordTones": { "appoggiatura": 0.18, "suspension": 0.2, "chromaticPassing": 0.2 },
+    "nonChordTones": { "appoggiatura": 0.16, "suspension": 0.28, "chromaticPassing": 0.16 },
     "registerShift": { "chorus": 2, "bridge": 1 }
   },
   "structure": {
@@ -98,7 +101,8 @@
       "idiomProbability": 0.75,
       "idioms": [
         { "symbols": ["IV△9", "iv9", "I△9"], "weight": 3 },
-        { "symbols": ["ii9", "V9", "I△9"], "weight": 2 }
+        { "symbols": ["ii9", "Vsus4", "V9", "I△9"], "weight": 4 },
+        { "symbols": ["IVsus2", "IV△9", "iv9", "I△9"], "weight": 2 }
       ]
     },
     "outro": { "phraseLengths": [4] }

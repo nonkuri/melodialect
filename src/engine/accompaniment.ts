@@ -138,6 +138,16 @@ export function generateAccompaniment(
   if (config.pianoPattern !== "block") {
     piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern, meter));
   }
+  if (config.pianoPattern === "voice-led") {
+    const hasNinthChord = chords.some((chord) => chord.pitches.length >= 5);
+    annotations.push({
+      bar: 0,
+      ruleId: "close-voice-leading",
+      text: hasNinthChord
+        ? "声部連結ピアノ: 9th和音は5度を省いた4声とし、転回形全体の移動量を最小化"
+        : "声部連結ピアノ: 転回形全体を比較し、上声の移動量を最小化",
+    });
+  }
   guitar.push(...generateGuitar(chords, config.guitarPattern, meter));
   drums.push(...generateDrums(plan.bars, meter, config.drumPattern));
   const sectionBeats = plan.bars * meter.barBeats;
@@ -186,7 +196,12 @@ function generatePianoPattern(
   let previousVoicing: number[] | undefined;
   for (const chord of chords) {
     if (pattern === "voice-led") {
-      const voicing = voiceLead(chord.pitches, previousVoicing);
+      // 9th 和音はベースと響きが重くなりやすい5度を省き、
+      // root / 3rd / 7th / 9th の4声を声部連結する。
+      const source = chord.pitches.length >= 5
+        ? chord.pitches.filter((_, index) => index !== 2)
+        : chord.pitches;
+      const voicing = voiceLead(source, previousVoicing);
       previousVoicing = voicing;
       voicing.forEach((pitch, index) => notes.push({
         start: chord.start + index * 0.025,
@@ -281,14 +296,45 @@ function generateBossaPiano(chords: ChordEvent[], meter: Meter): NoteEvent[] {
   return notes;
 }
 
+/**
+ * コードの転回形を列挙し、前の和音からの総移動量・上声の跳躍・音域をまとめて評価する。
+ * 各配列位置を個別に近づけてからソートする旧方式で起きた声部交差を避ける。
+ */
 function voiceLead(pitches: number[], previous?: number[]): number[] {
-  if (!previous?.length) return [...pitches];
-  return pitches.map((pitch, index) => {
-    const target = previous[Math.min(index, previous.length - 1)]!;
-    const candidates = [pitch - 12, pitch, pitch + 12];
-    return candidates.reduce((best, candidate) =>
-      Math.abs(candidate - target) < Math.abs(best - target) ? candidate : best);
-  }).sort((a, b) => a - b);
+  const ordered = [...pitches].sort((a, b) => a - b);
+  const candidates: number[][] = [];
+  for (let inversion = 0; inversion < ordered.length; inversion++) {
+    const rotated = [
+      ...ordered.slice(inversion),
+      ...ordered.slice(0, inversion).map((pitch) => pitch + 12),
+    ];
+    for (let shift = -24; shift <= 24; shift += 12) {
+      const candidate = rotated.map((pitch) => pitch + shift);
+      if (candidate[0]! >= 50 && candidate.at(-1)! <= 79) candidates.push(candidate);
+    }
+  }
+  if (!candidates.length) return ordered;
+
+  const score = (candidate: number[]): number => {
+    const center = candidate.reduce((sum, pitch) => sum + pitch, 0) / candidate.length;
+    const span = candidate.at(-1)! - candidate[0]!;
+    let value = Math.abs(center - 64) * 0.3 + Math.max(0, span - 17) * 0.8;
+    if (!previous?.length) return value;
+
+    candidate.forEach((pitch, index) => {
+      const targetIndex = candidate.length === 1
+        ? 0
+        : Math.round(index * (previous.length - 1) / (candidate.length - 1));
+      const movement = Math.abs(pitch - previous[targetIndex]!);
+      value += movement + Math.max(0, movement - 5) * 1.5;
+    });
+    // 聴感上もっとも目立つトップノートは特に滑らかにつなぐ。
+    value += Math.abs(candidate.at(-1)! - previous.at(-1)!) * 0.65;
+    return value;
+  };
+
+  return candidates.reduce((best, candidate) =>
+    score(candidate) < score(best) ? candidate : best);
 }
 
 function generateGuitar(

@@ -422,15 +422,48 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
     expect(section.guitar.some((note) => Math.abs(note.start - codaStart) < 0.04)).toBe(true);
   });
 
-  it("Orchestral: 半音階クリシェ (転回ベース) が適用される", () => {
-    let found = false;
-    for (let seed = 1; seed <= 20 && !found; seed++) {
-      const song = generateSong({ dialect: orchestral, seed });
-      found = song.sections.some((sec) =>
-        sec.annotations.some((a) => a.ruleId === "chromatic-cliche"),
-      );
+  it("Orchestral: 1–7–6–5の下降転回ベースと旋律的ベースを前景化する", () => {
+    let applied = 0;
+    let example: ReturnType<typeof generateSong>["sections"][number] | undefined;
+    let chorusExample: ReturnType<typeof generateSong>["sections"][number] | undefined;
+    for (let seed = 1; seed <= 40; seed++) {
+      const section = generateSong({
+        dialect: orchestral,
+        seed,
+        form: ["verse"],
+        ending: "loop",
+      }).sections[0]!;
+      if (section.annotations.some((annotation) =>
+        annotation.ruleId === "orchestral-inversion-line")) {
+        applied++;
+        example ??= section;
+      }
+      expect(section.annotations.some((annotation) =>
+        annotation.ruleId === "melodic-bass")).toBe(true);
+      expect(section.annotations.some((annotation) =>
+        annotation.ruleId === "close-voice-leading")).toBe(true);
+
+      const chorus = generateSong({
+        dialect: orchestral,
+        seed,
+        form: ["chorus"],
+        ending: "loop",
+      }).sections[0]!;
+      if (chorus.annotations.some((annotation) =>
+        annotation.ruleId === "orchestral-inversion-line")) chorusExample ??= chorus;
     }
-    expect(found).toBe(true);
+    expect(applied).toBeGreaterThanOrEqual(28);
+    expect(example!.chords.slice(0, 4).map((chord) => chord.symbol)).toEqual([
+      "I△7", "V7/3", "vi7", "iii7/3",
+    ]);
+    const bass = example!.chords.slice(0, 4).map((chord) => chord.bassPitch);
+    expect(bass.slice(1).map((pitch, index) => pitch - bass[index]!)).toEqual([-1, -2, -2]);
+    expect(chorusExample!.chords.slice(0, 4).map((chord) => chord.symbol)).toEqual([
+      "vi7", "iii7/3", "IV△7", "I△7/3",
+    ]);
+    const chorusBass = chorusExample!.chords.slice(0, 4).map((chord) => chord.bassPitch);
+    expect(chorusBass.slice(1).map((pitch, index) => pitch - chorusBass[index]!))
+      .toEqual([-2, -2, -1]);
   });
 
   it("Angular: 変則フレーズ (8 小節未満のセクション) が出る", () => {
@@ -440,6 +473,40 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
       found = song.sections.some((s) => s.plan.bars < 8);
     }
     expect(found).toBe(true);
+  });
+
+  it("Angular: 方向反転・広い跳躍・1小節2コードを実際の出力に反映する", () => {
+    const intervals: number[] = [];
+    let directionChanges = 0;
+    let directionPairs = 0;
+    let twoChordBars = 0;
+    let bars = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const section = generateSong({
+        dialect: angular,
+        seed,
+        form: ["verse"],
+        ending: "loop",
+      }).sections[0]!;
+      const sectionIntervals = section.melody.slice(1).map((note, index) =>
+        note.pitch - section.melody[index]!.pitch);
+      intervals.push(...sectionIntervals);
+      for (let index = 1; index < sectionIntervals.length; index++) {
+        const previous = sectionIntervals[index - 1]!;
+        const current = sectionIntervals[index]!;
+        if (previous === 0 || current === 0) continue;
+        directionPairs++;
+        if (Math.sign(previous) !== Math.sign(current)) directionChanges++;
+      }
+      for (let bar = 0; bar < section.plan.bars; bar++) {
+        bars++;
+        if (section.chords.filter((chord) => chord.bar === bar).length === 2) twoChordBars++;
+      }
+    }
+    expect(intervals.filter((interval) => Math.abs(interval) >= 5).length / intervals.length)
+      .toBeGreaterThan(0.25);
+    expect(directionChanges / directionPairs).toBeGreaterThan(0.58);
+    expect(twoChordBars / bars).toBeGreaterThan(0.4);
   });
 });
 
@@ -506,13 +573,34 @@ describe("追加ダイアレクト D10〜D14", () => {
     expect(parseRoman("I△9").quality).toBe("maj9");
     expect(parseRoman("ii9").quality).toBe("min9");
     expect(parseRoman("V9").quality).toBe("dom9");
+    expect(parseRoman("Isus2").quality).toBe("sus2");
     expect(parseRoman("Vsus4").quality).toBe("sus4");
     expect(parseRoman("viiø7").quality).toBe("halfDim7");
     expect(chordFromRoman("I△9", 0, { tonic: 0, mode: "major" }).pitches).toHaveLength(5);
-    const song = generateSong({ dialect: voicing, seed: 9, form: ["chorus"] });
+    const song = generateSong({ dialect: voicing, seed: 9, form: ["chorus"], ending: "loop" });
+    const section = song.sections[0]!;
     expect(song.arrangement?.pianoPattern).toBe("voice-led");
-    expect(song.sections[0]!.chords.some((chord) => chord.pitches.length >= 5)).toBe(true);
-    expect(song.sections[0]!.piano.length).toBeGreaterThan(song.sections[0]!.chords.length);
+    expect(section.chords.some((chord) => chord.pitches.length >= 5)).toBe(true);
+    expect(section.chords.some((chord) => chord.quality === "sus2" || chord.quality === "sus4"))
+      .toBe(true);
+    expect(section.annotations.some((annotation) => annotation.ruleId === "close-voice-leading"))
+      .toBe(true);
+
+    const voicings = section.chords.map((chord) => section.piano
+      .filter((note) => Math.abs(note.start - chord.start) < 0.14)
+      .map((note) => note.pitch)
+      .sort((a, b) => a - b));
+    expect(voicings.every((pitches) => pitches.length >= 3 && pitches.length <= 4)).toBe(true);
+    for (let chordIndex = 1; chordIndex < voicings.length; chordIndex++) {
+      const previous = voicings[chordIndex - 1]!;
+      const current = voicings[chordIndex]!;
+      current.forEach((pitch, voiceIndex) => {
+        const targetIndex = current.length === 1
+          ? 0
+          : Math.round(voiceIndex * (previous.length - 1) / (current.length - 1));
+        expect(Math.abs(pitch - previous[targetIndex]!)).toBeLessThanOrEqual(7);
+      });
+    }
   });
 });
 

@@ -1,49 +1,49 @@
 {
   "id": "orchestral-inversion",
-  "name": "Orchestral (転回ベース+浮遊和声のポップ)",
-  "stylePrompt": "mid 1960s orchestral pop, layered vocal harmonies, inverted bass lines under floating chords, sleigh bells and baroque keyboards, tender falsetto vocal, bittersweet major key",
+  "name": "Orchestral (下降転回ベース+浮遊和声のポップ)",
+  "stylePrompt": "orchestral chamber pop, layered vocal harmonies, descending inversion bass under floating major seventh chords, celesta and soft strings, tender restrained vocal, bittersweet major key",
   "defaults": {
     "key": "Ab", "mode": "major", "bpm": 84,
     "arrangement": {
-      "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic",
+      "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "basic",
       "swing": 0, "humanize": 0.18, "velocityScale": 0.88
     }
   },
   "chord": {
-    "vocabulary": ["I", "ii7", "iii", "IV△7", "V7", "vi", "♭VI", "♭VII"],
+    "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi7", "♭VI△7", "♭VII"],
     "transitions": {
-      "I": { "vi": 0.25, "IV△7": 0.25, "ii7": 0.2, "iii": 0.15, "♭VI": 0.15 },
-      "ii7": { "V7": 0.4, "IV△7": 0.3, "iii": 0.3 },
-      "iii": { "IV△7": 0.4, "vi": 0.35, "ii7": 0.25 },
-      "IV△7": { "V7": 0.35, "I": 0.3, "ii7": 0.2, "♭VII": 0.15 },
-      "V7": { "vi": 0.4, "I": 0.45, "IV△7": 0.15 },
-      "vi": { "IV△7": 0.35, "ii7": 0.35, "♭VI": 0.3 },
-      "♭VI": { "♭VII": 0.6, "IV△7": 0.4 },
-      "♭VII": { "I": 0.6, "IV△7": 0.4 }
+      "I△7": { "vi7": 0.25, "IV△7": 0.25, "ii7": 0.18, "iii7": 0.17, "♭VI△7": 0.15 },
+      "ii7": { "V7": 0.36, "IV△7": 0.34, "iii7": 0.3 },
+      "iii7": { "IV△7": 0.4, "vi7": 0.35, "ii7": 0.25 },
+      "IV△7": { "V7": 0.3, "I△7": 0.35, "ii7": 0.2, "♭VII": 0.15 },
+      "V7": { "vi7": 0.42, "I△7": 0.42, "IV△7": 0.16 },
+      "vi7": { "IV△7": 0.36, "ii7": 0.34, "♭VI△7": 0.3 },
+      "♭VI△7": { "♭VII": 0.58, "IV△7": 0.42 },
+      "♭VII": { "I△7": 0.58, "IV△7": 0.42 }
     },
     "idioms": [
-      { "symbols": ["I", "iii", "IV△7", "V7"], "weight": 2 },
-      { "symbols": ["♭VI", "♭VII", "I"], "weight": 2 },
-      { "symbols": ["vi", "ii7", "IV△7", "I"], "weight": 1 }
+      { "symbols": ["I△7", "iii7", "IV△7", "V7"], "weight": 2 },
+      { "symbols": ["♭VI△7", "♭VII", "I△7"], "weight": 3 },
+      { "symbols": ["vi7", "ii7", "IV△7", "I△7"], "weight": 2 }
     ],
-    "idiomProbability": 0.35,
+    "idiomProbability": 0.48,
     "cadences": {
       "final": [
-        { "symbols": ["IV△7", "I"], "weight": 2 },
-        { "symbols": ["V7", "I"], "weight": 2 },
-        { "symbols": ["♭VII", "I"], "weight": 1 }
+        { "symbols": ["IV△7", "I△7"], "weight": 3 },
+        { "symbols": ["V7", "I△7"], "weight": 2 },
+        { "symbols": ["♭VII", "I△7"], "weight": 1 }
       ],
       "half": [
         { "symbols": ["IV△7"], "weight": 2 },
         { "symbols": ["V7"], "weight": 1 },
-        { "symbols": ["vi"], "weight": 1 }
+        { "symbols": ["vi7"], "weight": 1 }
       ]
     },
     "harmonicRhythm": {
-      "default": { "1": 0.75, "2": 0.25 },
-      "chorus": { "1": 0.6, "2": 0.4 }
+      "default": { "1": 0.9, "2": 0.1 },
+      "chorus": { "1": 0.75, "2": 0.25 }
     },
-    "cliches": ["descending-bass"],
+    "cliches": ["orchestral-inversions"],
     "borrowedChords": true
   },
   "rhythm": {
@@ -57,22 +57,34 @@
         { "beats": [0.5, 0.5, 1, 2], "weight": 1 }
       ]
     },
-    "anacrusisProbability": 0.25,
-    "chorusDensityBias": 0.2
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [4], "weight": 2 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.16,
+    "chorusDensityBias": 0.12
   },
   "melody": {
-    "leapProbability": { "default": 0.14, "chorusHead": 0.55 },
-    "leapRangeSemitones": [5, 9],
+    "leapProbability": { "default": 0.1, "chorusHead": 0.45 },
+    "leapRangeSemitones": [5, 8],
     "afterLeapBias": "down",
-    "contour": "stepwise",
+    "contour": "floating",
     "pedalPoint": false,
-    "motif": { "repeatProbability": 0.6 },
-    "nonChordTones": { "appoggiatura": 0.12, "suspension": 0.15, "chromaticPassing": 0.08 },
+    "repeatNoteProbability": 0.18,
+    "motif": { "repeatProbability": 0.7 },
+    "nonChordTones": { "appoggiatura": 0.14, "suspension": 0.28, "chromaticPassing": 0.06 },
     "registerShift": { "chorus": 3, "bridge": 2 }
   },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.1
+  },
+  "groove": {
+    "subdivision": 1,
+    "accentPattern": [0, 2],
+    "bassPattern": "melodic"
   },
   "modulation": {
     "bridge": {

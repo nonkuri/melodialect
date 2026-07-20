@@ -161,6 +161,16 @@ function contourMovement(
     const directions: Array<-1 | 1> = [1, -1, 1, -1, -1, 1];
     return { dir: directions[noteIndex % directions.length]!, steps: noteIndex % 3 === 2 ? 2 : 1 };
   }
+  if (contour === "angular") {
+    // 汎用のランダム歩行では「角張った輪郭」が平均化されてしまうため、
+    // 2〜3度の移動と方向反転を明示した非対称パターンを使う。
+    const directions: Array<-1 | 1> = [1, -1, 1, -1, -1, 1, -1, 1];
+    const steps = [2, 1, 3, 2, 1, 2, 3, 1];
+    return {
+      dir: directions[noteIndex % directions.length]!,
+      steps: steps[noteIndex % steps.length]!,
+    };
+  }
   if (contour === "voice-led" || contour === "floating") {
     const towardCenter: -1 | 1 = pitch > center ? -1 : 1;
     return { dir: rng.chance(0.7) ? towardCenter : (towardCenter === 1 ? -1 : 1), steps: 1 };

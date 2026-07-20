@@ -1,7 +1,7 @@
 {
   "id": "angular-sevenths",
-  "name": "Angular (七の和音+変則フレーズの跳躍ポップ)",
-  "stylePrompt": "1960s sophisticated orchestral pop, lush seventh chords, unexpected chord changes, syncopated angular melody with wide leaps, flugelhorn and strings, smooth female vocal",
+  "name": "Angular (七の和音+方向反転する跳躍ポップ)",
+  "stylePrompt": "sophisticated orchestral pop, major and minor seventh chords, quick unexpected chord changes, syncopated zigzag melody with alternating wide leaps, flugelhorn and strings, poised vocal",
   "defaults": {
     "key": "Bb", "mode": "major", "bpm": 112,
     "arrangement": {
@@ -10,23 +10,24 @@
     }
   },
   "chord": {
-    "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi", "♭VII", "II7"],
+    "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi7", "♭VII", "II7"],
     "transitions": {
-      "I△7": { "IV△7": 0.25, "iii7": 0.2, "ii7": 0.2, "vi": 0.15, "♭VII": 0.1, "II7": 0.1 },
+      "I△7": { "IV△7": 0.2, "iii7": 0.18, "ii7": 0.16, "vi7": 0.14, "♭VII": 0.14, "II7": 0.18 },
       "ii7": { "V7": 0.45, "iii7": 0.25, "IV△7": 0.3 },
-      "iii7": { "vi": 0.4, "ii7": 0.3, "IV△7": 0.3 },
+      "iii7": { "vi7": 0.42, "ii7": 0.28, "IV△7": 0.3 },
       "IV△7": { "iii7": 0.3, "V7": 0.3, "I△7": 0.2, "ii7": 0.2 },
-      "V7": { "I△7": 0.5, "vi": 0.3, "IV△7": 0.2 },
-      "vi": { "ii7": 0.4, "IV△7": 0.3, "iii7": 0.3 },
+      "V7": { "I△7": 0.46, "vi7": 0.3, "IV△7": 0.24 },
+      "vi7": { "ii7": 0.42, "IV△7": 0.28, "iii7": 0.3 },
       "♭VII": { "IV△7": 0.5, "I△7": 0.5 },
-      "II7": { "V7": 0.6, "ii7": 0.4 }
+      "II7": { "V7": 0.7, "ii7": 0.3 }
     },
     "idioms": [
       { "symbols": ["ii7", "V7", "I△7"], "weight": 2 },
-      { "symbols": ["iii7", "vi", "ii7", "V7"], "weight": 2 },
+      { "symbols": ["iii7", "vi7", "ii7", "V7"], "weight": 3 },
+      { "symbols": ["I△7", "II7", "V7", "iii7"], "weight": 2 },
       { "symbols": ["I△7", "♭VII", "IV△7"], "weight": 1 }
     ],
-    "idiomProbability": 0.4,
+    "idiomProbability": 0.46,
     "cadences": {
       "final": [
         { "symbols": ["V7", "I△7"], "weight": 2 },
@@ -40,7 +41,8 @@
       ]
     },
     "harmonicRhythm": {
-      "default": { "1": 0.7, "2": 0.3 }
+      "default": { "1": 0.45, "2": 0.55 },
+      "chorus": { "1": 0.3, "2": 0.7 }
     },
     "cliches": [],
     "borrowedChords": true
@@ -56,22 +58,28 @@
         { "beats": [1, 1, 1, 0.5, 0.5], "weight": 1 }
       ]
     },
-    "anacrusisProbability": 0.4,
-    "chorusDensityBias": 0.25
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [1, 1, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.48,
+    "chorusDensityBias": 0.36
   },
   "melody": {
-    "leapProbability": { "default": 0.22, "chorusHead": 0.6 },
-    "leapRangeSemitones": [5, 10],
-    "afterLeapBias": "down",
+    "leapProbability": { "default": 0.34, "chorusHead": 0.78 },
+    "leapRangeSemitones": [5, 11],
+    "afterLeapBias": "none",
     "contour": "angular",
     "pedalPoint": false,
-    "motif": { "repeatProbability": 0.45 },
-    "nonChordTones": { "appoggiatura": 0.18, "suspension": 0.1, "chromaticPassing": 0.06 },
-    "registerShift": { "chorus": 3 }
+    "motif": { "repeatProbability": 0.3 },
+    "nonChordTones": { "appoggiatura": 0.24, "suspension": 0.06, "chromaticPassing": 0.1 },
+    "registerShift": { "chorus": 4 }
   },
   "structure": {
     "phraseLengths": [4, 4],
-    "irregularPhraseProbability": 0.35
+    "irregularPhraseProbability": 0.42
   },
   "modulation": {
     "bridge": {
