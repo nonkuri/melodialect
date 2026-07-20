@@ -1,6 +1,6 @@
 # Melodialect パラメーターリファレンス
 
-対象バージョン: v1.0.1
+対象バージョン: v1.1.0
 
 [READMEへ戻る](../README.md) | [ユーザーガイド](USER_GUIDE.md)
 
