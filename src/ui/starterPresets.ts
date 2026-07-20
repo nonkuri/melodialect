@@ -34,8 +34,16 @@ export const STARTER_PRESETS: StarterPreset[] = [
   {
     id: "first-song",
     label: "まず1曲を完成",
-    description: "短いVerse/Chorus。生成、再生、編集、保存をすぐ試せます。",
-    settings: settings("chromatic-cliche", { form: "v,c", seed: 42, bpm: 96 }),
+    description: "F#マイナーの交差リズムを、Intro/Outro付きの構成で試せます。",
+    settings: settings("interlock-332", {
+      form: "i,v,c,v,c,o",
+      seed: 87820,
+      keyName: "F#",
+      mode: "minor",
+      bpm: 108,
+      meterName: "4/4",
+      ending: "final",
+    }),
   },
   {
     id: "gentle-ballad",
