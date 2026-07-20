@@ -9,6 +9,10 @@ import type {
   Song,
   SongPart,
 } from "./types.js";
+import {
+  generalUserAssignment,
+  isLegacyStandardAssignment,
+} from "../audio/standardSoundFont.js";
 
 export const DEFAULT_ARRANGEMENT: ArrangementSettings = {
   pianoPattern: "block",
@@ -57,13 +61,7 @@ export function defaultMixer(): MixerSettings {
         volume: 1,
         pan: part === "guitar" ? 0.25 : part === "piano" ? -0.15 : 0,
         timbre: DEFAULT_TIMBRES[part],
-        soundfont: part === "drums" ? undefined : {
-          sourceId: "standard",
-          bankMSB: 0,
-          bankLSB: 0,
-          program: 0,
-          presetName: "Melodialect Saw",
-        },
+        soundfont: generalUserAssignment(part),
       },
     ]),
   ) as MixerSettings;
@@ -89,8 +87,23 @@ export function normalizeComposition(
 
 export function normalizeMixer(value: Partial<MixerSettings> | undefined): MixerSettings {
   const defaults = defaultMixer();
+  const legacyStandard = (Object.keys(defaults) as SongPart[]).some((part) =>
+    isLegacyStandardAssignment(value?.[part]?.soundfont));
   for (const part of Object.keys(defaults) as SongPart[]) {
-    defaults[part] = { ...defaults[part], ...value?.[part] };
+    const saved = value?.[part];
+    if (!saved) continue;
+    const hasSavedAssignment = Object.prototype.hasOwnProperty.call(saved, "soundfont");
+    defaults[part] = {
+      ...defaults[part],
+      ...saved,
+      soundfont: isLegacyStandardAssignment(saved.soundfont)
+        ? generalUserAssignment(part)
+        : hasSavedAssignment
+          ? saved.soundfont
+          : part === "drums" && legacyStandard
+            ? generalUserAssignment(part)
+            : undefined,
+    };
   }
   return defaults;
 }

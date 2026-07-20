@@ -30,7 +30,7 @@ function offlineServiceWorker(buildId: string): Plugin {
     async closeBundle() {
       const files = (await listFiles(outputDirectory))
         .map((path) => relative(outputDirectory, path).split(sep).join("/"))
-        .filter((path) => path !== "sw.js" && !path.endsWith(".map"))
+        .filter((path) => path !== "sw.js" && !path.endsWith(".map") && !path.startsWith("audio-packs/"))
         .sort()
         .map((path) => `./${path}`);
       const source = `/* Melodialect ${packageJson.version} (${buildId}) */
@@ -38,6 +38,7 @@ const CACHE_NAME = ${JSON.stringify(`melodialect-app-${buildId}`)};
 const CACHE_PREFIX = "melodialect-app-";
 const PRECACHE = ${JSON.stringify(files, null, 2)};
 const SHELL_URL = new URL("index.html", self.registration.scope).toString();
+const OPTIONAL_AUDIO_PREFIX = new URL("audio-packs/", self.registration.scope).toString();
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -75,6 +76,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Optional SoundFont packs are persisted in OPFS after an explicit user action.
+  // Do not duplicate them in CacheStorage or make app updates redownload them.
+  if (url.toString().startsWith(OPTIONAL_AUDIO_PREFIX)) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {

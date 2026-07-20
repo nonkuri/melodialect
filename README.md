@@ -8,14 +8,14 @@
 
 公開URL: **[https://nonkuri.github.io/melodialect/](https://nonkuri.github.io/melodialect/)**
 
-URLをブラウザで開くだけで使えます。公開PWAの利用に Node.js、npm、JSON編集環境、専用サーバーは不要です。初回読込後はアプリ本体と標準音源が端末へキャッシュされ、オフラインでも起動できます。
+URLをブラウザで開くだけで使えます。公開PWAの利用に Node.js、npm、JSON編集環境、専用サーバーは不要です。初回読込後はアプリ本体と軽量フォールバック音源が端末へキャッシュされ、オフラインでも起動できます。
 
 1. 公開URLを開き、初回案内の **サンプル曲を開く**、または左側の **目的から始める** を選ぶ
 2. **♪ 全体生成**、**▶ 再生** の順に押す
 3. 曲名を付けて保存し、必要ならプロジェクト一覧から **全曲バックアップ** を保存する
 4. インストールする場合は Chrome / Edge のアドレスバー、Safari の「Dockに追加」、Firefox for Windows のWebアプリボタンを使う
 
-プロジェクトと取り込んだSF2はブラウザ内に保存され、サーバーへ送信されません。ブラウザやプロファイルを変えると別データになるため、移動前に全曲バックアップを書き出してください。
+プロジェクトとダウンロード／取り込み済みのSoundFontはブラウザ内に保存され、サーバーへ送信されません。ブラウザやプロファイルを変えると別データになるため、移動前に全曲バックアップを書き出してください。
 
 ## ドキュメント
 
@@ -33,28 +33,32 @@ URLをブラウザで開くだけで使えます。公開PWAの利用に Node.js
 - **部分再生成と直接編集** — セクション／パート単位で変奏し、セクション・小節・コード・ノートをロック可能。ピアノロール編集、コード編集、Undo／Redoも利用可能
 - **仮歌詞と譜面** — 日本語／英語／スキャットの仮歌詞、音節割り当て、メロディとコードネームのリードシート表示に対応
 - **ダイアレクト作成GUI** — 内蔵定義の複製、主要項目のフォーム編集、検証、試し生成、保存・再利用、JSON入出力に対応
-- **再生・SoundFont・ミキサー** — シーク、区間ループ、メトロノーム、カウントインに加え、軽量な標準SoundFontまたはユーザーが取り込んだSF2を5パートへ割り当て可能。音量・パン・ミュート・ソロとミックスプリセットも利用可能
+- **再生・SoundFont・ミキサー** — シーク、区間ループ、メトロノーム、カウントインに加え、任意ダウンロード式のGeneralUser GS標準高音質音源またはユーザーが取り込んだSF2/SF3を5パートへ割り当て可能。音量・パン・ミュート・ソロとミックスプリセットも利用可能
 - **保存と再現性** — 曲名・設定・生成結果・手動編集を自動保存し、プロジェクトJSONの入出力と最近使った曲の復元に対応。シードを指定すれば生成結果を再現可能
 - **用途別の書き出し** — MIDI、WAV、パート別WAVステム、MusicXML、仮歌詞とコード進行を含むテキストを出力可能
-- **端末内で完結** — 生成・編集・再生・書き出しはブラウザ内で処理され、プロジェクトや取り込んだSF2はサーバーへ送信されない
+- **端末内で完結** — 生成・編集・再生・書き出しはブラウザ内で処理され、プロジェクトや端末内SoundFontはサーバーへ送信されない
 
-## SoundFontで音質を改善する
+## 標準高音質音源を準備する
 
-標準SoundFontは、ダウンロード容量を抑え、すぐに生成結果を確認するための軽量な動作確認用音源です。より自然で多彩な楽器音を使う場合は、外部のSF2 SoundFontを音源ライブラリへ取り込んでください。
+新規曲にはGeneralUser GSのFlute、Grand Piano、Nylon Guitar、Finger Bass、Standard Drum Kitが標準割当されます。初期状態では大容量ファイルを自動取得せず、既存の軽量音源でフォールバック再生します。**音源を追加 / 管理 → 高音質音源をダウンロード** を押すと、約10.1MBのSF3を端末内のOPFSへ保存し、以後はアプリ更新後もオフラインで利用できます。
+
+標準高音質音源はGeneralUser GS 2.0.3から生成したOgg Vorbis圧縮SF3です。完全なライセンスとサンプル出所に関する上流の注意書きは [public/GENERALUSER-GS-LICENSE.txt](public/GENERALUSER-GS-LICENSE.txt) に収録しています。音源ファイルはアプリ本体のプリキャッシュ対象外で、ユーザーが操作するまでダウンロードされません。
+
+別の音色を使う場合は、外部のSF2/SF3 SoundFontも音源ライブラリへ取り込めます。
 
 | SoundFont | 特徴 | 配布元 |
 |---|---|---|
-| **GeneralUser GS（推奨）** | 比較的軽量なGM/GS音源。幅広い編成を試す最初の候補に適しています | [GeneralUser GS 公式配布ページ](https://schristiancollins.com/generaluser.php) |
+| **GeneralUser GS（非圧縮版）** | 標準高音質SF3の元音源。容量より無圧縮を優先する場合に利用できます | [GeneralUser GS 公式配布ページ](https://schristiancollins.com/generaluser.php) |
 | **FluidR3 GM** | 約140MBのGeneral MIDI音源。GeneralUser GSより容量の大きい選択肢です | [FluidSynthの紹介](https://www.fluidsynth.org/wiki/SoundFont/) / [Debian配布ページ](https://packages.debian.org/trixie/fluid-soundfont-gm) |
 
-Melodialectが正式対応する形式は **SF2** です。SF3には対応しておらず、1ファイルあたりの上限は256MBです。SoundFontが無償でダウンロードできることと、利用条件に制限がないことは同義ではありません。録音物の公開や商用利用を行う場合を含め、各配布元のライセンスと利用条件を確認してください。配布ページやファイルの内容は、提供者により変更される場合があります。
+Melodialectが正式対応する形式は **SF2 / SF3** で、1ファイルあたりの上限は256MBです。SoundFontが無償でダウンロードできることと、利用条件に制限がないことは同義ではありません。録音物の公開や商用利用を行う場合を含め、各配布元のライセンスと利用条件を確認してください。配布ページやファイルの内容は、提供者により変更される場合があります。
 
 ## 対応ブラウザ
 
 - Chrome / Edge / Firefox / Safari の現行版を対象に、CIで Chrome / Edge / Firefox / WebKit の生成・再生・WAV・オフライン起動を検証します（Web Audioを提供しないヘッドレス環境では音声テストを除外します）。
 - Firefox のWebアプリ化は Windows 版で利用できます。macOS / Linuxでは通常のタブまたはブックマークから利用してください。
 - Safari のWebアプリは通常のSafariとサイトデータが分離されます。Safariで作ったプロジェクトをWebアプリへ移す場合は全曲バックアップを使ってください。
-- 保存容量はブラウザと端末の空き容量で異なります。大きなSF2を追加する前に、音源管理画面の推定空き容量を確認してください。
+- 保存容量はブラウザと端末の空き容量で異なります。大きなSoundFontを追加する前に、音源管理画面の推定空き容量を確認してください。
 
 詳細は [ユーザーガイド](docs/USER_GUIDE.md) を参照してください。
 
@@ -180,4 +184,4 @@ test/         Vitest テスト
 
 本アプリのソースコードは [MIT License](LICENSE) の下で公開しています。
 
-同梱・依存している第三者コンポーネント(spessasynth（Apache-2.0）、VexFlow・React（MIT）など）のライセンスと著作権表示は [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) にまとめています。標準SoundFontの扱いは [public/SOUNDFONT-NOTICE.txt](public/SOUNDFONT-NOTICE.txt) を参照してください。
+同梱・依存している第三者コンポーネント(spessasynth（Apache-2.0）、VexFlow・React（MIT）など）のライセンスと著作権表示は [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) にまとめています。軽量フォールバック音源は [public/SOUNDFONT-NOTICE.txt](public/SOUNDFONT-NOTICE.txt)、GeneralUser GSは [public/GENERALUSER-GS-LICENSE.txt](public/GENERALUSER-GS-LICENSE.txt) を参照してください。

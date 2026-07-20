@@ -389,6 +389,7 @@ export function ComposerApp() {
     const requestedStart = atSongEnd
       ? transport.loopRange ? rangeStart : 0
       : transport.loopRange && outsideLoop ? rangeStart : requested;
+    let fallbackMessage: string | null = null;
     setStatus("音源を読み込み中…");
     await player.play(
       targetSong,
@@ -405,13 +406,15 @@ export function ComposerApp() {
         loop: transport.loopRange || targetSong.ending === "loop",
         metronome: transport.metronome,
         countInBars: transport.countIn ? 1 : 0,
-        onSoundFontFallback: (fallbacks) =>
-          setStatus(`音源フォールバック: ${fallbacks.map((item) => item.part).join(", ")}（再取込または標準音源を確認）`),
+        onSoundFontFallback: (fallbacks) => {
+          fallbackMessage = `音源フォールバック: ${fallbacks.map((item) => item.part).join(", ")}（音源を追加 / 管理を確認）`;
+          setStatus(fallbackMessage);
+        },
       },
     );
     if (player.isPlaying) {
       setPlaying(true);
-      setStatus("再生中");
+      setStatus(fallbackMessage ?? "再生中");
     }
   }, [player, transport]);
 
@@ -1143,6 +1146,7 @@ export function ComposerApp() {
               canCompare={Boolean(comparisonBefore)}
               comparisonSide={comparisonSide}
               levels={levels}
+              soundFontIssueCount={soundFontIssues.length}
               onArrangementChange={setDraftArrangement}
               onCompositionChange={setDraftComposition}
               onMixerChange={(mixer, commit) => commitAudioSettings({ mixer }, commit)}
@@ -1380,6 +1384,13 @@ export function ComposerApp() {
         <SoundFontLibrary
           issues={soundFontIssues}
           onClose={() => setShowSoundFonts(false)}
+          onUseQualityStandard={(assignments) => {
+            const mixer = structuredClone(workspace.mixer!);
+            for (const part of Object.keys(assignments) as SongPart[]) {
+              mixer[part].soundfont = assignments[part];
+            }
+            commitAudioSettings({ mixer }, true);
+          }}
           onAssign={(part: SongPart, assignment: SoundFontAssignment) => {
             const mixer = structuredClone(workspace.mixer!);
             mixer[part].soundfont = assignment;

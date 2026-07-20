@@ -815,6 +815,8 @@ button:disabled {
 .mixer-presets button { padding: 3px 8px; }
 .mixer-row { grid-template-columns: 62px 28px 28px minmax(90px, 1fr) minmax(90px, 1fr) 92px 130px 85px; }
 .soundfont-assignment { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soundfont-needs-attention { border-color: #a6772a; }
+.soundfont-needs-attention span { margin-left: 6px; padding: 1px 5px; color: #ffe0a3; background: #644614; border-radius: 999px; font-size: 10px; }
 
 .roll-editor { min-height: 0; display: flex; flex-direction: column; gap: 5px; }
 .roll-controls { flex-wrap: wrap; padding: 4px 6px; background: #20242e; border: 1px solid #363b48; border-radius: 6px; font-size: 11px; }
@@ -904,6 +906,12 @@ kbd { color: #8993a9; font: inherit; font-size: 10px; }
 .help-legend { display: flex; gap: 18px; margin: 16px 0 10px; font-size: 12px; }
 .privacy-note { margin: 8px 0; padding: 9px 11px; color: #b7d8c5; background: #20352c; border: 1px solid #315441; border-radius: 6px; font-size: 12px; line-height: 1.55; }
 .soundfont-issues { display: grid; gap: 3px; margin: 8px 0; padding: 9px 11px; color: #ffd99a; background: #3b2d18; border: 1px solid #76572c; border-radius: 6px; font-size: 12px; }
+.quality-soundfont-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 10px 0; padding: 12px; background: #202f46; border: 1px solid #41628f; border-radius: 8px; }
+.quality-soundfont-card > div:first-child { display: grid; gap: 4px; }
+.quality-soundfont-card span, .quality-soundfont-card small { color: #b8c6dc; font-size: 12px; }
+.quality-soundfont-card a { color: #9db8ff; }
+.quality-soundfont-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.installed-badge { padding: 3px 7px; color: #b7e6c8 !important; background: #234936; border-radius: 999px; white-space: nowrap; }
 .help-guide footer { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
 .help-guide a { color: #9db8ff; }
 
@@ -934,6 +942,8 @@ kbd { color: #8993a9; font: inherit; font-size: 10px; }
   .project-row { flex-wrap: wrap; }
   .project-row > div:first-child { flex-basis: 100%; }
   .preset-list article { grid-template-columns: 1fr; }
+  .quality-soundfont-card { align-items: stretch; flex-direction: column; }
+  .quality-soundfont-actions { justify-content: flex-start; }
 }
 .pwa-notice {
   display: flex;

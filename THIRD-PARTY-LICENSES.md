@@ -15,11 +15,17 @@ redistribution. Each component remains under its own license.
   `spessasynth_core` (`BasicSoundBank.getSampleSoundBankFile()`); a small
   synthesized waveform with no third-party recordings. See
   [public/SOUNDFONT-NOTICE.txt](public/SOUNDFONT-NOTICE.txt).
+- **`public/audio-packs/generaluser-gs.sf3`** — an optional, user-initiated
+  download generated from GeneralUser GS 2.0.3 by S. Christian Collins using
+  Ogg Vorbis compression. It is not part of the PWA app-shell precache. Its
+  license, including the upstream sample-provenance notice, is reproduced in
+  [public/GENERALUSER-GS-LICENSE.txt](public/GENERALUSER-GS-LICENSE.txt).
 
 ## Components
 
 | Component | Version | License | Copyright |
 |---|---|---|---|
+| GeneralUser GS | 2.0.3 | GeneralUser GS License v2.0 | © 1997–2025 S. Christian Collins |
 | spessasynth_lib | 4.3.11 | Apache-2.0 | © spessasus (https://github.com/spessasus) |
 | spessasynth_core | 4.3.15 | Apache-2.0 | © spessasus (https://github.com/spessasus) |
 | vexflow | 5.0.0 | MIT | © 2023-present VexFlow contributors; © 2010-2022 Mohit Muthanna Cheppudira |

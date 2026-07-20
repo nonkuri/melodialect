@@ -81,3 +81,43 @@ test("renders a WAV through the browser audio pipeline", async ({ page }) => {
   expect(result.progressUpdates).toBeGreaterThanOrEqual(3);
   expect(result.elapsedMs).toBeLessThan(30_000);
 });
+
+test("downloads the optional GeneralUser GS pack only after consent", async ({ page }) => {
+  test.skip(!["chrome", "firefox"].includes(test.info().project.name), "The quality-pack flow is covered in Chromium and Firefox; Playwright WebKit has no Web Audio.");
+  let packRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/audio-packs/generaluser-gs.sf3")) packRequests++;
+  });
+  await page.goto("./");
+  await page.evaluate(async () => {
+    if ("serviceWorker" in navigator) await navigator.serviceWorker.ready;
+  });
+  expect(packRequests).toBe(0);
+
+  await page.getByRole("button", { name: "音源を追加 / 管理" }).click();
+  const dialog = page.getByRole("dialog", { name: "音源ライブラリ" });
+  await dialog.getByRole("button", { name: "高音質音源をダウンロード" }).click();
+  await expect(dialog.getByText("端末に保存済み")).toBeVisible({ timeout: 60_000 });
+  expect(packRequests).toBe(1);
+
+  await dialog.getByRole("button", { name: "閉じる" }).click();
+  await expect(page.locator(".soundfont-assignment")).toHaveText([
+    "Flute",
+    "Grand Piano",
+    "Nylon Guitar",
+    "Finger Bass",
+    "Standard 1",
+  ]);
+  await page.waitForTimeout(600);
+  await page.goto("./?qa=1");
+  await page.getByRole("button", { name: "音源を追加 / 管理" }).click();
+  await expect(page.getByRole("dialog", { name: "音源ライブラリ" }).getByText("端末に保存済み")).toBeVisible();
+  expect(packRequests).toBe(1);
+  await page.getByRole("dialog", { name: "音源ライブラリ" }).getByRole("button", { name: "閉じる" }).click();
+  await page.getByRole("button", { name: "▶ 再生" }).click();
+  await expect(page.getByRole("button", { name: "Ⅱ 一時停止" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "■ 停止" }).click();
+  const wav = await page.evaluate(async () => window.__MELODIALECT_QA__!.renderGeneralUserWavSmokeTest());
+  expect(wav.header).toBe("RIFF/WAVE");
+  expect(wav.finalMessage).toBe("完了");
+});

@@ -12,7 +12,7 @@ import {
 } from "./mix.js";
 
 const PARTS = AUDIO_PARTS;
-const SOUNDFONT_INIT_TIMEOUT_MS = 6_000;
+const SOUNDFONT_INIT_TIMEOUT_MS = 20_000;
 
 async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;

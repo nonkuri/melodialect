@@ -1,4 +1,5 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { BasicSoundBank } from "spessasynth_core";
 
 function deterministicSampleBank() {
@@ -23,6 +24,14 @@ function deterministicSampleBank() {
 
 await mkdir(new URL("../public/", import.meta.url), { recursive: true });
 await mkdir(new URL("../public/docs/", import.meta.url), { recursive: true });
+const qualityPack = await readFile(
+  new URL("../public/audio-packs/generaluser-gs.sf3", import.meta.url),
+);
+const qualityPackHash = createHash("sha256").update(qualityPack).digest("hex");
+if (qualityPack.byteLength !== 10_556_570 ||
+    qualityPackHash !== "5e7262fa50cbabbc9fcd02571f2bf1d2d4b51fc124bf8bfa38203a8ba6f3fd56") {
+  throw new Error("GeneralUser GS quality pack is missing or does not match the pinned release");
+}
 await copyFile(
   new URL("../node_modules/spessasynth_lib/dist/spessasynth_processor.min.js", import.meta.url),
   new URL("../public/spessasynth_processor.min.js", import.meta.url),

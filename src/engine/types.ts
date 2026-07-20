@@ -107,7 +107,7 @@ export interface MixerPartSettings {
 
 export type MixerSettings = Record<SongPart, MixerPartSettings>;
 export interface SoundFontAssignment {
-  /** "standard" is the bundled SF2; every other value is a user-library id. */
+  /** "standard" is the lite fallback; "generaluser-gs" is the optional quality pack. */
   sourceId: string;
   bankMSB: number;
   bankLSB: number;
@@ -119,7 +119,7 @@ export interface SoundFontAssignment {
 export interface MasterSettings {
   /** 0..1.5 linear gain. */
   volume: number;
-  /** Protects audition and exported audio from unexpected user-SF2 peaks. */
+  /** Protects audition and exported audio from unexpected SoundFont peaks. */
   limiter: boolean;
 }
 

@@ -4,6 +4,8 @@ import {
   SOUNDFONT_WARNING_BYTES,
   assignmentForPreset,
   deleteSoundFont,
+  downloadGeneralUserSoundFont,
+  getGeneralUserSoundFontStatus,
   getSoundFontStorageReport,
   importSoundFont,
   listSoundFonts,
@@ -11,9 +13,16 @@ import {
   renameSoundFont,
   requestPersistentSoundFontStorage,
   type SoundFontImportProgress,
+  type GeneralUserSoundFontStatus,
   type SoundFontMetadata,
   type SoundFontStorageReport,
 } from "../audio/soundfonts.js";
+import {
+  GENERALUSER_SOUNDFONT_ID,
+  GENERALUSER_SOUNDFONT_SIZE,
+  GENERALUSER_SOUNDFONT_VERSION,
+  generalUserAssignments,
+} from "../audio/standardSoundFont.js";
 
 const PARTS: Array<[SongPart, string]> = [
   ["melody", "メロディ"],
@@ -33,10 +42,12 @@ function bytes(value: number | undefined): string {
 export function SoundFontLibrary({
   onClose,
   onAssign,
+  onUseQualityStandard,
   issues = [],
 }: {
   onClose: () => void;
   onAssign: (part: SongPart, assignment: SoundFontAssignment) => void;
+  onUseQualityStandard: (assignments: Record<SongPart, SoundFontAssignment>) => void;
   issues?: string[];
 }) {
   const [fonts, setFonts] = useState<SoundFontMetadata[]>([]);
@@ -45,6 +56,7 @@ export function SoundFontLibrary({
   const [progress, setProgress] = useState<SoundFontImportProgress | null>(null);
   const [message, setMessage] = useState("");
   const [report, setReport] = useState<SoundFontStorageReport | null>(null);
+  const [qualityStatus, setQualityStatus] = useState<GeneralUserSoundFontStatus | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -55,8 +67,10 @@ export function SoundFontLibrary({
       if (!items.some((font) => font.id === selectedId)) setSelectedId("standard");
     });
     void getSoundFontStorageReport().then(setReport).catch(() => setReport(null));
+    void getGeneralUserSoundFontStatus().then(setQualityStatus).catch(() => setQualityStatus(null));
   };
   useEffect(refresh, []);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const selected = fonts.find((font) => font.id === selectedId) ?? fonts[0];
   const presets = useMemo(() => {
@@ -90,6 +104,26 @@ export function SoundFontLibrary({
     });
   };
 
+  const downloadQualityStandard = () => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setMessage("");
+    void downloadGeneralUserSoundFont({
+      signal: controller.signal,
+      onProgress: setProgress,
+    }).then((metadata) => {
+      setSelectedId(metadata.id);
+      onUseQualityStandard(generalUserAssignments());
+      setMessage("GeneralUser GSを5パートの標準音源に設定しました");
+      refresh();
+    }).catch((error: unknown) => {
+      setMessage(error instanceof Error ? error.message : "高音質音源の準備に失敗しました");
+    }).finally(() => {
+      abortRef.current = null;
+      setProgress(null);
+    });
+  };
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -102,7 +136,7 @@ export function SoundFontLibrary({
         <header>
           <div>
             <h2 id="soundfont-title">音源ライブラリ</h2>
-            <p>SF2本体はOPFS、プリセット情報はブラウザ内DBへ保存します。</p>
+            <p>SF2/SF3本体はOPFS、プリセット情報はブラウザ内DBへ保存します。</p>
           </div>
           <button onClick={onClose} aria-label="閉じる">×</button>
         </header>
@@ -114,11 +148,51 @@ export function SoundFontLibrary({
 
         {issues.length > 0 && (
           <div className="soundfont-issues" role="alert">
-            <strong>再取込が必要な割り当てがあります</strong>
+            <strong>音源の準備が必要な割り当てがあります</strong>
             <span>{issues.join(" / ")}</span>
-            <span>対象のSF2を再取込するか、下の標準音源を各パートへ割り当ててください。</span>
+            <span>対象のSoundFontを再取込するか、下の標準高音質音源を準備してください。</span>
           </div>
         )}
+
+        <div className="quality-soundfont-card">
+          <div>
+            <strong>標準高音質音源 · GeneralUser GS {GENERALUSER_SOUNDFONT_VERSION}</strong>
+            <span>
+              5パートを自然なGM音色で再生します。操作するまでダウンロードされません
+              （SF3 · {bytes(GENERALUSER_SOUNDFONT_SIZE)}）。
+            </span>
+            <small>
+              © S. Christian Collins · <a href={`${import.meta.env.BASE_URL}GENERALUSER-GS-LICENSE.txt`} target="_blank" rel="noreferrer">ライセンスとサンプル出所に関する注意</a>
+            </small>
+          </div>
+          <div className="quality-soundfont-actions">
+            {qualityStatus?.installed && !qualityStatus.updateAvailable ? (
+              <>
+                <span className="installed-badge">端末に保存済み</span>
+                <button className="primary" onClick={() => {
+                  onUseQualityStandard(generalUserAssignments());
+                  setMessage("GeneralUser GSを5パートの標準音源に設定しました");
+                }}>標準5パートへ適用</button>
+                <button onClick={() => {
+                  if (!window.confirm("GeneralUser GSを端末から削除しますか？曲は内蔵音源で再生されます。")) return;
+                  void deleteSoundFont(GENERALUSER_SOUNDFONT_ID).then(() => {
+                    setSelectedId("standard");
+                    setMessage("GeneralUser GSを端末から削除しました");
+                    refresh();
+                  });
+                }}>端末から削除</button>
+              </>
+            ) : (
+              <button className="primary" disabled={qualityStatus === null || Boolean(progress)} onClick={downloadQualityStandard}>
+                {qualityStatus === null
+                  ? "音源の状態を確認中…"
+                  : qualityStatus.updateAvailable
+                    ? "高音質音源を更新"
+                    : "高音質音源をダウンロード"}
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className="soundfont-storage">
           <span>使用量: {bytes(report?.usage)}</span>
@@ -138,7 +212,7 @@ export function SoundFontLibrary({
           <input
             ref={importRef}
             type="file"
-            accept=".sf2,audio/sf2,application/octet-stream"
+            accept=".sf2,.sf3,audio/sf2,audio/sf3,application/octet-stream"
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -151,7 +225,7 @@ export function SoundFontLibrary({
               <option value={font.id} key={font.id}>{font.name} · {bytes(font.size)}</option>
             ))}
           </select>
-          {selected && selected.id !== "standard" && (
+          {selected && selected.id !== "standard" && selected.id !== GENERALUSER_SOUNDFONT_ID && (
             <>
               <button onClick={() => {
                 const name = window.prompt("音源名", selected.name);
@@ -161,7 +235,7 @@ export function SoundFontLibrary({
               <input
                 ref={replaceRef}
                 type="file"
-                accept=".sf2"
+                accept=".sf2,.sf3"
                 hidden
                 onChange={(event) => {
                   const file = event.target.files?.[0];

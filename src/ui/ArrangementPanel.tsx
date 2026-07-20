@@ -6,6 +6,7 @@ import type {
   MixerSettings,
   SongPart,
 } from "../engine/types.js";
+import { normalizeMixer } from "../engine/controls.js";
 
 export interface LevelValue {
   peak: number;
@@ -27,6 +28,7 @@ interface Props {
   canCompare: boolean;
   comparisonSide: "before" | "after";
   levels?: MixerLevels;
+  soundFontIssueCount?: number;
   onArrangementChange: (value: ArrangementSettings) => void;
   onMixerChange: (value: MixerSettings, commit?: boolean) => void;
   onMasterChange: (value: MasterSettings, commit?: boolean) => void;
@@ -112,7 +114,12 @@ const MIXER_PRESETS_KEY = "melodialect.mixerPresets";
 function loadMixerPresets(): StoredMixerPreset[] {
   try {
     const value = JSON.parse(localStorage.getItem(MIXER_PRESETS_KEY) ?? "[]") as unknown;
-    return Array.isArray(value) ? value as StoredMixerPreset[] : [];
+    return Array.isArray(value)
+      ? (value as StoredMixerPreset[]).map((preset) => ({
+        ...preset,
+        mixer: normalizeMixer(preset.mixer),
+      }))
+      : [];
   } catch {
     return [];
   }
@@ -285,7 +292,14 @@ export function ArrangementPanel(props: Props) {
           </select>
           <button disabled={selectedPresetIndex === ""} onClick={overwriteSelectedPreset}>上書き</button>
           <button className="danger" disabled={selectedPresetIndex === ""} onClick={deleteSelectedPreset}>削除</button>
-          <button onClick={props.onOpenSoundFonts}>音源を追加 / 管理</button>
+          <button
+            className={props.soundFontIssueCount ? "soundfont-needs-attention" : ""}
+            aria-label="音源を追加 / 管理"
+            onClick={props.onOpenSoundFonts}
+          >
+            音源を追加 / 管理
+            {props.soundFontIssueCount ? <span aria-hidden="true">要準備</span> : null}
+          </button>
         </div>
         <div className="mixer-table">
           {PARTS.map(({ id, label, timbres }) => {

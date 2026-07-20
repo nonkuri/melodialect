@@ -35,7 +35,7 @@ export function HelpGuide({
           <span><b className="change-badge audio-only">音のみ</b> 生成済みノートを変えない設定</span>
         </div>
         <p className="privacy-note">
-          楽曲・設定・取り込んだSF2は端末内だけで処理され、Melodialectのサーバーへ送信されません。
+          楽曲・設定・ダウンロード／取り込み済みのSF2/SF3は端末内だけで処理され、Melodialectのサーバーへ送信されません。
         </p>
         <p className="privacy-note">
           アプリ本体のキャッシュ、プロジェクト、ユーザー音源は別データです。更新やアプリキャッシュ修復では作品と音源を削除しません。ブラウザの「サイトデータを削除」はすべて消去するため、先にプロジェクト一覧から全曲バックアップを保存してください。

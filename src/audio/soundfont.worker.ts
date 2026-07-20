@@ -24,6 +24,7 @@ self.onmessage = (event: MessageEvent<RequestMessage>) => {
       progress: 1,
       result: {
         name: bank.soundBankInfo.name || "SoundFont",
+        format: bank.soundBankInfo.version.major >= 3 ? "sf3" : "sf2",
         presets,
       },
     });
