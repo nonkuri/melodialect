@@ -12,6 +12,19 @@ import {
 } from "./mix.js";
 
 const PARTS = AUDIO_PARTS;
+const SOUNDFONT_INIT_TIMEOUT_MS = 6_000;
+
+async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = globalThis.setTimeout(() => reject(new Error(message)), SOUNDFONT_INIT_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) globalThis.clearTimeout(timer);
+  }
+}
 
 export interface SoundFontFallback {
   part: SongPart;
@@ -76,7 +89,10 @@ export async function createSoundFontSession(
     return { synths, synthByPart, activeParts, fallbacks, destroy() {} };
   }
   try {
-    await registerProcessor(context);
+    await withTimeout(
+      registerProcessor(context),
+      "AudioWorkletの初期化がタイムアウトしました",
+    );
   } catch (error) {
     const reason = error instanceof Error ? error.message : "AudioWorkletを起動できませんでした";
     for (const [sourceId, parts] of assignments) {
@@ -94,8 +110,13 @@ export async function createSoundFontSession(
       });
       synth.setSystemParameter("voiceCap", 96);
       synth.connect(destination);
-      await synth.soundBankManager.addSoundBank(buffer, sourceId);
-      await synth.isReady;
+      await withTimeout(
+        (async () => {
+          await synth.soundBankManager.addSoundBank(buffer, sourceId);
+          await synth.isReady;
+        })(),
+        "SoundFontの初期化がタイムアウトしました",
+      );
       for (const part of parts) {
         const mix = song.mixer?.[part];
         const assignment = mix?.soundfont;
@@ -168,15 +189,23 @@ export async function previewSoundFontNote(
 ): Promise<void> {
   const context = new AudioContext();
   try {
-    await registerProcessor(context);
+    await withTimeout(
+      registerProcessor(context),
+      "AudioWorkletの初期化がタイムアウトしました",
+    );
     const synth = new WorkletSynthesizer(context, { eventsEnabled: false });
     synth.setSystemParameter("voiceCap", 24);
     const gain = context.createGain();
     gain.gain.value = SOUNDFONT_OUTPUT_GAIN;
     gain.connect(context.destination);
     synth.connect(gain);
-    await synth.soundBankManager.addSoundBank(await getSoundFontBuffer(sourceId), sourceId);
-    await synth.isReady;
+    await withTimeout(
+      (async () => {
+        await synth.soundBankManager.addSoundBank(await getSoundFontBuffer(sourceId), sourceId);
+        await synth.isReady;
+      })(),
+      "SoundFontの初期化がタイムアウトしました",
+    );
     const assignment: SoundFontAssignment = {
       sourceId,
       bankMSB: preset.bankMSB,
