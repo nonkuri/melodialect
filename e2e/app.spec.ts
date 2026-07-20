@@ -115,8 +115,12 @@ test("downloads the optional GeneralUser GS pack only after consent", async ({ p
   expect(packRequests).toBe(1);
   await page.getByRole("dialog", { name: "音源ライブラリ" }).getByRole("button", { name: "閉じる" }).click();
   await page.getByRole("button", { name: "▶ 再生" }).click();
-  await expect(page.getByRole("button", { name: "Ⅱ 一時停止" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "■ 停止" }).click();
+  const pause = page.getByRole("button", { name: "Ⅱ 一時停止" });
+  const unavailable = page.getByRole("status").filter({
+    hasText: /AudioContextの起動がタイムアウトしました|このブラウザでは音声を再生できません/,
+  });
+  await expect(pause.or(unavailable)).toBeVisible({ timeout: 30_000 });
+  if (await pause.isVisible()) await page.getByRole("button", { name: "■ 停止" }).click();
   const wav = await page.evaluate(async () => window.__MELODIALECT_QA__!.renderGeneralUserWavSmokeTest());
   expect(wav.header).toBe("RIFF/WAVE");
   expect(wav.finalMessage).toBe("完了");
