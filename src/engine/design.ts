@@ -15,7 +15,7 @@ import type {
 } from "./types.js";
 import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
-import { chordAtBeat, chordFromRoman, parseRoman } from "./harmony.js";
+import { chordAtBeat, chordFromRoman, parseChordSymbol, parseRoman } from "./harmony.js";
 import { createRng } from "./rng.js";
 
 export interface DraftDiagnostic {
@@ -252,12 +252,68 @@ const SUBSTITUTIONS: Record<number, number[]> = {
   1: [6, 3], 2: [4], 3: [1, 6], 4: [2, 6], 5: [7, 2], 6: [1, 4], 7: [5],
 };
 
+function melodyCompatibility(
+  symbol: string,
+  slot: ChordDraftSlot,
+  key: KeySignature | undefined,
+  melody: NoteEvent[] | undefined,
+): number {
+  if (!key || !melody?.length) return 0;
+  let chord: ChordEvent;
+  try { chord = chordFromRoman(symbol, 0, key, slot.start, slot.durationBeats); }
+  catch { return -1; }
+  const notes = melody.filter((note) => note.start >= slot.start - EPSILON &&
+    note.start < slot.start + slot.durationBeats - EPSILON);
+  if (!notes.length) return 0;
+  const pcs = new Set(chord.pitches.map((pitch) => pitch % 12));
+  return notes.reduce((score, note) => {
+    const fit = pcs.has(note.pitch % 12) ? 1 : Math.abs(note.start - Math.round(note.start)) < EPSILON ? 0.25 : 0.55;
+    return score + fit;
+  }, 0) / notes.length;
+}
+
+function bassConnectionCompatibility(
+  symbol: string,
+  previous: string | undefined,
+  next: string | undefined,
+  key: KeySignature | undefined,
+): number {
+  if (!key) return 0;
+  try {
+    const root = chordFromRoman(symbol, 0, key).rootPc;
+    const neighbors = [previous, next].filter((value): value is string => Boolean(value))
+      .map((value) => chordFromRoman(value, 0, key).rootPc);
+    if (!neighbors.length) return 0;
+    const movement = neighbors.reduce((sum, neighbor) => {
+      const distance = Math.abs(root - neighbor);
+      return sum + Math.min(distance, 12 - distance);
+    }, 0) / neighbors.length;
+    return 1 - movement / 6;
+  } catch {
+    return -0.5;
+  }
+}
+
+function sourceSimilarity(source: string, candidate: string): number {
+  try {
+    const from = parseChordSymbol(source);
+    const to = parseChordSymbol(candidate);
+    const degreeDistance = Math.abs(from.degree - to.degree);
+    const qualityMatch = from.quality === to.quality ? 0.25 : 0;
+    const accidentalMatch = from.accidental === to.accidental ? 0.15 : 0;
+    return Math.max(0, 0.75 - degreeDistance * 0.12 + qualityMatch + accidentalMatch);
+  } catch {
+    return 0;
+  }
+}
+
 /** 原案を保持したまま、代理・借用・定型句・終止候補から比較用の候補を作る。 */
 export function reharmonizeChordDrafts(
   drafts: ChordDraftSlot[][],
   sectionDialects: Dialect[],
   seed: number,
   finalEnding = true,
+  musicalContext?: Array<{ key: KeySignature; melody: NoteEvent[] }>,
 ): ChordDraftSlot[][] {
   return drafts.map((source, sectionIndex) => {
     const dialect = sectionDialects[sectionIndex] ?? sectionDialects[0]!;
@@ -280,10 +336,15 @@ export function reharmonizeChordDrafts(
       if (!candidates.length) continue;
       const previous = result[index - 1]?.symbol;
       const next = result[index + 1]?.symbol;
+      const context = musicalContext?.[sectionIndex];
+      const sourceSymbol = current.symbol;
       current.symbol = rng.weighted(candidates.map((symbol) => [
         symbol,
         0.2 + transitionWeight(dialect, previous, symbol) * 4 +
-          (next ? transitionWeight(dialect, symbol, next) * 3 : 0),
+          (next ? transitionWeight(dialect, symbol, next) * 3 : 0) +
+          melodyCompatibility(symbol, current, context?.key, context?.melody) * 2.5 +
+          bassConnectionCompatibility(symbol, previous, next, context?.key) * 1.2 +
+          sourceSimilarity(sourceSymbol, symbol) * 0.8,
       ] as [string, number]));
       current.origin = "reharmonized";
     }

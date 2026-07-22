@@ -68,6 +68,31 @@ describe("P0 project and editing", () => {
     expect(after.sectionSeeds[0]).toBeGreaterThan(0);
   });
 
+  it("コード・ベース・伴奏を個別再生成しても対象外イベントを保持する", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.271828);
+    const before = workspace();
+    const source = before.song.sections[0]!;
+
+    const chordsOnly = regenerateWorkspace(before, 0, "chords").song.sections[0]!;
+    expect(chordsOnly.melody).toEqual(source.melody);
+    expect(chordsOnly.piano).toEqual(source.piano);
+    expect(chordsOnly.guitar).toEqual(source.guitar);
+    expect(chordsOnly.bass).toEqual(source.bass);
+    expect(chordsOnly.drums).toEqual(source.drums);
+
+    const bassOnly = regenerateWorkspace(before, 0, "bass").song.sections[0]!;
+    expect(bassOnly.chords).toEqual(source.chords);
+    expect(bassOnly.melody).toEqual(source.melody);
+    expect(bassOnly.piano).toEqual(source.piano);
+    expect(bassOnly.guitar).toEqual(source.guitar);
+    expect(bassOnly.drums).toEqual(source.drums);
+
+    const accompanimentOnly = regenerateWorkspace(before, 0, "accompaniment").song.sections[0]!;
+    expect(accompanimentOnly.chords).toEqual(source.chords);
+    expect(accompanimentOnly.melody).toEqual(source.melody);
+    expect(accompanimentOnly.bass).toEqual(source.bass);
+  });
+
   it("最終セクションの再生成でもコーダまで音を保ち、末尾に無音小節を作らない", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.424242);
     const initial = normalizeWorkspace(workspace());

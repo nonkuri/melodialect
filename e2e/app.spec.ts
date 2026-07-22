@@ -51,6 +51,26 @@ test("exposes keyboard focus and accessible names for primary controls", async (
   expect(outline).not.toBe("none");
 });
 
+test("offers optional differentiated candidates and layered explanations", async ({ page }) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: /全体生成/ }).click();
+  await expect(page.getByRole("button", { name: /生成済み/ })).toBeVisible();
+  await page.getByRole("button", { name: "他の候補" }).click();
+  const tray = page.locator(".candidate-tray");
+  await expect(tray.getByText(/候補を比較/)).toBeVisible();
+  await tray.getByText(/候補を比較/).click();
+  const cards = tray.locator("button");
+  await expect(cards.first()).toContainText(/コードを変奏|旋律を変奏|ベースが変化|伴奏編成を変更/);
+  await cards.first().click();
+  const explanations = page.locator(".annotations");
+  const explanationToggle = explanations.getByRole("button", { name: /生成根拠の解説/ });
+  await explanationToggle.evaluate((button: HTMLButtonElement) => button.click());
+  await expect(explanationToggle).toContainText("▼");
+  await expect(explanations.getByText("曲全体の組み立て")).toBeVisible();
+  await expect(explanations.getByText("セクションの意図")).toBeVisible();
+  await expect(explanations.getByText(/小節ごとの規則/)).toBeVisible();
+});
+
 test("keeps structure editing usable when snapshot storage is full", async ({ page }) => {
   await page.goto("./");
   await page.evaluate(() => {

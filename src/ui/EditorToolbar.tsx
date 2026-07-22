@@ -77,9 +77,9 @@ export function EditorToolbar({
       <button onClick={onToggleSectionLock}>{sectionLocked ? "🔒 セクション" : "🔓 セクション"}</button>
       <span className="toolbar-separator" />
       <span>再生成</span>
-      {(["all", "melody", "chords", "accompaniment"] as RegenerationTarget[]).map((target) => (
+      {(["all", "melody", "chords", "bass", "accompaniment"] as RegenerationTarget[]).map((target) => (
         <button key={target} disabled={sectionLocked} onClick={() => onRegenerate(target)}>
-          {{ all: "全体", melody: "メロディ", chords: "コード", accompaniment: "伴奏" }[target]}
+          {{ all: "全体", melody: "メロディ", chords: "コード", bass: "ベース", accompaniment: "伴奏" }[target]}
         </button>
       ))}
       <span className="toolbar-separator" />

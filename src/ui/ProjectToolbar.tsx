@@ -29,6 +29,7 @@ export function ProjectToolbar({
   onToggleFavorite: (id: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const candidates = variations.filter((variation) => variation.kind === "candidate");
   return (
     <div className="project-toolbar">
       <input
@@ -63,7 +64,7 @@ export function ProjectToolbar({
         }}
       />
       <span className="toolbar-separator" />
-      <button onClick={onCreateVariation}>＋ バリエーション</button>
+      <button onClick={onCreateVariation}>他の候補</button>
       <select
         aria-label="バリエーション履歴"
         value=""
@@ -83,6 +84,19 @@ export function ProjectToolbar({
         >
           {variations[0]!.favorite ? "★" : "☆"}
         </button>
+      )}
+      {candidates.length > 0 && (
+        <details className="candidate-tray">
+          <summary>候補を比較 ({candidates.length})</summary>
+          <div>
+            {candidates.slice(0, 4).map((candidate) => (
+              <button key={candidate.id} onClick={() => onLoadVariation(candidate.id)}>
+                <strong>{candidate.favorite ? "★ " : ""}{candidate.name.replace(/^候補 \d+: /, "")}</strong>
+                <small>同じシード · クリックしてA/B</small>
+              </button>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

@@ -45,3 +45,30 @@ export function createRng(seed: number): Rng {
     },
   };
 }
+
+/** Stable hash used to derive independent random streams without consuming a parent RNG. */
+export function deriveSeed(seed: number, ...names: Array<string | number>): number {
+  let value = (seed ^ 0x811c9dc5) >>> 0;
+  for (const name of names) {
+    const text = String(name);
+    for (let index = 0; index < text.length; index++) {
+      value ^= text.charCodeAt(index);
+      value = Math.imul(value, 0x01000193) >>> 0;
+    }
+    value ^= 0xff;
+    value = Math.imul(value, 0x85ebca6b) >>> 0;
+  }
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d) >>> 0;
+  value ^= value >>> 15;
+  return value >>> 0;
+}
+
+export function createNamedRng(
+  seed: number,
+  name: string,
+  sectionIndex = 0,
+  candidateIndex = 0,
+): Rng {
+  return createRng(deriveSeed(seed, name, sectionIndex, candidateIndex));
+}

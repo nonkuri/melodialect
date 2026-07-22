@@ -21,6 +21,9 @@ export const DEFAULT_ARRANGEMENT: ArrangementSettings = {
   swing: 0,
   humanize: 0,
   velocityScale: 1,
+  accompanimentDensity: 0.5,
+  development: 0.5,
+  autoArrange: true,
 };
 
 export const DEFAULT_COMPOSITION: CompositionControls = {
@@ -70,7 +73,10 @@ export function defaultMixer(): MixerSettings {
 export function normalizeArrangement(
   value: Partial<ArrangementSettings> | undefined,
 ): ArrangementSettings {
-  return { ...DEFAULT_ARRANGEMENT, ...value };
+  const normalized = { ...DEFAULT_ARRANGEMENT, ...value };
+  normalized.accompanimentDensity = clamp01(normalized.accompanimentDensity ?? 0.5);
+  normalized.development = clamp01(normalized.development ?? 0.5);
+  return normalized;
 }
 
 export function normalizeComposition(

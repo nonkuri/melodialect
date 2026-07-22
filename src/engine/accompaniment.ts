@@ -1,5 +1,6 @@
 import type {
   Annotation,
+  ArrangementSectionPlan,
   ArrangementSettings,
   ChordEvent,
   Dialect,
@@ -10,15 +11,29 @@ import type {
 } from "./types.js";
 import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
+import { createNamedRng } from "./rng.js";
 import { chordAtBeat, pcToPitch, scaleOf } from "./harmony.js";
 
 import { normalizeArrangement } from "./controls.js";
+import { generateBassLine } from "./bass.js";
+import {
+  applyArrangementSectionPlan,
+  settingsForArrangementPlan,
+} from "./arrangement.js";
 export interface AccompanimentResult {
   piano: NoteEvent[];
   bass: NoteEvent[];
   annotations: Annotation[];
   guitar: NoteEvent[];
   drums: NoteEvent[];
+}
+
+export interface AccompanimentGenerationContext {
+  seed: number;
+  sectionIndex: number;
+  candidateIndex: number;
+  melody?: NoteEvent[];
+  arrangementSection?: ArrangementSectionPlan;
 }
 
 /**
@@ -35,6 +50,7 @@ export function generateAccompaniment(
   meter: Meter,
   rng: Rng,
   arrangement?: ArrangementSettings,
+  context?: AccompanimentGenerationContext,
 ): AccompanimentResult {
   const piano: NoteEvent[] = [];
   const bass: NoteEvent[] = [];
@@ -134,7 +150,12 @@ export function generateAccompaniment(
     }
   });
 
-  const config = normalizeArrangement({ ...dialect.defaults.arrangement, ...arrangement });
+  const baseConfig = normalizeArrangement({ ...dialect.defaults.arrangement, ...arrangement });
+  const config = settingsForArrangementPlan(
+    baseConfig,
+    context?.arrangementSection,
+    context?.candidateIndex ?? 0,
+  );
   if (config.pianoPattern !== "block") {
     piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern, meter));
   }
@@ -151,6 +172,9 @@ export function generateAccompaniment(
   guitar.push(...generateGuitar(chords, config.guitarPattern, meter));
   drums.push(...generateDrums(plan.bars, meter, config.drumPattern));
   const sectionBeats = plan.bars * meter.barBeats;
+  const namedRng = (name: string) => context
+    ? createNamedRng(context.seed, name, context.sectionIndex, context.candidateIndex)
+    : rng;
   if (dialect.groove?.accentPattern.length) {
     const bassPattern = dialect.groove.bassPattern;
     const grooveBass = bassPattern === "bossa" && meter.name === "4/4"
@@ -178,9 +202,41 @@ export function generateAccompaniment(
         }`,
     });
   }
-  for (const notes of [piano, bass, guitar, drums]) {
-    applyGroove(notes, config, rng, sectionBeats, meter, dialect.groove);
-  }
+  const plannedBass = generateBassLine({
+    plan,
+    chords,
+    melody: context?.melody,
+    drums,
+    dialect,
+    key,
+    meter,
+    rng: namedRng("bass"),
+    legacy: [...bass],
+    candidateIndex: context?.candidateIndex ?? 0,
+  });
+  bass.splice(0, bass.length, ...plannedBass.notes);
+  annotations.push(...plannedBass.annotations);
+  const arranged = applyArrangementSectionPlan(
+    { piano, guitar, drums, melody: context?.melody },
+    context?.arrangementSection,
+    meter,
+    plan.bars,
+    {
+      piano: namedRng("piano"),
+      guitar: namedRng("guitar"),
+      drums: namedRng("drums"),
+    },
+    (context?.candidateIndex ?? 0) === 0 || config.pianoPattern === "bossa" ||
+      config.pianoPattern === "voice-led" || config.guitarPattern === "bossa",
+  );
+  piano.splice(0, piano.length, ...arranged.piano);
+  guitar.splice(0, guitar.length, ...arranged.guitar);
+  drums.splice(0, drums.length, ...arranged.drums);
+  annotations.push(...arranged.annotations);
+  applyGroove(piano, config, namedRng("humanize-piano"), sectionBeats, meter, dialect.groove);
+  applyGroove(bass, config, namedRng("humanize-bass"), sectionBeats, meter, dialect.groove);
+  applyGroove(guitar, config, namedRng("humanize-guitar"), sectionBeats, meter, dialect.groove);
+  applyGroove(drums, config, namedRng("humanize-drums"), sectionBeats, meter, dialect.groove);
   return { piano, bass, guitar, drums, annotations };
 }
 

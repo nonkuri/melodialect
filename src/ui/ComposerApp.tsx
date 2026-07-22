@@ -17,6 +17,7 @@ import { downloadWav, downloadWavStems } from "../export/wav.js";
 import { downloadMusicXml } from "../export/musicxml.js";
 import { downloadSunoText } from "../export/text.js";
 import { generateLyrics } from "../engine/lyrics.js";
+import { describeCandidateDifference } from "../engine/evaluation.js";
 import { DEFAULT_COMPOSITION, normalizeArrangement, normalizeComposition } from "../engine/controls.js";
 import { SettingsPanel, type Settings } from "./SettingsPanel.js";
 import { ScoreView } from "./ScoreView.js";
@@ -26,6 +27,7 @@ import { TransportBar, type TransportState } from "./TransportBar.js";
 import { EditorToolbar } from "./EditorToolbar.js";
 import {
   buildSong,
+  buildSongCandidates,
   resolveFullGenerationSectionControls,
   resolveFullGenerationSeed,
 } from "./songBuilder.js";
@@ -511,6 +513,7 @@ export function ComposerApp() {
       createdAt: new Date().toISOString(),
       favorite: false,
       workspace: cloneWorkspace(snapshot),
+      kind: "history",
     };
     return [variation, ...current.variations].slice(0, 24);
   }, []);
@@ -531,6 +534,7 @@ export function ComposerApp() {
       );
       const generated = buildSong(generationSettings, {
         arrangement, composition, mixer: workspace.mixer, sectionControls, design: workspace.design,
+        candidateCount: 3,
       });
       generated.lyrics = workspace.song.lyrics ? structuredClone(workspace.song.lyrics) : undefined;
       const next = normalizeWorkspace({
@@ -586,43 +590,55 @@ export function ComposerApp() {
   ]);
 
   const createVariation = useCallback(() => {
-    const nextSeed = Math.floor(Math.random() * 1_000_000);
-    const nextSettings = { ...settings, seed: nextSeed };
-    const composition = { ...workspace.composition!, mode: nextSettings.mode ?? workspace.composition!.mode };
-    const nextWorkspace = normalizeWorkspace({
-      settings: nextSettings,
-      song: buildSong(nextSettings, {
-        arrangement: workspace.arrangement, composition, mixer: workspace.mixer,
-        sectionControls: workspace.sectionControls, design: workspace.design,
-      }),
-      locks: emptyLocks(),
-      sectionSeeds: [],
-      arrangement: workspace.arrangement, mixer: workspace.mixer, composition,
+    const composition = {
+      ...workspace.composition!,
+      mode: settings.mode ?? workspace.composition!.mode,
+    };
+    const songs = buildSongCandidates(settings, {
+      arrangement: workspace.arrangement,
+      composition,
+      mixer: workspace.mixer,
       sectionControls: workspace.sectionControls,
       design: workspace.design,
+    }, 4);
+    const currentFingerprint = workspace.song.generationReport?.fingerprint.combined;
+    const candidates = songs.filter((candidate) =>
+      !currentFingerprint || candidate.generationReport?.fingerprint.combined !== currentFingerprint);
+    const candidateVariations: Variation[] = candidates.map((candidate, index) => {
+      candidate.lyrics = workspace.song.lyrics ? structuredClone(workspace.song.lyrics) : undefined;
+      const candidateWorkspace = normalizeWorkspace({
+        settings,
+        song: candidate,
+        locks: emptyLocks(),
+        sectionSeeds: [],
+        arrangement: workspace.arrangement,
+        mixer: workspace.mixer,
+        composition,
+        sectionControls: workspace.sectionControls,
+        design: workspace.design,
+      });
+      const tags = describeCandidateDifference(candidate, workspace.song);
+      return {
+        id: createId(),
+        name: `候補 ${index + 1}: ${tags.join("・")}`,
+        createdAt: new Date().toISOString(),
+        favorite: false,
+        workspace: candidateWorkspace,
+        kind: "candidate",
+        differenceTags: tags,
+      };
     });
-    nextWorkspace.song.lyrics = workspace.song.lyrics
-      ? structuredClone(workspace.song.lyrics)
-      : undefined;
     setProject((current) => ({
       ...current,
       variations: [
-        {
-          id: createId(),
-          name: "候補 seed " + String(nextSeed),
-          createdAt: new Date().toISOString(),
-          favorite: false,
-          workspace: cloneWorkspace(nextWorkspace),
-        },
-        ...addVariationSnapshot(current, workspace, "候補 seed " + String(settings.seed)),
+        ...candidateVariations,
+        ...addVariationSnapshot(current, workspace, "候補生成前"),
       ].slice(0, 24),
-      seedHistory: Array.from(new Set([nextSeed, ...current.seedHistory])).slice(0, 40),
     }));
-    commitWorkspace(nextWorkspace);
-    setDraftArrangement(nextWorkspace.arrangement!);
-    setDraftComposition(nextWorkspace.composition!);
-    resetEditorState(nextWorkspace.song);
-  }, [settings, workspace, addVariationSnapshot, commitWorkspace, resetEditorState]);
+    setStatus(candidateVariations.length
+      ? `${candidateVariations.length}個の異なる候補を用意しました`
+      : "現在の曲と十分に異なる候補はありませんでした");
+  }, [settings, workspace, addVariationSnapshot]);
 
   const rebuildControlledSong = useCallback((values: {
     arrangement?: ArrangementSettings;
@@ -973,7 +989,17 @@ export function ComposerApp() {
         onCreateVariation={createVariation}
         onLoadVariation={(id) => {
           const variation = project.variations.find((item) => item.id === id);
-          if (variation) commitWorkspace(cloneWorkspace(variation.workspace));
+          if (variation) {
+            const next = cloneWorkspace(variation.workspace);
+            commitWorkspace(next, { preserveComparison: true });
+            setDraftArrangement(next.arrangement!);
+            setDraftComposition(next.composition!);
+            setTransport((current) => ({
+              ...current,
+              positionBeat: Math.min(current.positionBeat, next.song.totalBars * next.song.meter.barBeats),
+              rangeEndBar: next.song.totalBars,
+            }));
+          }
         }}
         onToggleFavorite={(id) =>
           setProject((current) => ({
@@ -1281,18 +1307,37 @@ export function ComposerApp() {
 
           <div className="annotations">
             <button className="link" onClick={() => setShowAnnotations((value) => !value)}>
-              {showAnnotations ? "▼" : "▶"} 生成根拠の解説 ({annotationRows.length})
+              {showAnnotations ? "▼" : "▶"} 生成根拠の解説 ({annotationRows.length + (song.generationReport?.summary.length ?? 0)})
             </button>
             {showAnnotations && (
-              <ul>
-                {annotationRows.map((row) => (
-                  <li key={row.key}>
-                    <span className="annotation-loc">{row.section} / {row.bar} 小節目</span>
-                    <span className={"annotation-tag tag-" + row.ruleId}>{row.ruleId}</span>
-                    {row.text}
-                  </li>
-                ))}
-              </ul>
+              <div className="annotation-levels">
+                {song.generationReport?.summary.some((reason) => reason.level === "song") && (
+                  <section className="annotation-summary">
+                    <strong>曲全体の組み立て</strong>
+                    {song.generationReport.summary.filter((reason) => reason.level === "song")
+                      .map((reason) => <p key={reason.id}>{reason.summary}</p>)}
+                  </section>
+                )}
+                {song.generationReport?.summary.some((reason) => reason.level === "section") && (
+                  <section className="annotation-summary">
+                    <strong>セクションの意図</strong>
+                    <ul>{song.generationReport.summary.filter((reason) => reason.level === "section")
+                      .map((reason) => <li key={reason.id}>{reason.summary}</li>)}</ul>
+                  </section>
+                )}
+                <details>
+                  <summary>小節ごとの規則 ({annotationRows.length})</summary>
+                  <ul>
+                    {annotationRows.map((row) => (
+                      <li key={row.key}>
+                        <span className="annotation-loc">{row.section} / {row.bar} 小節目</span>
+                        <span className={"annotation-tag tag-" + row.ruleId}>{row.ruleId}</span>
+                        {row.text}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
             )}
           </div>
         </main>

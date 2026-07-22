@@ -21,7 +21,7 @@ import {
   type WorkspaceState,
 } from "./project.js";
 
-export type RegenerationTarget = "all" | LockPart;
+export type RegenerationTarget = "all" | LockPart | "bass";
 export type DesignRegenerationTarget = "melody" | "accompaniment";
 export type NotePart = "melody" | "piano" | "guitar" | "bass" | "drums";
 
@@ -242,13 +242,6 @@ export function regenerateWorkspace(
       sectionIndex,
       "accompaniment",
     );
-    section.bass = mergeNotes(
-      currentSection.bass,
-      candidateSection.bass,
-      workspace,
-      sectionIndex,
-      "accompaniment",
-    );
     section.guitar = mergeNotes(
       currentSection.guitar,
       candidateSection.guitar,
@@ -259,6 +252,15 @@ export function regenerateWorkspace(
     section.drums = mergeNotes(
       currentSection.drums,
       candidateSection.drums,
+      workspace,
+      sectionIndex,
+      "accompaniment",
+    );
+  }
+  if (target === "all" || target === "bass") {
+    section.bass = mergeNotes(
+      currentSection.bass,
+      candidateSection.bass,
       workspace,
       sectionIndex,
       "accompaniment",

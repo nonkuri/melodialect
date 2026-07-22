@@ -50,6 +50,9 @@ export interface Variation {
   createdAt: string;
   favorite: boolean;
   workspace: WorkspaceState;
+  /** v1.2 alternatives share the existing history instead of creating another store. */
+  kind?: "history" | "candidate";
+  differenceTags?: string[];
 }
 
 export interface ProjectDocument {

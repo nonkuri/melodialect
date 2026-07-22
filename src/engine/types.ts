@@ -32,6 +32,17 @@ export interface ParsedRoman {
   quality: ChordQuality;
 }
 
+/** Extended, structured representation used by the v1.2 harmony planner. */
+export interface ChordSymbolAst {
+  accidental: -2 | -1 | 0 | 1 | 2;
+  degree: number;
+  quality: ChordQuality;
+  extension?: number;
+  alterations?: Array<{ degree: number; accidental: -1 | 1 }>;
+  bass?: { accidental: -2 | -1 | 0 | 1 | 2; degree: number };
+  secondaryOf?: { accidental: -2 | -1 | 0 | 1 | 2; degree: number };
+}
+
 export interface ChordEvent {
   /** セクション先頭からの開始位置 (beats)。ハーモニックリズムにより小節途中もあり得る */
   start: number;
@@ -48,6 +59,8 @@ export interface ChordEvent {
   pitches: number[];
   /** ベース音 (スラッシュコードの場合はルート以外になる) */
   bassPitch: number;
+  /** Parsed v1.2 representation. Optional for projects saved before v1.2. */
+  ast?: ChordSymbolAst;
   /** v0.9: コードがどの経路で決まったか。未指定は通常生成。 */
   origin?: "generated" | "user" | "completed" | "reharmonized";
 }
@@ -91,6 +104,12 @@ export interface ArrangementSettings {
   humanize: number;
   /** 0.5..1.5 */
   velocityScale: number;
+  /** 0..1: automatic instrumentation and register density. */
+  accompanimentDensity?: number;
+  /** 0..1: amount of contrast and growth between sections. */
+  development?: number;
+  /** Keep legacy whole-song patterns, or let the section planner vary them. */
+  autoArrange?: boolean;
 }
 
 export interface MixerPartSettings {
@@ -169,6 +188,62 @@ export interface Annotation {
   bar: number;
   ruleId: string;
   text: string;
+  /** Explanation hierarchy. Omitted legacy annotations are event-level. */
+  level?: "song" | "section" | "event";
+  category?: GenerationCategory;
+}
+
+export type GenerationCategory =
+  | "structure"
+  | "harmony"
+  | "melody"
+  | "bass"
+  | "arrangement"
+  | "rhythm"
+  | "selection";
+
+export interface GenerationReason {
+  id: string;
+  level: "song" | "section" | "event";
+  category: GenerationCategory;
+  summary: string;
+  sectionIndex?: number;
+  bar?: number;
+  ruleId?: string;
+  detail?: string;
+  alternatives?: string[];
+}
+
+export interface SongFingerprint {
+  harmony: string;
+  melody: string;
+  bass: string;
+  accompaniment: string;
+  combined: string;
+}
+
+export interface GenerationMetrics {
+  valid: boolean;
+  violations: string[];
+  quality: number;
+  harmonicCoherence: number;
+  voiceLeading: number;
+  melodicFit: number;
+  bassSmoothness: number;
+  accompanimentClarity: number;
+  sectionContrast: number;
+}
+
+export type DiversityLevel = "stable" | "standard" | "adventurous";
+
+export interface GenerationReport {
+  candidateIndex: number;
+  selectedFrom: number;
+  diversity: DiversityLevel;
+  fingerprint: SongFingerprint;
+  metrics: GenerationMetrics;
+  summary: GenerationReason[];
+  differenceTags?: string[];
 }
 
 export interface GeneratedSection {
@@ -208,11 +283,14 @@ export interface Song {
   sections: GeneratedSection[];
   totalBars: number;
   arrangement?: ArrangementSettings;
+  arrangementPlan?: ArrangementPlan;
   mixer?: MixerSettings;
   master?: MasterSettings;
   composition?: CompositionControls;
   /** 編集済みの仮歌詞。未指定時はシードから生成する。 */
   lyrics?: EditableSectionLyrics[];
+  /** v1.2: deterministic candidate evaluation and layered explanations. */
+  generationReport?: GenerationReport;
 }
 
 export type HarmonyGenerationMode = "auto" | "fixed" | "complete" | "reharmonize";
@@ -322,6 +400,55 @@ export interface GrooveProfile {
   bassPattern?: "bossa" | "melodic" | "drone";
 }
 
+export type BassRole = "root" | "pedal" | "walking" | "ostinato" | "counterline";
+
+/** Dialect-owned bass language. Missing values are inferred from legacy groove fields. */
+export interface BassProfile {
+  roles: Partial<Record<SectionType | "default", BassRole[]>>;
+  /** All numeric tendencies are 0..1 unless a MIDI range is documented. */
+  activity: number;
+  syncopation: number;
+  rests: number;
+  chordToneRatio: number;
+  approachRatio: number;
+  diatonicApproachRatio: number;
+  chromaticApproachRatio: number;
+  enclosureRatio: number;
+  resolveLeapRatio: number;
+  fifthOctaveRatio: number;
+  fillProbability: number;
+  range: [number, number];
+  maxLeap: number;
+}
+
+export type AccompanimentTexture =
+  | "block"
+  | "arpeggio"
+  | "comping"
+  | "pad"
+  | "answer"
+  | "interlock";
+
+export interface ArrangementSectionPlan {
+  sectionIndex: number;
+  strategy: "piano-led" | "guitar-led" | "alternating" | "ensemble";
+  density: number;
+  registerShift: number;
+  pianoTexture: AccompanimentTexture;
+  guitarTexture: AccompanimentTexture;
+  pianoActive: boolean;
+  guitarActive: boolean;
+  drumsActive: boolean;
+  fillBars: number[];
+  breakBars: number[];
+  pickupBars: number[];
+}
+
+export interface ArrangementPlan {
+  strategy: ArrangementSectionPlan["strategy"];
+  sections: ArrangementSectionPlan[];
+}
+
 /** セクション単位で構成・和声語彙を上書きするルール。 */
 export interface DialectSectionRule {
   phraseLengths?: number[];
@@ -425,6 +552,8 @@ export interface Dialect {
   };
   /** 3-3-2 など、伴奏とアクセントへ適用するダイアレクト固有グルーヴ。 */
   groove?: GrooveProfile;
+  /** v1.2 bass grammar; legacy groove.bassPattern remains supported. */
+  bass?: Partial<BassProfile>;
   /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
   sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**

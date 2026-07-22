@@ -247,6 +247,15 @@ export function ArrangementPanel(props: Props) {
           </select></label>
         </div>
         <div className="control-grid">
+          <label title="セクションに合わせて楽器、密度、音域を自動的に展開します"><input
+            type="checkbox"
+            checked={arrangement.autoArrange ?? true}
+            onChange={(event) => updateArrangement("autoArrange", event.target.checked)}
+          />自動編曲</label>
+          <RangeRow label="伴奏の厚さ" help="低くすると空間を残し、高くすると楽器と発音を増やします。" value={arrangement.accompanimentDensity ?? 0.5}
+            onChange={(value) => updateArrangement("accompanimentDensity", value)} />
+          <RangeRow label="展開" help="セクション間の密度・音域・奏法の変化量です。" value={arrangement.development ?? 0.5}
+            onChange={(value) => updateArrangement("development", value)} />
           <RangeRow label="スウィング" help="裏拍を遅らせて跳ねる感じにします。" value={arrangement.swing} onChange={(value) => updateArrangement("swing", value)} />
           <RangeRow label="ヒューマナイズ" help="タイミングと強弱へ決定的な揺らぎを加えます。" value={arrangement.humanize} onChange={(value) => updateArrangement("humanize", value)} />
           <RangeRow label="ベロシティ" help="伴奏ノートの強さをまとめて調整します。" value={arrangement.velocityScale} min={0.5} max={1.5}

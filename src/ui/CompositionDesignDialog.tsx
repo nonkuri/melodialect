@@ -178,6 +178,7 @@ export function CompositionDesignDialog({
       sectionDialects,
       workspace.song.seed + 97,
       workspace.song.ending === "final",
+      workspace.song.sections.map((section) => ({ key: section.key, melody: section.melody })),
     );
     setDesign((current) => ({
       ...current,

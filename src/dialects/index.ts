@@ -167,6 +167,9 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (arrangement.swing !== undefined) probability("defaults.arrangement.swing", arrangement.swing);
       if (arrangement.humanize !== undefined) probability("defaults.arrangement.humanize", arrangement.humanize);
       if (arrangement.velocityScale !== undefined) range("defaults.arrangement.velocityScale", arrangement.velocityScale, 0.5, 1.5);
+      if (arrangement.accompanimentDensity !== undefined) probability("defaults.arrangement.accompanimentDensity", arrangement.accompanimentDensity);
+      if (arrangement.development !== undefined) probability("defaults.arrangement.development", arrangement.development);
+      if (arrangement.autoArrange !== undefined) boolean("defaults.arrangement.autoArrange", arrangement.autoArrange);
     }
   }
   if (!d.melody || typeof d.melody !== "object") add("melody", "旋律定義が必要です");
@@ -245,6 +248,30 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (!Array.isArray(d.groove.accentPattern) || !d.groove.accentPattern.length || d.groove.accentPattern.length > 32 || d.groove.accentPattern.some((beat) => !finite(beat) || beat < 0 || beat >= 8)) add("groove.accentPattern", "0以上8未満の拍位置を最大32個で指定してください");
       if (d.groove.anticipation !== undefined) range("groove.anticipation", d.groove.anticipation, 0, 4);
       if (d.groove.bassPattern !== undefined && !["bossa", "melodic", "drone"].includes(d.groove.bassPattern as string)) add("groove.bassPattern", "利用可能なベースパターンを指定してください");
+    }
+  }
+  if (d.bass !== undefined) {
+    const roles = ["root", "pedal", "walking", "ostinato", "counterline"];
+    if (!isRecord(d.bass)) add("bass", "ベース定義のオブジェクトが必要です");
+    else {
+      if (d.bass.roles !== undefined) {
+        if (!isRecord(d.bass.roles)) add("bass.roles", "セクション別の役割定義が必要です");
+        else Object.entries(d.bass.roles).forEach(([section, values]) => {
+          if (section !== "default" && !SECTION_KEYS.includes(section as typeof SECTION_KEYS[number])) add(`bass.roles.${section}`, "未知のセクションです");
+          if (!Array.isArray(values) || !values.length || values.some((role) => typeof role !== "string" || !roles.includes(role))) {
+            add(`bass.roles.${section}`, "root、pedal、walking、ostinato、counterlineから1個以上指定してください");
+          }
+        });
+      }
+      for (const key of ["activity", "syncopation", "rests", "chordToneRatio", "approachRatio",
+        "diatonicApproachRatio", "chromaticApproachRatio", "enclosureRatio", "resolveLeapRatio",
+        "fifthOctaveRatio", "fillProbability"] as const) {
+        if (d.bass[key] !== undefined) probability(`bass.${key}`, d.bass[key]);
+      }
+      if (d.bass.range !== undefined && (!Array.isArray(d.bass.range) || d.bass.range.length !== 2 ||
+        d.bass.range.some((pitch) => !Number.isInteger(pitch) || pitch < 0 || pitch > 127) ||
+        d.bass.range[0] >= d.bass.range[1])) add("bass.range", "0〜127の[最低音, 最高音]を指定してください");
+      if (d.bass.maxLeap !== undefined) range("bass.maxLeap", d.bass.maxLeap, 1, 36);
     }
   }
   if (d.sectionRules !== undefined) {

@@ -3,6 +3,7 @@ import type {
   ArrangementSettings,
   CompositionControls,
   CompositionDesign,
+  DiversityLevel,
   Mode,
   Dialect,
   EndingMode,
@@ -12,10 +13,10 @@ import type {
   SectionControl,
   Song,
 } from "./types.js";
-import { createRng } from "./rng.js";
+import { createNamedRng, createRng } from "./rng.js";
 import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
-import { chordAtBeat, generateProgression } from "./harmony.js";
+import { chordAtBeat, chordFromRoman, generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment } from "./accompaniment.js";
 import {
@@ -32,6 +33,12 @@ import {
   normalizeArrangement,
   normalizeComposition,
 } from "./controls.js";
+import {
+  attachGenerationReport,
+  describeCandidateDifference,
+  selectSongCandidate,
+} from "./evaluation.js";
+import { createArrangementPlan } from "./arrangement.js";
 const NOTE_NAMES: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
   "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
@@ -84,6 +91,9 @@ export interface GenerateOptions {
   sectionControls?: SectionControl[];
   /** v0.9: ユーザーコード、セクション表現、モチーフ等の作曲設計。 */
   design?: CompositionDesign;
+  /** v1.2: internal candidates. UI generation uses three; direct legacy calls keep one. */
+  candidateCount?: number;
+  diversity?: DiversityLevel;
 }
 
 /** Derive an independent deterministic seed for each section. */
@@ -112,8 +122,8 @@ function nearestChordTone(pitch: number, chordPitches: number[]): number {
   return best;
 }
 
-/** 生成パイプライン全体 (§4.2)。同じオプション+シードなら常に同じ曲を返す。 */
-export function generateSong(options: GenerateOptions): Song {
+/** Build one deterministic candidate. Public callers normally use generateSong. */
+function generateSongCandidate(options: GenerateOptions, candidateIndex: number): Song {
   const { dialect: mainDialect, seed } = options;
   const keyName = options.keyName ?? mainDialect.defaults.key;
   const controls = normalizeComposition(options.composition, options.mode ?? mainDialect.defaults.mode);
@@ -152,15 +162,33 @@ export function generateSong(options: GenerateOptions): Song {
       dialect: dialectWithCadence(controlled, entry.type, expression?.cadence ?? "dialect"),
     };
   });
+  const arrangementPlan = createArrangementPlan(
+    entries.map((entry) => entry.type),
+    entries.map((entry) => entry.dialect),
+    options.arrangement,
+    seed,
+    candidateIndex,
+  );
 
   const sections: GeneratedSection[] = [];
+  const sectionHarmonyMemory = new Map<SectionType, string[]>();
+  let previousProgression: string[] | undefined;
   let startBar = 0;
   let prevMelodyEnd: number | undefined;
 
   entries.forEach(({ type, dialect }, i) => {
     const isLastEntry = i === entries.length - 1;
     // ループモードでは最終セクションも半終止で終え、曲頭の I へ戻れるようにする
-    const rng = createRng(options.sectionSeeds?.[i] ?? sectionSeed(seed, i));
+    const baseSectionSeed = options.sectionSeeds?.[i] ?? sectionSeed(seed, i);
+    // Candidate zero keeps the established section layout for project continuity;
+    // alternatives use an isolated stream and cannot consume another part's RNG.
+    const structureRng = candidateIndex === 0
+      ? createRng(baseSectionSeed)
+      : createNamedRng(baseSectionSeed, "structure", i, candidateIndex);
+    const modulationRng = createNamedRng(baseSectionSeed, "modulation", i, candidateIndex);
+    const harmonyRng = createNamedRng(baseSectionSeed, "harmony", i, candidateIndex);
+    const melodyRng = createNamedRng(baseSectionSeed, "melody", i, candidateIndex);
+    const accompanimentRng = createNamedRng(baseSectionSeed, "accompaniment", i, candidateIndex);
     const isFinalSection = ending === "final" && isLastEntry;
     const sectionControl = options.sectionControls?.[i];
     // SectionControl の bars は画面に見えるコーダ込みの長さ。生成前の本体では
@@ -174,14 +202,14 @@ export function generateSong(options: GenerateOptions): Song {
           phraseLengths: [...fixedPhraseLengths],
           bars: fixedPhraseLengths.reduce((sum, bars) => sum + bars, 0),
         }
-      : planSection(type, dialect, rng);
+      : planSection(type, dialect, structureRng);
 
     // 転調 (§4.1): セクションタイプ別の転調傾向 (通常は bridge)。最終セクションは主調のまま
     let sectionKey = key;
     const modAnnotations: Annotation[] = [];
     const modCfg = dialect.modulation?.[type];
-    if (modCfg && !isLastEntry && rng.chance(modCfg.probability)) {
-      const semis = rng.weighted(
+    if (modCfg && !isLastEntry && modulationRng.chance(modCfg.probability)) {
+      const semis = modulationRng.weighted(
         modCfg.intervals.map((iv) => [iv.semitones, iv.weight] as [number, number]),
       );
       sectionKey = { tonic: (((key.tonic + semis) % 12) + 12) % 12, mode: key.mode };
@@ -205,8 +233,42 @@ export function generateSong(options: GenerateOptions): Song {
       });
     }
     const generatedHarmony = generateProgression(
-      plan, dialect, sectionKey, meter, rng, { isFinalSection },
+      plan, dialect, sectionKey, meter, harmonyRng, {
+        isFinalSection,
+        tension: options.design?.sectionExpressions[i]?.tension ?? controls.tension,
+        // Repeated sections retain a family resemblance. A first chorus can
+        // develop the preceding verse, while a bridge deliberately contrasts it.
+        referenceProgression: sectionHarmonyMemory.get(type) ?? previousProgression,
+      },
     );
+    const previousChord = sections.at(-1)?.chords.at(-1);
+    if (modAnnotations.some((annotation) => annotation.ruleId === "modulation") && previousChord &&
+      generatedHarmony.chords[0]) {
+      const previousPcs = new Set(previousChord.pitches.map((pitch) => pitch % 12));
+      const pivots = dialect.chord.vocabulary.flatMap((symbol) => {
+        try {
+          const chord = chordFromRoman(symbol, 0, sectionKey,
+            generatedHarmony.chords[0]!.start, generatedHarmony.chords[0]!.durationBeats);
+          const common = chord.pitches.filter((pitch) => previousPcs.has(pitch % 12)).length;
+          return common >= 2 ? [{ chord, common }] : [];
+        } catch {
+          return [];
+        }
+      }).sort((a, b) => b.common - a.common);
+      const bestCommon = pivots[0]?.common ?? 0;
+      const topPivots = pivots.filter((pivot) => pivot.common === bestCommon);
+      const pivot = topPivots.length ? harmonyRng.pick(topPivots).chord : undefined;
+      if (pivot) {
+        generatedHarmony.chords[0] = pivot;
+        generatedHarmony.annotations.push({
+          bar: 0,
+          ruleId: "pivot-chord",
+          text: `前セクションと共通音を持つ ${pivot.symbol} を転調の橋渡しに使用`,
+          level: "section",
+          category: "harmony",
+        });
+      }
+    }
     let chords = generatedHarmony.chords;
     let harmonyNotes = generatedHarmony.annotations;
     const harmonyMode = options.design?.harmonyMode ?? "auto";
@@ -230,7 +292,7 @@ export function generateSong(options: GenerateOptions): Song {
       });
       let resolvedDraft = structuredClone(orderedDraft);
       if (harmonyMode === "complete") {
-        resolvedDraft = completeChordDraft(resolvedDraft, generatedHarmony.chords, dialect, rng);
+        resolvedDraft = completeChordDraft(resolvedDraft, generatedHarmony.chords, dialect, harmonyRng);
       } else if (resolvedDraft.some((slot) => !slot.symbol)) {
         throw new Error("固定コード進行に空欄があります。空欄補完モードを選んでください");
       }
@@ -247,10 +309,23 @@ export function generateSong(options: GenerateOptions): Song {
       chords = chords.map((chord) => ({ ...chord, origin: "generated" as const }));
       harmonyNotes = [...harmonyNotes, ...annotateChordOrigins(chords, meter)];
     }
-    const melody = generateMelody(plan, chords, dialect, sectionKey, meter, rng, {
+    if (!sectionHarmonyMemory.has(type)) {
+      sectionHarmonyMemory.set(type, chords.map((chord) => chord.symbol));
+    }
+    previousProgression = chords.map((chord) => chord.symbol);
+    const melody = generateMelody(plan, chords, dialect, sectionKey, meter, melodyRng, {
       startPitch: prevMelodyEnd,
     });
-    const accomp = generateAccompaniment(plan, chords, dialect, sectionKey, meter, rng, options.arrangement);
+    const accomp = generateAccompaniment(
+      plan, chords, dialect, sectionKey, meter, accompanimentRng, options.arrangement,
+      {
+        sectionIndex: i,
+        candidateIndex,
+        seed: baseSectionSeed,
+        melody: melody.notes,
+        arrangementSection: arrangementPlan.sections[i],
+      },
+    );
 
     prevMelodyEnd = melody.notes.at(-1)?.pitch;
     sections.push({
@@ -349,6 +424,7 @@ export function generateSong(options: GenerateOptions): Song {
       ...mainDialect.defaults.arrangement,
       ...options.arrangement,
     }),
+    arrangementPlan,
     dialectId: mainDialect.id,
     seed,
     ending,
@@ -363,4 +439,56 @@ export function generateSong(options: GenerateOptions): Song {
     ? applyCompositionControls(song, controls, options.design?.sectionExpressions)
     : song;
   return options.design ? applyMotifAndChorusDesign(controlled, options.design) : controlled;
+}
+
+function diversityFor(options: GenerateOptions): DiversityLevel {
+  if (options.diversity) return options.diversity;
+  const surprise = options.composition?.surprise ?? 0.5;
+  return surprise < 0.34 ? "stable" : surprise > 0.66 ? "adventurous" : "standard";
+}
+
+/** Generate distinct deterministic alternatives without requiring a UI choice. */
+export function generateSongCandidates(
+  options: GenerateOptions,
+  count = options.candidateCount ?? 3,
+): Song[] {
+  const candidateCount = Math.max(1, Math.min(8, Math.round(count)));
+  const diversity = diversityFor(options);
+  const candidates: Song[] = [];
+  const fingerprints = new Set<string>();
+  // A bounded oversampling pass lets the shared API omit perceptually duplicate
+  // candidates without making generation time unbounded for restrictive dialects.
+  for (let attempt = 0; attempt < candidateCount * 3 && candidates.length < candidateCount; attempt++) {
+    const candidate = attachGenerationReport(
+      generateSongCandidate(options, attempt), attempt, candidateCount, diversity,
+    );
+    const fingerprint = candidate.generationReport!.fingerprint.combined;
+    const candidateParts = candidate.generationReport!.fingerprint;
+    const tooSimilar = candidates.some((existing) => {
+      const existingParts = existing.generationReport!.fingerprint;
+      const differentFields = (["harmony", "melody", "bass", "accompaniment"] as const)
+        .filter((field) => candidateParts[field] !== existingParts[field]).length;
+      return differentFields <= 1;
+    });
+    if (fingerprints.has(fingerprint) || tooSimilar) continue;
+    fingerprints.add(fingerprint);
+    candidates.push(candidate);
+  }
+  candidates.forEach((candidate, index) =>
+    attachGenerationReport(candidate, index, candidates.length, diversity));
+  const reference = candidates[0];
+  candidates.forEach((candidate) => {
+    candidate.generationReport!.differenceTags = describeCandidateDifference(candidate, reference);
+  });
+  return candidates;
+}
+
+/** 生成パイプライン全体 (§4.2)。同じオプション+シードなら常に同じ曲を返す。 */
+export function generateSong(options: GenerateOptions): Song {
+  const diversity = diversityFor(options);
+  return selectSongCandidate(
+    generateSongCandidates(options, options.candidateCount ?? 1),
+    options.seed,
+    diversity,
+  );
 }

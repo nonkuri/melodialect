@@ -1,5 +1,6 @@
 import type {
   Annotation,
+  ChordSymbolAst,
   ChordEvent,
   ChordQuality,
   Dialect,
@@ -30,6 +31,10 @@ const DEGREE_MAP: Record<string, number> = {
   i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7,
 };
 
+const ACCIDENTAL_VALUE: Record<string, -2 | -1 | 0 | 1 | 2> = {
+  "": 0, "♭": -1, b: -1, "♭♭": -2, bb: -2, "♯": 1, "#": 1, "♯♯": 2,
+};
+
 const QUALITY_INTERVALS: Record<ChordQuality, number[]> = {
   maj: [0, 4, 7],
   min: [0, 3, 7],
@@ -46,13 +51,13 @@ const QUALITY_INTERVALS: Record<ChordQuality, number[]> = {
   halfDim7: [0, 3, 6, 10],
 };
 
-/** "♭VII", "ii7", "IV△7" などのローマ数字表記をパースする */
-export function parseRoman(symbol: string): ParsedRoman {
+/** Parse extended Roman symbols while keeping parseRoman backward compatible. */
+export function parseChordSymbol(symbol: string): ChordSymbolAst {
   const m = symbol.match(
-    /^(♭|b)?([iIvV]+)(ø7|°7|°|dim|sus2|sus4|add9|△9|maj9|M9|9|△7|maj7|M7|7)?$/,
+    /^(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+)(ø7|°7|°|dim|sus2|sus4|add9|△13|maj13|M13|13|△11|maj11|M11|11|△9|maj9|M9|9|△7|maj7|M7|7|6)?((?:[♭♯#b](?:5|9|11|13))*)(?:\/(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+|[1-7]))?$/,
   );
   if (!m) throw new Error(`invalid roman numeral: ${symbol}`);
-  const [, flatMark, numeral, suffix] = m;
+  const [, accidentalText = "", numeral, suffix, alterationText = "", slashAccidental = "", slashTarget] = m;
   const degree = DEGREE_MAP[numeral!.toLowerCase()];
   if (degree === undefined) throw new Error(`invalid roman numeral: ${symbol}`);
   const isMinorTriad = numeral === numeral!.toLowerCase();
@@ -64,10 +69,17 @@ export function parseRoman(symbol: string): ParsedRoman {
     quality = "dim";
   } else if (suffix === "sus2" || suffix === "sus4" || suffix === "add9") {
     quality = suffix;
+  } else if (suffix === "6") {
+    quality = isMinorTriad ? "min" : "maj";
   } else if (suffix === "9") {
     quality = isMinorTriad ? "min9" : "dom9";
   } else if (suffix === "△9" || suffix === "maj9" || suffix === "M9") {
     quality = "maj9";
+  } else if (suffix === "11" || suffix === "13") {
+    quality = isMinorTriad ? "min7" : "dom7";
+  } else if (suffix === "△11" || suffix === "maj11" || suffix === "M11" ||
+    suffix === "△13" || suffix === "maj13" || suffix === "M13") {
+    quality = "maj7";
   } else if (suffix === "7") {
     quality = isMinorTriad ? "min7" : "dom7";
   } else if (suffix) {
@@ -75,7 +87,32 @@ export function parseRoman(symbol: string): ParsedRoman {
   } else {
     quality = isMinorTriad ? "min" : "maj";
   }
-  return { degree, flat: Boolean(flatMark), quality };
+  const extensionMatch = suffix?.match(/(6|7|9|11|13)$/);
+  const alterations = Array.from(alterationText.matchAll(/([♭b♯#])(5|9|11|13)/g)).map((entry) => ({
+    degree: Number(entry[2]),
+    accidental: (entry[1] === "♭" || entry[1] === "b" ? -1 : 1) as -1 | 1,
+  }));
+  const slashDegree = slashTarget
+    ? /^[1-7]$/.test(slashTarget) ? Number(slashTarget) : DEGREE_MAP[slashTarget.toLowerCase()]
+    : undefined;
+  const slash = slashDegree
+    ? { accidental: ACCIDENTAL_VALUE[slashAccidental] ?? 0, degree: slashDegree }
+    : undefined;
+  return {
+    accidental: ACCIDENTAL_VALUE[accidentalText] ?? 0,
+    degree,
+    quality,
+    extension: extensionMatch ? Number(extensionMatch[1]) : undefined,
+    alterations: alterations.length ? alterations : undefined,
+    bass: slashTarget && /^[1-7]$/.test(slashTarget) ? slash : undefined,
+    secondaryOf: slashTarget && !/^[1-7]$/.test(slashTarget) ? slash : undefined,
+  };
+}
+
+/** "♭VII", "ii7", "IV△7" などのローマ数字表記をパースする */
+export function parseRoman(symbol: string): ParsedRoman {
+  const ast = parseChordSymbol(symbol);
+  return { degree: ast.degree, flat: ast.accidental < 0, quality: ast.quality };
 }
 
 export function scaleOf(key: KeySignature, collection?: PitchCollection): number[] {
@@ -92,6 +129,35 @@ export function romanRootPc(parsed: ParsedRoman, key: KeySignature): number {
   return (((key.tonic + offset) % 12) + 12) % 12;
 }
 
+function astRootPc(ast: ChordSymbolAst, key: KeySignature): number {
+  if (ast.secondaryOf) {
+    const target = romanRootPc({
+      degree: ast.secondaryOf.degree,
+      flat: ast.secondaryOf.accidental < 0,
+      quality: "maj",
+    }, key);
+    return (target + 7 + 12) % 12;
+  }
+  const base = key.mode === "major" ? MAJOR_SCALE : NATURAL_MINOR_SCALE;
+  return (((key.tonic + base[ast.degree - 1]! + ast.accidental) % 12) + 12) % 12;
+}
+
+function intervalsForAst(ast: ChordSymbolAst): number[] {
+  const intervals = [...QUALITY_INTERVALS[ast.quality]];
+  if (ast.extension === 6 && !intervals.includes(9)) intervals.push(9);
+  if (ast.extension && ast.extension >= 9 && !intervals.includes(14)) intervals.push(14);
+  if (ast.extension && ast.extension >= 11 && !intervals.includes(17)) intervals.push(17);
+  if (ast.extension && ast.extension >= 13 && !intervals.includes(21)) intervals.push(21);
+  for (const alteration of ast.alterations ?? []) {
+    const natural = alteration.degree === 5 ? 7 : alteration.degree === 9 ? 14
+      : alteration.degree === 11 ? 17 : 21;
+    const existing = intervals.findIndex((interval) => interval % 12 === natural % 12);
+    if (existing >= 0) intervals[existing] = natural + alteration.accidental;
+    else intervals.push(natural + alteration.accidental);
+  }
+  return Array.from(new Set(intervals)).sort((a, b) => a - b);
+}
+
 /** ピッチクラスを [low, low+11] のオクターブ内の MIDI ノートにする */
 export function pcToPitch(pc: number, low: number): number {
   const p = low + ((((pc - low) % 12) + 12) % 12);
@@ -105,12 +171,15 @@ export function chordFromRoman(
   start = 0,
   durationBeats = 0,
 ): ChordEvent {
-  const parsed = parseRoman(symbol);
-  const rootPc = romanRootPc(parsed, key);
+  const ast = parseChordSymbol(symbol);
+  const rootPc = astRootPc(ast, key);
   const root = pcToPitch(rootPc, 48); // C3 付近にボイシング
-  const pitches = QUALITY_INTERVALS[parsed.quality].map((iv) => root + iv);
-  const bassPitch = pcToPitch(rootPc, 36); // C2 付近
-  return { start, durationBeats, bar, symbol, rootPc, quality: parsed.quality, pitches, bassPitch };
+  const pitches = intervalsForAst(ast).map((iv) => root + iv);
+  const bassPc = ast.bass
+    ? romanRootPc({ degree: ast.bass.degree, flat: ast.bass.accidental < 0, quality: "maj" }, key)
+    : rootPc;
+  const bassPitch = pcToPitch(bassPc, 36); // C2 付近
+  return { start, durationBeats, bar, symbol, rootPc, quality: ast.quality, pitches, bassPitch, ast };
 }
 
 /** beat 時点で鳴っているコードを返す (ハーモニックリズム対応の検索) */
@@ -144,7 +213,19 @@ export function chordDisplayName(
 ): string {
   const names = useFlats ? FLAT_NAMES : SHARP_NAMES;
   const root = names[chord.rootPc]!;
-  let name = root + QUALITY_SUFFIX[chord.quality];
+  const ast = chord.ast;
+  let suffix = QUALITY_SUFFIX[chord.quality];
+  if (ast?.extension === 6) suffix = chord.quality === "min" ? "m6" : "6";
+  else if (ast?.extension && ast.extension >= 11) {
+    suffix = chord.quality === "min7" || chord.quality === "min9" ? `m${ast.extension}`
+      : chord.quality === "maj7" || chord.quality === "maj9" ? `△${ast.extension}`
+        : String(ast.extension);
+  }
+  if (ast?.alterations?.length) {
+    suffix += ast.alterations.map((alteration) =>
+      `${alteration.accidental < 0 ? "♭" : "♯"}${alteration.degree}`).join("");
+  }
+  let name = root + suffix;
   const bassPc = ((chord.bassPitch % 12) + 12) % 12;
   if (bassPc !== chord.rootPc) {
     const bassNames =
@@ -259,6 +340,140 @@ function halfCadenceLabel(symbol: string): string {
   return `半終止 (${symbol})`;
 }
 
+type HarmonicFunction = "tonic" | "predominant" | "dominant" | "color";
+
+function harmonicFunctionOf(symbol: string): HarmonicFunction {
+  try {
+    const ast = parseChordSymbol(symbol);
+    if (ast.secondaryOf || ast.degree === 5 || ast.degree === 7) return "dominant";
+    if (ast.degree === 2 || ast.degree === 4) return "predominant";
+    if (ast.degree === 1 || ast.degree === 3 || ast.degree === 6) return "tonic";
+  } catch {
+    // Validation reports malformed vocabulary separately; the planner treats it as color.
+  }
+  return "color";
+}
+
+function harmonicTension(symbol: string): number {
+  const fn = harmonicFunctionOf(symbol);
+  let value = fn === "dominant" ? 0.9 : fn === "predominant" ? 0.58 : fn === "tonic" ? 0.2 : 0.68;
+  try {
+    const ast = parseChordSymbol(symbol);
+    if (ast.accidental !== 0 || ast.secondaryOf) value += 0.12;
+    if ((ast.extension ?? 0) >= 9 || ast.alterations?.length) value += 0.08;
+  } catch { /* keep the functional fallback */ }
+  return Math.min(1, value);
+}
+
+interface HarmonicPath {
+  symbols: string[];
+  score: number;
+  idioms: Array<{ index: number; symbols: string[] }>;
+}
+
+function desiredTension(position: number, sectionType: SectionPlan["type"], amount: number): number {
+  const sectionBias = sectionType === "chorus" ? 0.1 : sectionType === "bridge" ? 0.16
+    : sectionType === "intro" || sectionType === "outro" ? -0.08 : 0;
+  const arc = position < 0.25 ? 0.18 + position
+    : position < 0.75 ? 0.35 + position * 0.35
+      : 0.62 + position * 0.25;
+  return Math.max(0.08, Math.min(0.95, arc + sectionBias + (amount - 0.5) * 0.28));
+}
+
+function functionalPathScore(
+  previous: string,
+  next: string,
+  transitionWeight: number,
+  position: number,
+  plan: SectionPlan,
+  tension: number,
+  reference?: string[],
+): number {
+  const desired = desiredTension(position, plan.type, tension);
+  const tensionFit = 1 - Math.abs(harmonicTension(next) - desired);
+  const previousFunction = harmonicFunctionOf(previous);
+  const nextFunction = harmonicFunctionOf(next);
+  const functionalBonus =
+    previousFunction === "predominant" && nextFunction === "dominant" ? 0.65
+      : previousFunction === "dominant" && nextFunction === "tonic" ? 0.7
+        : previousFunction === "tonic" && nextFunction === "predominant" ? 0.35 : 0;
+  const repetitionPenalty = previous === next ? 0.9 : 0;
+  const referenceSymbol = reference?.[Math.min(reference.length - 1, Math.floor(position * reference.length))];
+  const relationship = referenceSymbol
+    ? plan.type === "bridge"
+      ? referenceSymbol === next ? -0.18 : 0.08
+      : referenceSymbol === next ? 0.24 : 0
+    : 0;
+  return Math.log(Math.max(0.005, transitionWeight)) * 0.42 + tensionFit * 0.9 +
+    functionalBonus + relationship - repetitionPenalty;
+}
+
+/** Destination-aware beam search over the dialect vocabulary and its idioms. */
+function planFunctionalProgression(
+  bodySlots: number,
+  tonic: string,
+  dialect: Dialect,
+  plan: SectionPlan,
+  rng: Rng,
+  tension: number,
+  reference?: string[],
+): HarmonicPath {
+  const idioms = dialect.sectionRules?.[plan.type]?.idioms ?? dialect.chord.idioms ?? [];
+  const idiomProbability = dialect.sectionRules?.[plan.type]?.idiomProbability ??
+    dialect.chord.idiomProbability ?? 0;
+  let frontier: HarmonicPath[] = [{ symbols: [tonic], score: 0, idioms: [] }];
+  const complete: HarmonicPath[] = [];
+  const beamWidth = 12;
+
+  while (frontier.length) {
+    const expanded: HarmonicPath[] = [];
+    for (const path of frontier) {
+      if (path.symbols.length >= bodySlots) {
+        complete.push(path);
+        continue;
+      }
+      const previous = path.symbols.at(-1)!;
+      const position = path.symbols.length / Math.max(1, bodySlots);
+      const table = dialect.chord.transitions[previous] ?? {};
+      for (const symbol of dialect.chord.vocabulary) {
+        const transitionWeight = table[symbol] ?? 0.015;
+        expanded.push({
+          symbols: [...path.symbols, symbol],
+          score: path.score + functionalPathScore(
+            previous, symbol, transitionWeight, position, plan, tension, reference,
+          ) + rng.next() * 0.18,
+          idioms: path.idioms,
+        });
+      }
+      for (const idiom of idioms) {
+        const placement = idiom.symbols[0] === previous ? idiom.symbols.slice(1) : idiom.symbols;
+        if (!placement.length || path.symbols.length + placement.length > bodySlots) continue;
+        let score = path.score + Math.log1p(idiom.weight) * 0.55 + idiomProbability * 0.8;
+        let from = previous;
+        placement.forEach((symbol, offset) => {
+          const transitionWeight = dialect.chord.transitions[from]?.[symbol] ?? 0.03;
+          score += functionalPathScore(
+            from, symbol, transitionWeight,
+            (path.symbols.length + offset) / Math.max(1, bodySlots), plan, tension, reference,
+          );
+          from = symbol;
+        });
+        expanded.push({
+          symbols: [...path.symbols, ...placement],
+          score: score + rng.next() * 0.18,
+          idioms: [...path.idioms, { index: path.symbols.length, symbols: idiom.symbols }],
+        });
+      }
+    }
+    if (!expanded.length) break;
+    frontier = expanded.sort((a, b) => b.score - a.score).slice(0, beamWidth);
+  }
+  const choices = (complete.length ? complete : frontier)
+    .sort((a, b) => b.score - a.score).slice(0, 4);
+  const bestScore = choices[0]?.score ?? 0;
+  return rng.weighted(choices.map((path) => [path, Math.exp(path.score - bestScore) + 0.05]));
+}
+
 /**
  * コード進行生成 (§4.2 手順 2)。
  * ハーモニックリズムでスロットを割り、定型句 (イディオム) 挿入+マルコフ遷移で埋め、
@@ -270,7 +485,11 @@ export function generateProgression(
   key: KeySignature,
   meter: Meter,
   rng: Rng,
-  opts: { isFinalSection: boolean },
+  opts: {
+    isFinalSection: boolean;
+    tension?: number;
+    referenceProgression?: string[];
+  },
 ): ProgressionResult {
   const { vocabulary, transitions } = dialect.chord;
   const sectionRule = dialect.sectionRules?.[plan.type];
@@ -286,48 +505,25 @@ export function generateProgression(
   symbols[0] = tonic;
   let current = tonic;
 
-  const idioms = sectionRule?.idioms ?? dialect.chord.idioms ?? [];
-  const idiomP = sectionRule?.idiomProbability ?? dialect.chord.idiomProbability ?? 0;
-
-  let i = 1;
-  while (i < bodySlots) {
-    // 定型句 (イディオム): 3〜4 コードのまとまりをそのまま挿入する (§4.1)
-    let placed = false;
-    if (idioms.length > 0 && rng.chance(idiomP)) {
-      const idiom = rng.weighted<WeightedProgression>(idioms.map((d) => [d, d.weight]));
-      // 現在の和音から始まる定型句では先頭を重ねない。従来は冒頭の I を
-      // 生成済みなのに I→I→vi… と置き、定型句の推進力を損ねていた。
-      const placement = idiom.symbols[0] === current
-        ? idiom.symbols.slice(1)
-        : idiom.symbols;
-      if (placement.length > 0 && i + placement.length <= bodySlots) {
-        placement.forEach((s, j) => {
-          symbols[i + j] = s;
-        });
-        annotations.push({
-          bar: slots[i]!.bar,
-          ruleId: "chord-idiom",
-          text: `定型句: ${idiom.symbols.join(" → ")}`,
-        });
-        i += placement.length;
-        current = idiom.symbols.at(-1)!;
-        placed = true;
-      }
-    }
-    if (!placed) {
-      const table = transitions[current];
-      let nextSymbol: string;
-      if (table && Object.keys(table).length > 0) {
-        nextSymbol = rng.weighted(Object.entries(table));
-      } else {
-        const candidates = vocabulary.filter((s) => s !== current);
-        nextSymbol = rng.pick(candidates.length > 0 ? candidates : vocabulary);
-      }
-      symbols[i] = nextSymbol;
-      current = nextSymbol;
-      i += 1;
-    }
-  }
+  const planned = planFunctionalProgression(
+    bodySlots, tonic, dialect, plan, rng, opts.tension ?? 0.5, opts.referenceProgression,
+  );
+  planned.symbols.forEach((symbol, index) => { symbols[index] = symbol; });
+  current = planned.symbols.at(-1) ?? tonic;
+  planned.idioms.forEach((idiom) => annotations.push({
+    bar: slots[Math.min(idiom.index, slots.length - 1)]!.bar,
+    ruleId: "chord-idiom",
+    text: `定型句: ${idiom.symbols.join(" → ")}`,
+    level: "event",
+    category: "harmony",
+  }));
+  annotations.push({
+    bar: 0,
+    ruleId: "functional-harmony-plan",
+    text: `${plan.type}の終止先から逆算し、和声機能と緊張の流れを整えた候補を選択`,
+    level: "section",
+    category: "harmony",
+  });
 
   // カデンツ (§4.1): 最終セクションは 2 コードの終止形、途中セクションは半終止
   if (opts.isFinalSection && cadenceSlots >= 2) {
