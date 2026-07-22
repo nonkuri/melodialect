@@ -51,6 +51,30 @@ test("exposes keyboard focus and accessible names for primary controls", async (
   expect(outline).not.toBe("none");
 });
 
+test("keeps structure editing usable when snapshot storage is full", async ({ page }) => {
+  await page.goto("./");
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(key: string, value: string) {
+      if (key.startsWith("melodialect.snapshots.")) {
+        throw new DOMException("quota", "QuotaExceededError");
+      }
+      originalSetItem.call(this, key, value);
+    };
+  });
+
+  const type = page.getByRole("combobox", { name: "種類" });
+  await type.selectOption("bridge");
+  await expect(type).toHaveValue("bridge");
+  await expect(page.locator(".timeline-block").nth(0)).toContainText("Bridge");
+
+  const blocks = page.locator(".timeline-block");
+  await blocks.nth(0).dragTo(blocks.nth(1));
+  await expect(blocks.nth(0)).toContainText("Chorus");
+  await expect(blocks.nth(1)).toContainText("Bridge");
+  await expect(page.locator(".save-status")).toContainText("保存済み");
+});
+
 test("creates, validates, previews, saves and selects a dialect without editing JSON", async ({ page }) => {
   await page.goto("./");
   await page.getByRole("button", { name: "管理", exact: true }).click();

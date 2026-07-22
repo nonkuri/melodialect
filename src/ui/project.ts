@@ -405,11 +405,24 @@ export function createProjectSnapshot(
   const serializedWorkspace = JSON.stringify(snapshot.project.workspace);
   const deduped = existing.filter((item) =>
     JSON.stringify(item.project.workspace) !== serializedWorkspace);
-  storage().setItem(
-    SNAPSHOT_PREFIX + project.id,
-    JSON.stringify([snapshot, ...deduped].slice(0, MAX_SNAPSHOTS)),
-  );
-  return snapshot;
+  const snapshots = [snapshot, ...deduped].slice(0, MAX_SNAPSHOTS);
+  const target = storage();
+  const key = SNAPSHOT_PREFIX + project.id;
+
+  // localStorage has a comparatively small quota. If the retained generations no
+  // longer fit, prefer keeping the newest recovery point over blocking the edit
+  // that requested it. Replacing this key with a shorter value also releases the
+  // space occupied by its older generations.
+  for (let count = snapshots.length; count >= 1; count--) {
+    try {
+      target.setItem(key, JSON.stringify(snapshots.slice(0, count)));
+      return snapshot;
+    } catch (error) {
+      const normalized = storageError(error);
+      if (normalized.reason !== "quota" || count === 1) throw normalized;
+    }
+  }
+  throw new ProjectStorageError("保存世代を作成できませんでした", "unknown");
 }
 
 function storageError(error: unknown): ProjectStorageError {
@@ -446,7 +459,15 @@ export function saveProject(
     if (options.createGeneration !== false && previousRaw) {
       const previous = parseProject(JSON.parse(previousRaw));
       if (JSON.stringify(previous.workspace) !== JSON.stringify(saved.workspace)) {
-        createProjectSnapshot(previous, options.snapshotLabel ?? "自動保存");
+        try {
+          createProjectSnapshot(previous, options.snapshotLabel ?? "自動保存");
+        } catch (error) {
+          const normalized = storageError(error);
+          // The current project is more important than an additional recovery
+          // generation. Overwriting its existing key often still succeeds even
+          // when there is no room to add another snapshot.
+          if (normalized.reason !== "quota") throw normalized;
+        }
       }
     }
     storage().setItem(PROJECT_PREFIX + saved.id, JSON.stringify(saved));

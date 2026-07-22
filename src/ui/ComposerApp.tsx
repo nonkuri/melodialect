@@ -723,17 +723,28 @@ export function ComposerApp() {
       (workspace.locks.notes?.length ?? 0) + (workspace.locks.chords?.length ?? 0);
     if (protectedCount > 0 && !window.confirm(
       `構成変更ではセクション対応が変わるため、ロック済み・手動編集済み ${protectedCount}件を維持できません。適用前状態は保存世代へ退避します。続けますか？`,
-    )) return;
+    )) return false;
+    let snapshotWarning: string | null = null;
     try {
       createProjectSnapshot(project, "構成変更前");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "構成変更前の保存に失敗しました");
-      return;
+      snapshotWarning = error instanceof Error ? error.message : "構成変更前の保存に失敗しました";
+      // When protected/manual edits would be discarded, the promised recovery
+      // point is mandatory. With no protected edits, the in-memory Undo history
+      // still makes the structure change reversible during this session.
+      if (protectedCount > 0) {
+        setStatus(snapshotWarning);
+        return false;
+      }
     }
     rebuildControlledSong({ sectionControls: sections });
     setNoteSelection(null);
     setChordSelection(null);
     setSelectedSection((index) => Math.min(index, sections.length - 1));
+    if (snapshotWarning) {
+      setStatus(`構成を変更しました（保存世代なし: ${snapshotWarning}）。Undoは利用できます`);
+    }
+    return true;
   }, [workspace.locks, project, rebuildControlledSong]);
 
   const reorderStructure = useCallback((from: number, to: number) => {
@@ -741,8 +752,7 @@ export function ComposerApp() {
     const next = [...workspace.sectionControls];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved!);
-    updateStructure(next);
-    setSelectedSection(to);
+    if (updateStructure(next)) setSelectedSection(to);
   }, [workspace.sectionControls, updateStructure]);
 
   const selectedNoteBar = noteSelection ? noteBar(song, noteSelection) : null;

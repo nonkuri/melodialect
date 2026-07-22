@@ -36,6 +36,7 @@ import {
 import {
   createBackup,
   createProject,
+  createProjectSnapshot,
   deleteProject,
   emptyLocks,
   listProjectSnapshots,
@@ -46,6 +47,7 @@ import {
   restoreProject,
   saveProject,
   toggleNoteLock,
+  ProjectStorageError,
   type WorkspaceState,
 } from "../src/ui/project.js";
 import {
@@ -78,6 +80,16 @@ class MemoryStorage implements Storage {
   key(index: number) { return [...this.values.keys()][index] ?? null; }
   removeItem(key: string) { this.values.delete(key); }
   setItem(key: string, value: string) { this.values.set(key, value); }
+}
+
+class LimitedStorage extends MemoryStorage {
+  maxSnapshotLength = Number.POSITIVE_INFINITY;
+  override setItem(key: string, value: string) {
+    if (key.startsWith("melodialect.snapshots.") && value.length > this.maxSnapshotLength) {
+      throw new DOMException("quota", "QuotaExceededError");
+    }
+    super.setItem(key, value);
+  }
 }
 
 function workspace(seed = 41): WorkspaceState {
@@ -135,6 +147,53 @@ describe("v0.6 project protection and migrations", () => {
     storage.clear();
     expect(restoreBackup(backup)).toBe(1);
     expect(listProjects()[0]?.title).toBe("first");
+  });
+
+  it("keeps the newest snapshot by trimming old generations when storage is full", () => {
+    const storage = new LimitedStorage();
+    vi.stubGlobal("localStorage", storage);
+    const project = createProject("snapshot compaction", workspace());
+    for (let index = 0; index < 12; index++) {
+      project.workspace.settings.seed = index;
+      createProjectSnapshot(project, `generation ${index}`);
+    }
+    const key = Array.from({ length: storage.length }, (_, index) => storage.key(index))
+      .find((item) => item?.startsWith("melodialect.snapshots."));
+    expect(key).toBeTruthy();
+    storage.maxSnapshotLength = Math.floor(storage.getItem(key!)!.length * 0.8);
+
+    project.workspace.settings.seed = 99;
+    expect(() => createProjectSnapshot(project, "newest")).not.toThrow();
+    const snapshots = listProjectSnapshots(project.id);
+    expect(snapshots.length).toBeGreaterThan(0);
+    expect(snapshots.length).toBeLessThan(12);
+    expect(snapshots.some((item) => item.project.workspace.settings.seed === 99)).toBe(true);
+  });
+
+  it("reports a localized quota error when even one snapshot cannot be stored", () => {
+    const storage = new LimitedStorage();
+    storage.maxSnapshotLength = 1;
+    vi.stubGlobal("localStorage", storage);
+    try {
+      createProjectSnapshot(createProject("no room", workspace()), "newest");
+      throw new Error("snapshot creation unexpectedly succeeded");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProjectStorageError);
+      expect((error as ProjectStorageError).reason).toBe("quota");
+      expect((error as Error).message).toContain("保存容量が不足");
+    }
+  });
+
+  it("still saves the current project when there is no room for another generation", () => {
+    const storage = new LimitedStorage();
+    storage.maxSnapshotLength = 1;
+    vi.stubGlobal("localStorage", storage);
+    const project = saveProject(createProject("current wins", workspace()), { createGeneration: false });
+    project.workspace.settings.seed = 123;
+
+    expect(() => saveProject(project)).not.toThrow();
+    expect(listProjects()[0]?.workspace.settings.seed).toBe(123);
+    expect(listProjectSnapshots(project.id)).toHaveLength(0);
   });
 
   it("preserves a manually locked note across a parameter rebuild", () => {
