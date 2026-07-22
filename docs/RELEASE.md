@@ -11,7 +11,7 @@
 
 ## 公開
 
-1. `v1.2.0` のように `package.json` と一致する注釈付きタグを作る。
+1. `vX.Y.Z` のように `package.json` と一致する注釈付きタグを作る。
 2. リリースコミットを `main` へpushし、CIの成功を確認する。
 3. タグをpushする。`Deploy release to GitHub Pages` が、そのタグ名とコミットSHAをビルドIDへ埋め込んで公開する。
 4. 同じタグからGitHub Releaseを作成し、Latestにする。

@@ -243,23 +243,108 @@ function bassSmoothness(song: Song): number {
 function accompanimentClarity(song: Song): number {
   let overlap = 0;
   let total = 0;
+  let fitted = 0;
+  let pitched = 0;
   for (const section of song.sections) {
     const piano = new Set(section.piano.map((note) => quantize(note.start).toFixed(2)));
     const guitar = new Set(section.guitar.map((note) => quantize(note.start).toFixed(2)));
     total += Math.max(1, piano.size + guitar.size);
     for (const onset of piano) if (guitar.has(onset)) overlap += 1;
+    for (const part of [section.piano, section.guitar]) {
+      for (const note of part) {
+        if (!section.chords.length) continue;
+        const chord = chordAtBeat(section.chords, note.start);
+        const chordPcs = new Set(chord.pitches.map((pitch) => ((pitch % 12) + 12) % 12));
+        fitted += chordPcs.has(((note.pitch % 12) + 12) % 12) ? 1 : 0;
+        pitched += 1;
+      }
+    }
   }
-  return clamp01(1 - overlap / Math.max(1, total) * 0.65);
+  const separation = clamp01(1 - overlap / Math.max(1, total) * 0.65);
+  const chordFit = pitched ? fitted / pitched : 1;
+  // 同時発音の少なさより、コードに属する音を鳴らしていることを優先する。
+  // これにより「音域変更」を誤って半音移調として実装した場合も採用前に検出できる。
+  return chordFit * 0.78 + separation * 0.22;
 }
 
 function sectionContrast(song: Song): number {
   if (song.sections.length < 2) return 0.7;
-  const densities = song.sections.map((section) =>
+  const density = (section: GeneratedSection) =>
     (section.piano.length + section.guitar.length + section.bass.length + section.drums.length) /
-    Math.max(1, section.plan.bars));
-  const mean = densities.reduce((sum, value) => sum + value, 0) / densities.length;
-  const spread = Math.sqrt(densities.reduce((sum, value) => sum + (value - mean) ** 2, 0) / densities.length);
-  return clamp01(0.55 + spread / Math.max(8, mean));
+    Math.max(1, section.plan.bars);
+  const expectedRatio: Record<GeneratedSection["plan"]["type"], number> = {
+    intro: 0.7,
+    verse: 0.9,
+    chorus: 1.15,
+    bridge: 0.95,
+    outro: 0.78,
+  };
+  const values: number[] = [];
+  for (let index = 1; index < song.sections.length; index++) {
+    const previous = song.sections[index - 1]!;
+    const current = song.sections[index]!;
+    const ratio = Math.max(0.03, density(current) / Math.max(0.03, density(previous)));
+    const target = expectedRatio[current.plan.type];
+    const distance = Math.abs(Math.log(ratio / target));
+    let score = clamp01(1 - distance / Math.log(2.25));
+    // Outroで直前まで鳴っていたドラムが突然ゼロになる切断感を明示的に避ける。
+    if (current.plan.type === "outro" && previous.drums.length > 0 && current.drums.length === 0) {
+      score *= 0.35;
+    }
+    values.push(score);
+  }
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0.7;
+}
+
+function densityOf(section: GeneratedSection, parts: Array<"piano" | "guitar" | "bass" | "drums">): number {
+  return parts.reduce((sum, part) => sum + section[part].length, 0) / Math.max(1, section.plan.bars);
+}
+
+function ratioWithin(value: number, reference: number, minimum: number, maximum: number): boolean {
+  if (reference < 1e-7) return value < 1e-7;
+  const ratio = value / reference;
+  return ratio >= minimum && ratio <= maximum;
+}
+
+/**
+ * The first candidate is the compatibility baseline. Alternatives may improve it,
+ * but automatic selection must not create a radically denser chorus or a hollow
+ * outro merely because a global contrast score increased.
+ */
+function preservesSectionShape(candidate: Song, reference: Song): boolean {
+  if (candidate.sections.length !== reference.sections.length) return false;
+  const metrics = candidate.generationReport?.metrics ?? evaluateSong(candidate);
+  const baseline = reference.generationReport?.metrics ?? evaluateSong(reference);
+  if (metrics.harmonicCoherence < baseline.harmonicCoherence - 0.025 ||
+    metrics.voiceLeading < baseline.voiceLeading - 0.025 ||
+    metrics.melodicFit < baseline.melodicFit - 0.02 ||
+    metrics.bassSmoothness < baseline.bassSmoothness - 0.035 ||
+    metrics.accompanimentClarity < baseline.accompanimentClarity - 0.025) return false;
+  return candidate.sections.every((section, index) => {
+    const original = reference.sections[index]!;
+    if (section.plan.type !== original.plan.type) return false;
+    const total = densityOf(section, ["piano", "guitar", "bass", "drums"]);
+    const originalTotal = densityOf(original, ["piano", "guitar", "bass", "drums"]);
+    const harmony = densityOf(section, ["piano", "guitar"]);
+    const originalHarmony = densityOf(original, ["piano", "guitar"]);
+    const bass = densityOf(section, ["bass"]);
+    const originalBass = densityOf(original, ["bass"]);
+    const drums = densityOf(section, ["drums"]);
+    const originalDrums = densityOf(original, ["drums"]);
+    if (section.plan.type === "chorus") {
+      return ratioWithin(total, originalTotal, 0.68, 1.42) &&
+        ratioWithin(harmony, originalHarmony, 0.55, 1.5) &&
+        ratioWithin(bass, originalBass, 0.55, 1.5) &&
+        ratioWithin(drums, originalDrums, 0.65, 1.35);
+    }
+    if (section.plan.type === "outro") {
+      return ratioWithin(total, originalTotal, 0.48, 1.25) &&
+        ratioWithin(harmony, originalHarmony, 0.4, 1.35) &&
+        ratioWithin(bass, originalBass, 0.55, 1.45) &&
+        ratioWithin(drums, originalDrums, 0.3, 1.2);
+    }
+    return ratioWithin(total, originalTotal, 0.5, 1.6);
+  });
 }
 
 export function evaluateSong(song: Song): GenerationMetrics {
@@ -361,17 +446,26 @@ export function selectSongCandidate(
   candidates.forEach((song, index) => attachGenerationReport(song, index, candidates.length, diversity));
   const valid = candidates.filter((song) => song.generationReport!.metrics.valid);
   const pool = valid.length ? valid : candidates;
-  const maxQuality = Math.max(...pool.map((song) => song.generationReport!.metrics.quality));
-  const tolerance = diversity === "stable" ? 0.035 : diversity === "standard" ? 0.09 : 0.16;
-  const top = pool.filter((song) => song.generationReport!.metrics.quality >= maxQuality - tolerance);
+  const reference = candidates[0]!;
+  const guarded = pool.filter((song) => song === reference || preservesSectionShape(song, reference));
+  const qualified = guarded.length ? guarded : [reference];
+  const maxQuality = Math.max(...qualified.map((song) => song.generationReport!.metrics.quality));
+  const referenceQuality = reference.generationReport!.metrics.quality;
+  // A different automatic result must show a meaningful measured improvement.
+  // Diversity remains available without this threshold through 「他の候補」.
+  const improvement = diversity === "adventurous" ? 0.008 : diversity === "standard" ? 0.012 : 0.018;
+  const top = maxQuality < referenceQuality + improvement
+    ? [reference]
+    : qualified.filter((song) => song.generationReport!.metrics.quality >= maxQuality - 0.003);
   const rng = createNamedRng(seed, "candidate-selection");
   const weighted = top.map((song, index) => {
     const previous = top.slice(0, index);
     const novelty = previous.length
       ? Math.min(...previous.map((item) => fingerprintDistance(song.generationReport!.fingerprint, item.generationReport!.fingerprint)))
       : 0.5;
-    const noveltyWeight = diversity === "stable" ? 0.1 : diversity === "standard" ? 0.35 : 0.7;
-    return [song, 0.05 + song.generationReport!.metrics.quality + novelty * noveltyWeight] as [Song, number];
+    const noveltyWeight = diversity === "stable" ? 0.01 : diversity === "standard" ? 0.04 : 0.1;
+    const qualityWeight = Math.exp((song.generationReport!.metrics.quality - maxQuality) * 120);
+    return [song, qualityWeight * (1 + novelty * noveltyWeight)] as [Song, number];
   });
   const selected = rng.weighted(weighted);
   selected.generationReport!.differenceTags = describeCandidateDifference(selected, candidates[0]);

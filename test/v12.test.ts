@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { chromatic, validateDialectDefinition } from "../src/dialects/index.js";
+import { chromatic, dialects, validateDialectDefinition } from "../src/dialects/index.js";
 import {
+  chordAtBeat,
   chordDisplayName,
   chordFromRoman,
   parseChordSymbol,
@@ -8,6 +9,7 @@ import {
 import { bassProfileFor } from "../src/engine/bass.js";
 import {
   fingerprintSong,
+  selectSongCandidate,
   validateGeneratedSong,
 } from "../src/engine/evaluation.js";
 import { createNamedRng, deriveSeed } from "../src/engine/rng.js";
@@ -135,6 +137,62 @@ describe("v1.2 harmony, bass and accompaniment planning", () => {
       .toBe(true);
     expect(ACCOMPANIMENT_PATTERN_LIBRARY.some((pattern) => pattern.anticipation !== undefined))
       .toBe(true);
+  });
+
+  it("keeps chorus and outro accompaniment in-key and inside safe density bounds", () => {
+    const uniqueDialects = [...new Map(Object.values(dialects).map((dialect) =>
+      [dialect.id, dialect])).values()];
+    const parts = ["piano", "guitar"] as const;
+    const density = (section: ReturnType<typeof generateSongCandidates>[number]["sections"][number]) =>
+      (section.piano.length + section.guitar.length + section.bass.length + section.drums.length) /
+      section.plan.bars;
+    for (const dialect of uniqueDialects) {
+      const candidates = generateSongCandidates({
+        dialect,
+        seed: 1701,
+        form: ["intro", "verse", "chorus", "outro"],
+        ending: "final",
+      }, 3);
+      const baseline = candidates[0]!;
+      const selected = selectSongCandidate(candidates, 1701, "standard");
+      for (const candidate of candidates) {
+        expect(candidate.arrangementPlan?.sections.every((section) =>
+          section.registerShift % 12 === 0)).toBe(true);
+        for (const section of candidate.sections.filter((item) =>
+          item.plan.type === "chorus" || item.plan.type === "outro")) {
+          let fitted = 0;
+          let total = 0;
+          for (const part of parts) {
+            for (const note of section[part]) {
+              const chord = chordAtBeat(section.chords, note.start);
+              const chordPcs = new Set(chord.pitches.map((pitch) => pitch % 12));
+              fitted += chordPcs.has(note.pitch % 12) ? 1 : 0;
+              total += 1;
+            }
+          }
+          expect(total === 0 ? 1 : fitted / total).toBeGreaterThan(0.9);
+        }
+        const lastSection = candidate.sections.at(-1)!;
+        const lastPlan = candidate.arrangementPlan!.sections.at(-1)!;
+        const codaStart = (lastSection.plan.bars - 1) * candidate.meter.barBeats;
+        if (!lastPlan.pianoActive) {
+          expect(lastSection.piano.some((note) => note.start >= codaStart)).toBe(false);
+        }
+        if (!lastPlan.guitarActive) {
+          expect(lastSection.guitar.some((note) => note.start >= codaStart)).toBe(false);
+        }
+      }
+      for (const type of ["chorus", "outro"] as const) {
+        const reference = baseline.sections.find((section) => section.plan.type === type)!;
+        const result = selected.sections.find((section) => section.plan.type === type)!;
+        const ratio = density(result) / density(reference);
+        expect(ratio).toBeGreaterThanOrEqual(type === "chorus" ? 0.68 : 0.48);
+        expect(ratio).toBeLessThanOrEqual(type === "chorus" ? 1.42 : 1.25);
+        if (type === "outro" && reference.drums.length > 0) {
+          expect(result.drums.length).toBeGreaterThan(0);
+        }
+      }
+    }
   });
 });
 

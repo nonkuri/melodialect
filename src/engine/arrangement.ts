@@ -66,9 +66,9 @@ function sectionBaseDensity(type: SectionType): number {
   switch (type) {
     case "intro": return 0.42;
     case "verse": return 0.58;
-    case "chorus": return 0.9;
+    case "chorus": return 0.78;
     case "bridge": return 0.72;
-    case "outro": return 0.48;
+    case "outro": return 0.58;
   }
 }
 
@@ -114,24 +114,32 @@ export function createArrangementPlan(
         ...arrangement,
       });
       const repeatIndex = types.slice(0, sectionIndex).filter((candidate) => candidate === type).length;
-      const repeatGrowth = repeatIndex * development * 0.1;
+      const repeatGrowth = repeatIndex * development * 0.06;
       const density = clamp01(sectionBaseDensity(type) + (densityControl - 0.5) * 0.5 + repeatGrowth);
       const automaticallyVary = Boolean(config.autoArrange && candidateIndex > 0);
-      const pianoActive = automaticallyVary
-        ? strategy !== "guitar-led" || type === "chorus" || density > 0.75
-        : dialectConfig.pianoPattern !== "off";
-      const guitarActive = automaticallyVary
-        ? strategy !== "piano-led" || type === "chorus" || density > 0.82
-        : dialectConfig.guitarPattern !== "off";
-      const drumsActive = automaticallyVary
-        ? type === "chorus" || type === "bridge" || density > 0.68
-        : dialectConfig.drumPattern !== "off";
+      const sourcePianoActive = dialectConfig.pianoPattern !== "off";
+      const sourceGuitarActive = dialectConfig.guitarPattern !== "off";
+      let pianoActive = automaticallyVary
+        ? sourcePianoActive && strategy !== "guitar-led"
+        : sourcePianoActive;
+      let guitarActive = automaticallyVary
+        ? sourceGuitarActive && strategy !== "piano-led"
+        : sourceGuitarActive;
+      // 自動編曲は既存パートを引き算して役割を分ける。ダイアレクトが
+      // 無効にしている楽器を勝手に追加せず、和声楽器が全消音になる場合だけ
+      // 元の有効パートを残す。
+      if (!pianoActive && !guitarActive) {
+        if (sourcePianoActive) pianoActive = true;
+        else if (sourceGuitarActive) guitarActive = true;
+      }
+      const drumsActive = dialectConfig.drumPattern !== "off";
       return {
         sectionIndex,
         strategy,
         density,
-        registerShift: type === "chorus" ? Math.round(development * 3) :
-          type === "outro" ? -Math.round(development * 2) : 0,
+        // registerShift は移調ではなく音域変更なので、必ずオクターブ単位にする。
+        // 既定値では音域を動かさず、「展開」を明示的に大きくした場合だけ上げる。
+        registerShift: type === "chorus" && development >= 0.85 ? 12 : 0,
         pianoTexture: textureFor(type, "piano", strategy, candidateIndex),
         guitarTexture: textureFor(type, "guitar", strategy, candidateIndex),
         pianoActive,
@@ -254,8 +262,11 @@ export function applyArrangementSectionPlan(
   preservePattern: boolean,
 ): { piano: NoteEvent[]; guitar: NoteEvent[]; drums: NoteEvent[]; annotations: Annotation[] } {
   if (!section) return { ...values, annotations: [] };
-  let piano = values.piano.map((note) => ({ ...note, pitch: note.pitch + section.registerShift }));
-  let guitar = values.guitar.map((note) => ({ ...note, pitch: note.pitch + section.registerShift }));
+  // 旧版互換候補には自動編曲の音域変更を適用しない。自動候補でも
+  // 半音単位の値が混入してコード外音にならないようオクターブへ正規化する。
+  const registerShift = preservePattern ? 0 : Math.round(section.registerShift / 12) * 12;
+  let piano = values.piano.map((note) => ({ ...note, pitch: note.pitch + registerShift }));
+  let guitar = values.guitar.map((note) => ({ ...note, pitch: note.pitch + registerShift }));
   let drums = [...values.drums];
   if (!preservePattern) {
     piano = thinByOnset(piano, section.density, rng.piano, meter.barBeats);
@@ -266,7 +277,7 @@ export function applyArrangementSectionPlan(
     drums = thinByOnset(drums, Math.min(1, section.density + 0.12), rng.drums, meter.barBeats);
   }
   const finalBar = Math.max(0, bars - 1);
-  section.fillBars = !preservePattern && section.density > 0.7 ? [finalBar] : [];
+  section.fillBars = !preservePattern && section.density > 0.86 ? [finalBar] : [];
   section.breakBars = !preservePattern && section.density < 0.45 && bars > 2
     ? [Math.max(1, finalBar - 1)] : [];
   section.pickupBars = !preservePattern && section.density >= 0.5 && section.density <= 0.7

@@ -38,7 +38,7 @@ import {
   describeCandidateDifference,
   selectSongCandidate,
 } from "./evaluation.js";
-import { createArrangementPlan } from "./arrangement.js";
+import { createArrangementPlan, settingsForArrangementPlan } from "./arrangement.js";
 const NOTE_NAMES: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
   "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
@@ -172,7 +172,6 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
 
   const sections: GeneratedSection[] = [];
   const sectionHarmonyMemory = new Map<SectionType, string[]>();
-  let previousProgression: string[] | undefined;
   let startBar = 0;
   let prevMelodyEnd: number | undefined;
 
@@ -236,9 +235,10 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       plan, dialect, sectionKey, meter, harmonyRng, {
         isFinalSection,
         tension: options.design?.sectionExpressions[i]?.tension ?? controls.tension,
-        // Repeated sections retain a family resemblance. A first chorus can
-        // develop the preceding verse, while a bridge deliberately contrasts it.
-        referenceProgression: sectionHarmonyMemory.get(type) ?? previousProgression,
+        // Repeated sections retain a family resemblance by referencing only the
+        // first section of the same type. 最初のChorusにVerse、
+        // Outroに直前セクションをそのまま追従させると役割差が失われる。
+        referenceProgression: sectionHarmonyMemory.get(type),
       },
     );
     const previousChord = sections.at(-1)?.chords.at(-1);
@@ -312,7 +312,6 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     if (!sectionHarmonyMemory.has(type)) {
       sectionHarmonyMemory.set(type, chords.map((chord) => chord.symbol));
     }
-    previousProgression = chords.map((chord) => chord.symbol);
     const melody = generateMelody(plan, chords, dialect, sectionKey, meter, melodyRng, {
       startPitch: prevMelodyEnd,
     });
@@ -368,10 +367,14 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       bar: codaBar,
     });
     const finalDialect = entries.at(-1)!.dialect;
-    const finalArrangement = normalizeArrangement({
+    const finalPlan = arrangementPlan.sections.at(-1);
+    const finalArrangement = settingsForArrangementPlan(normalizeArrangement({
       ...finalDialect.defaults.arrangement,
       ...options.arrangement,
-    });
+    }), finalPlan, candidateIndex);
+    const finalRegisterShift = candidateIndex === 0
+      ? 0
+      : Math.round((finalPlan?.registerShift ?? 0) / 12) * 12;
     if (finalArrangement.pianoPattern !== "off") {
       const tones = finalArrangement.pianoPattern === "bossa" && lastChord.pitches.length >= 5
         ? [lastChord.pitches[1]!, lastChord.pitches[3]!, lastChord.pitches[4]!]
@@ -379,7 +382,9 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
           ? lastChord.pitches.slice(1)
           : lastChord.pitches;
       for (const pitch of tones) {
-        lastSection.piano.push({ start: tailStart, duration: bb, pitch, velocity: 64 });
+        lastSection.piano.push({
+          start: tailStart, duration: bb, pitch: pitch + finalRegisterShift, velocity: 64,
+        });
       }
     }
     if (finalArrangement.guitarPattern !== "off") {
@@ -389,7 +394,7 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       tones.forEach((pitch, index) => lastSection.guitar.push({
         start: tailStart + index * 0.014,
         duration: Math.max(0.1, bb - index * 0.014),
-        pitch: pitch + 12,
+        pitch: pitch + 12 + finalRegisterShift,
         velocity: 62 - Math.min(index, 3),
       }));
     }
