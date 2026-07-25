@@ -77,6 +77,9 @@
     "nonChordTones": { "appoggiatura": 0.24, "suspension": 0.06, "chromaticPassing": 0.1 },
     "registerShift": { "chorus": 4 }
   },
+  "register": {
+    "melodyClearance": 3
+  },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.42

@@ -421,6 +421,33 @@ export interface BassProfile {
   maxLeap: number;
 }
 
+/**
+ * ダイアレクトが所有する音域配分 (§4.1)。
+ * 伴奏がメロディと同じ音域で鳴って濁る問題を、レンダラ側の定数ではなく
+ * ダイアレクトの宣言で解決するための第一級データ。ベースの
+ * BassProfile.range と同じ考え方を全パートへ広げたもの。
+ */
+export interface RegisterPlan {
+  /** メロディの音域 [最低音, 最高音] */
+  melody: [number, number];
+  /** ピアノのボイシング窓 [最低声部の下限, 最高声部の上限] */
+  piano: [number, number];
+  /** ギターのボイシング窓 */
+  guitar: [number, number];
+  /**
+   * メロディの実測最低音の下に確保する半音数。
+   * 0 はボサのように上声とメロディが重なるコンピングを許すことを意味する
+   */
+  melodyClearance: number;
+  /**
+   * ボイシング窓の最低幅 (半音)。窓が狭すぎると転回形の候補が全滅し、
+   * 声部連結が無言で無効化されるため、下回る設定は検証で弾く
+   */
+  minVoicingSpan: number;
+  /** ベース音からこの半音数以内に 3 度を重ねない (低音域限界) */
+  lowIntervalLimit: number;
+}
+
 export type AccompanimentTexture =
   | "block"
   | "arpeggio"
@@ -554,6 +581,8 @@ export interface Dialect {
   groove?: GrooveProfile;
   /** v1.2 bass grammar; legacy groove.bassPattern remains supported. */
   bass?: Partial<BassProfile>;
+  /** v1.3: パート間の音域配分。省略時はエンジン既定 (DEFAULT_REGISTER)。 */
+  register?: Partial<RegisterPlan>;
   /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
   sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**

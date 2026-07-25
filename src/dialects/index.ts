@@ -274,6 +274,30 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (d.bass.maxLeap !== undefined) range("bass.maxLeap", d.bass.maxLeap, 1, 36);
     }
   }
+  if (d.register !== undefined) {
+    if (!isRecord(d.register)) add("register", "音域配分のオブジェクトが必要です");
+    else {
+      const minimumSpan = finite(d.register.minVoicingSpan) ? d.register.minVoicingSpan : 17;
+      if (d.register.minVoicingSpan !== undefined) range("register.minVoicingSpan", d.register.minVoicingSpan, 12, 36);
+      if (d.register.melodyClearance !== undefined) range("register.melodyClearance", d.register.melodyClearance, 0, 24);
+      if (d.register.lowIntervalLimit !== undefined) range("register.lowIntervalLimit", d.register.lowIntervalLimit, 0, 24);
+      for (const key of ["melody", "piano", "guitar"] as const) {
+        const value = d.register[key];
+        if (value === undefined) continue;
+        if (!Array.isArray(value) || value.length !== 2 ||
+          value.some((pitch) => !Number.isInteger(pitch) || pitch < 0 || pitch > 127) ||
+          value[0]! >= value[1]!) {
+          add(`register.${key}`, "0〜127の[最低音, 最高音]を指定してください");
+          continue;
+        }
+        // 窓が狭いと転回形の候補が全滅し、声部連結が無言で無効化される。
+        // 9th 和音は基本形だけで 14 半音、転回形はさらに広い。
+        if (key !== "melody" && value[1]! - value[0]! < minimumSpan) {
+          add(`register.${key}`, `幅が ${minimumSpan} 半音以上必要です (転回形が窓に収まらず声部連結が働きません)`);
+        }
+      }
+    }
+  }
   if (d.sectionRules !== undefined) {
     if (!isRecord(d.sectionRules)) add("sectionRules", "セクション別規則のオブジェクトが必要です");
     else Object.entries(d.sectionRules).forEach(([section, rule]) => {

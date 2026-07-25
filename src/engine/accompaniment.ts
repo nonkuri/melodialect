@@ -20,6 +20,8 @@ import {
   applyArrangementSectionPlan,
   settingsForArrangementPlan,
 } from "./arrangement.js";
+import { effectiveWindow, registerPlanFor } from "./register.js";
+import { guideTones, upperVoices, voiceChord } from "./voicing.js";
 export interface AccompanimentResult {
   piano: NoteEvent[];
   bass: NoteEvent[];
@@ -34,6 +36,48 @@ export interface AccompanimentGenerationContext {
   candidateIndex: number;
   melody?: NoteEvent[];
   arrangementSection?: ArrangementSectionPlan;
+}
+
+/**
+ * 1 パート分のボイシング担当。窓と直前のボイシングを閉じ込め、
+ * 全パターンが同じ規則で転回形を選ぶようにする。
+ * previous はセクション内でのみ連結し、跨がない。セクション単位の部分再生成で
+ * 全体生成と違う声部配置になるのを防ぐため
+ */
+export interface Voicer {
+  (chord: ChordEvent, tones?: number[], cadential?: boolean): number[];
+  relaxed: boolean;
+}
+
+/** 和音が鳴っている間に重なる旋律のピッチ。転回形の衝突回避に使う */
+function melodyDuring(melody: NoteEvent[] | undefined, chord: ChordEvent): number[] {
+  if (!melody?.length) return [];
+  const end = chord.start + chord.durationBeats;
+  const pitches = new Set<number>();
+  for (const note of melody) {
+    if (note.start >= end - 1e-9 || note.start + note.duration <= chord.start + 1e-9) continue;
+    pitches.add(note.pitch);
+  }
+  return [...pitches];
+}
+
+export function createVoicer(
+  window: [number, number],
+  lowIntervalLimit: number,
+  melody?: NoteEvent[],
+): Voicer {
+  let previous: number[] | undefined;
+  const voicer = ((chord, tones, cadential) => {
+    const result = voiceChord({
+      chord, tones, window, previous, lowIntervalLimit, cadential,
+      avoid: melodyDuring(melody, chord),
+    });
+    previous = result.pitches.length ? result.pitches : previous;
+    if (result.relaxed) voicer.relaxed = true;
+    return result.pitches;
+  }) as Voicer;
+  voicer.relaxed = false;
+  return voicer;
 }
 
 /**
@@ -56,6 +100,12 @@ export function generateAccompaniment(
   const bass: NoteEvent[] = [];
   const annotations: Annotation[] = [];
   const scalePcs = scaleOf(key, dialect.melody.pitchCollection);
+  const register = registerPlanFor(dialect);
+  const pianoWindow = effectiveWindow(register, "piano", context?.melody);
+  const guitarWindow = effectiveWindow(register, "guitar", context?.melody);
+  const pianoVoicer = createVoicer(pianoWindow.window, register.lowIntervalLimit, context?.melody);
+  const guitarVoicer = createVoicer(guitarWindow.window, register.lowIntervalLimit, context?.melody);
+  const lastChordStart = chords.at(-1)?.start ?? -1;
   // 旧ユーザーダイアレクトとの互換用。内蔵ダイアレクトは groove.bassPattern で
   // 旋律とベースの役割を独立に指定する。
   const melodicBass = dialect.melody.contour === "stepwise" && !dialect.groove?.bassPattern;
@@ -78,6 +128,8 @@ export function generateAccompaniment(
       annotated = true;
     }
 
+    const voiced = pianoVoicer(chord, undefined, chord.start === lastChordStart);
+
     if (meter.name === "3/4") {
       // 小節に揃ったセグメントはワルツ、半端なセグメントはブロックコード
       if (chord.start % 3 === 0 && seg % 3 === 0) {
@@ -86,7 +138,7 @@ export function generateAccompaniment(
           const barStart = chord.start + b * 3;
           const isLastBarOfSeg = b === barsInSeg - 1;
           for (const beat of [1, 2]) {
-            for (const pitch of chord.pitches) {
+            for (const pitch of voiced) {
               piano.push({ start: barStart + beat, duration: 1, pitch, velocity: 68 });
             }
           }
@@ -101,7 +153,7 @@ export function generateAccompaniment(
           }
         }
       } else {
-        for (const pitch of chord.pitches) {
+        for (const pitch of voiced) {
           piano.push({ start: chord.start, duration: seg, pitch, velocity: 68 });
         }
         bass.push({ start: chord.start, duration: seg, pitch: chord.bassPitch, velocity: 88 });
@@ -110,7 +162,7 @@ export function generateAccompaniment(
       // 複合 2 拍子: 付点 4 分 (1.5 beats) ごとに和音とベース
       for (let t = 0; t < seg - 1e-9; t += 1.5) {
         const dur = Math.min(1.5, seg - t);
-        for (const pitch of chord.pitches) {
+        for (const pitch of voiced) {
           piano.push({ start: chord.start + t, duration: dur, pitch, velocity: 70 });
         }
         const isLastPulse = t + 1.5 >= seg - 1e-9;
@@ -126,7 +178,7 @@ export function generateAccompaniment(
       // 4/4: ブロックコードを 2 分音符刻みで敷く
       for (let t = 0; t < seg - 1e-9; t += 2) {
         const dur = Math.min(2, seg - t);
-        for (const pitch of chord.pitches) {
+        for (const pitch of voiced) {
           piano.push({ start: chord.start + t, duration: dur, pitch, velocity: 72 });
         }
       }
@@ -153,7 +205,11 @@ export function generateAccompaniment(
   const baseConfig = normalizeArrangement({ ...dialect.defaults.arrangement, ...arrangement });
   const config = settingsForArrangementPlan(baseConfig, context?.arrangementSection);
   if (config.pianoPattern !== "block") {
-    piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern, meter));
+    // ブロック以外は自前でボイシングし直すので、直前の連結状態を持ち越さない
+    const patternVoicer = createVoicer(pianoWindow.window, register.lowIntervalLimit, context?.melody);
+    piano.splice(0, piano.length,
+      ...generatePianoPattern(chords, config.pianoPattern, meter, patternVoicer, lastChordStart));
+    if (patternVoicer.relaxed) pianoVoicer.relaxed = true;
   }
   if (config.pianoPattern === "voice-led") {
     const hasNinthChord = chords.some((chord) => chord.pitches.length >= 5);
@@ -165,7 +221,30 @@ export function generateAccompaniment(
         : "声部連結ピアノ: 転回形全体を比較し、上声の移動量を最小化",
     });
   }
-  guitar.push(...generateGuitar(chords, config.guitarPattern, meter));
+  guitar.push(...generateGuitar(chords, config.guitarPattern, meter, guitarVoicer, lastChordStart));
+
+  // 音域配分は結果から注記する。窓を下げた／広げたことを黙らせない
+  for (const [label, instrument, result, voicer] of [
+    ["ピアノ", "piano", pianoWindow, pianoVoicer],
+    ["ギター", "guitar", guitarWindow, guitarVoicer],
+  ] as const) {
+    const active = instrument === "piano" ? piano.length : guitar.length;
+    if (!active) continue;
+    const detail = [
+      result.loweredBy > 0
+        ? `旋律の最低音を避けて窓を ${result.loweredBy} 半音下げた`
+        : "ダイアレクト宣言どおりの窓を使用",
+      result.clearanceReduced ? "音域下限に達したため旋律との間隔を削った" : "",
+      voicer.relaxed ? "和音が窓に収まらず制約を緩めた" : "",
+    ].filter(Boolean).join("、");
+    annotations.push({
+      bar: 0,
+      ruleId: "register-allocation",
+      text: `${label}の音域 ${result.window[0]}〜${result.window[1]}: ${detail}`,
+      level: "section",
+      category: "arrangement",
+    });
+  }
   drums.push(...generateDrums(plan.bars, meter, config.drumPattern));
   const sectionBeats = plan.bars * meter.barBeats;
   const namedRng = (name: string) => context
@@ -230,9 +309,10 @@ export function generateAccompaniment(
   guitar.splice(0, guitar.length, ...arranged.guitar);
   drums.splice(0, drums.length, ...arranged.drums);
   annotations.push(...arranged.annotations);
-  applyGroove(piano, config, namedRng("humanize-piano"), sectionBeats, meter, dialect.groove);
-  applyGroove(bass, config, namedRng("humanize-bass"), sectionBeats, meter, dialect.groove);
-  applyGroove(guitar, config, namedRng("humanize-guitar"), sectionBeats, meter, dialect.groove);
+  const chordStarts = chords.map((chord) => chord.start);
+  applyGroove(piano, config, namedRng("humanize-piano"), sectionBeats, meter, dialect.groove, chordStarts);
+  applyGroove(bass, config, namedRng("humanize-bass"), sectionBeats, meter, dialect.groove, chordStarts);
+  applyGroove(guitar, config, namedRng("humanize-guitar"), sectionBeats, meter, dialect.groove, chordStarts);
   applyGroove(drums, config, namedRng("humanize-drums"), sectionBeats, meter, dialect.groove);
   return { piano, bass, guitar, drums, annotations };
 }
@@ -242,20 +322,19 @@ function generatePianoPattern(
   chords: ChordEvent[],
   pattern: ArrangementSettings["pianoPattern"],
   meter: Meter,
+  voicer: Voicer,
+  lastChordStart: number,
 ): NoteEvent[] {
   if (pattern === "off") return [];
-  if (pattern === "bossa") return generateBossaPiano(chords, meter);
+  if (pattern === "bossa") return generateBossaPiano(chords, meter, voicer);
   const notes: NoteEvent[] = [];
-  let previousVoicing: number[] | undefined;
   for (const chord of chords) {
+    const cadential = chord.start === lastChordStart;
+    // 9th 和音はベースと響きが重くなりやすい 5 度を省き、
+    // root / 3rd / 7th / 9th の 4 声を声部連結する。
+    const voicing = voicer(chord, pattern === "voice-led" ? upperVoices(chord) : undefined, cadential);
+    if (!voicing.length) continue;
     if (pattern === "voice-led") {
-      // 9th 和音はベースと響きが重くなりやすい5度を省き、
-      // root / 3rd / 7th / 9th の4声を声部連結する。
-      const source = chord.pitches.length >= 5
-        ? chord.pitches.filter((_, index) => index !== 2)
-        : chord.pitches;
-      const voicing = voiceLead(source, previousVoicing);
-      previousVoicing = voicing;
       voicing.forEach((pitch, index) => notes.push({
         start: chord.start + index * 0.025,
         duration: Math.max(0.2, chord.durationBeats - index * 0.025),
@@ -267,13 +346,13 @@ function generatePianoPattern(
         notes.push({
           start: chord.start + offset,
           duration: Math.min(0.48, chord.durationBeats - offset),
-          pitch: chord.pitches[index % chord.pitches.length]!,
-          velocity: index % chord.pitches.length === 0 ? 76 : 68,
+          pitch: voicing[index % voicing.length]!,
+          velocity: index % voicing.length === 0 ? 76 : 68,
         });
       }
     } else if (pattern === "eighth") {
       for (let offset = 0; offset < chord.durationBeats - 1e-9; offset += 0.5) {
-        for (const pitch of chord.pitches) {
+        for (const pitch of voicing) {
           notes.push({
             start: chord.start + offset,
             duration: Math.min(0.42, chord.durationBeats - offset),
@@ -284,7 +363,7 @@ function generatePianoPattern(
       }
     } else if (pattern === "syncopated") {
       for (let offset = 0.5; offset < chord.durationBeats - 1e-9; offset += 1) {
-        for (const pitch of chord.pitches) {
+        for (const pitch of voicing) {
           notes.push({
             start: chord.start + offset,
             duration: Math.min(0.62, chord.durationBeats - offset),
@@ -296,7 +375,7 @@ function generatePianoPattern(
     } else {
       for (let offset = 0; offset < chord.durationBeats - 1e-9; offset += 2) {
         const duration = Math.min(2, chord.durationBeats - offset);
-        const order = offset % 4 === 0 ? chord.pitches : [...chord.pitches].reverse();
+        const order = offset % 4 === 0 ? voicing : [...voicing].reverse();
         order.forEach((pitch, index) => {
           notes.push({
             start: chord.start + offset + index * 0.03,
@@ -312,14 +391,59 @@ function generatePianoPattern(
 }
 
 /**
+ * コーダ (§4.2) など、和音を 1 小節保持するだけの箇所で使う。
+ * ここが独自にボイシングを組むと、パターン側の音域配分と食い違ったまま
+ * 最後の 1 小節だけ跳ね上がる。song.ts はこの関数を経由すること。
+ */
+export function renderSustainedChord(
+  chord: ChordEvent,
+  options: {
+    dialect: Dialect;
+    arrangement: ArrangementSettings;
+    melody?: NoteEvent[];
+    start: number;
+    durationBeats: number;
+  },
+): { piano: NoteEvent[]; guitar: NoteEvent[]; bass: NoteEvent[] } {
+  const register = registerPlanFor(options.dialect);
+  const piano: NoteEvent[] = [];
+  const guitar: NoteEvent[] = [];
+  const { start, durationBeats } = options;
+  if (options.arrangement.pianoPattern !== "off") {
+    const window = effectiveWindow(register, "piano", options.melody).window;
+    const tones = options.arrangement.pianoPattern === "bossa"
+      ? guideTones(chord)
+      : options.arrangement.pianoPattern === "voice-led" ? upperVoices(chord) : chord.pitches;
+    for (const pitch of createVoicer(window, register.lowIntervalLimit, options.melody)(chord, tones, true)) {
+      piano.push({ start, duration: durationBeats, pitch, velocity: 64 });
+    }
+  }
+  if (options.arrangement.guitarPattern !== "off") {
+    const window = effectiveWindow(register, "guitar", options.melody).window;
+    const tones = options.arrangement.guitarPattern === "bossa" ? guideTones(chord) : chord.pitches;
+    createVoicer(window, register.lowIntervalLimit, options.melody)(chord, tones, true)
+      .forEach((pitch, index) => guitar.push({
+        start: start + index * 0.014,
+        duration: Math.max(0.1, durationBeats - index * 0.014),
+        pitch,
+        velocity: 62 - Math.min(index, 3),
+      }));
+  }
+  return {
+    piano,
+    guitar,
+    bass: [{ start, duration: durationBeats, pitch: chord.bassPitch, velocity: 78 }],
+  };
+}
+
+/**
  * ギターの刻みを埋め尽くさない、疎なボサノヴァ・ピアノ型。
  * ルートをベースへ任せ、3rd/7th/9th を中心に2小節で声部連結する。
  */
-function generateBossaPiano(chords: ChordEvent[], meter: Meter): NoteEvent[] {
+function generateBossaPiano(chords: ChordEvent[], meter: Meter, voicer: Voicer): NoteEvent[] {
   const notes: NoteEvent[] = [];
   const sectionBeats = chords.at(-1)!.start + chords.at(-1)!.durationBeats;
   const bb = meter.barBeats;
-  let previousVoicing: number[] | undefined;
 
   for (let bar = 0; bar * bb < sectionBeats - 1e-9; bar++) {
     const barStart = bar * bb;
@@ -330,11 +454,7 @@ function generateBossaPiano(chords: ChordEvent[], meter: Meter): NoteEvent[] {
       const start = barStart + pulse;
       if (start >= sectionBeats - 1e-9) continue;
       const chord = chordAtBeat(chords, start);
-      const guideTones = chord.pitches.length >= 5
-        ? [chord.pitches[1]!, chord.pitches[3]!, chord.pitches[4]!]
-        : chord.pitches.length >= 4 ? chord.pitches.slice(1) : chord.pitches;
-      const voicing = voiceLead(guideTones, previousVoicing);
-      previousVoicing = voicing;
+      const voicing = voicer(chord, guideTones(chord));
       const chordEnd = chord.start + chord.durationBeats;
       const duration = Math.min(pulse % 1 === 0 ? 0.9 : 0.58, chordEnd - start);
       if (duration < 0.08) continue;
@@ -349,57 +469,21 @@ function generateBossaPiano(chords: ChordEvent[], meter: Meter): NoteEvent[] {
   return notes;
 }
 
-/**
- * コードの転回形を列挙し、前の和音からの総移動量・上声の跳躍・音域をまとめて評価する。
- * 各配列位置を個別に近づけてからソートする旧方式で起きた声部交差を避ける。
- */
-function voiceLead(pitches: number[], previous?: number[]): number[] {
-  const ordered = [...pitches].sort((a, b) => a - b);
-  const candidates: number[][] = [];
-  for (let inversion = 0; inversion < ordered.length; inversion++) {
-    const rotated = [
-      ...ordered.slice(inversion),
-      ...ordered.slice(0, inversion).map((pitch) => pitch + 12),
-    ];
-    for (let shift = -24; shift <= 24; shift += 12) {
-      const candidate = rotated.map((pitch) => pitch + shift);
-      if (candidate[0]! >= 50 && candidate.at(-1)! <= 79) candidates.push(candidate);
-    }
-  }
-  if (!candidates.length) return ordered;
-
-  const score = (candidate: number[]): number => {
-    const center = candidate.reduce((sum, pitch) => sum + pitch, 0) / candidate.length;
-    const span = candidate.at(-1)! - candidate[0]!;
-    let value = Math.abs(center - 64) * 0.3 + Math.max(0, span - 17) * 0.8;
-    if (!previous?.length) return value;
-
-    candidate.forEach((pitch, index) => {
-      const targetIndex = candidate.length === 1
-        ? 0
-        : Math.round(index * (previous.length - 1) / (candidate.length - 1));
-      const movement = Math.abs(pitch - previous[targetIndex]!);
-      value += movement + Math.max(0, movement - 5) * 1.5;
-    });
-    // 聴感上もっとも目立つトップノートは特に滑らかにつなぐ。
-    value += Math.abs(candidate.at(-1)! - previous.at(-1)!) * 0.65;
-    return value;
-  };
-
-  return candidates.reduce((best, candidate) =>
-    score(candidate) < score(best) ? candidate : best);
-}
-
 function generateGuitar(
   chords: ChordEvent[],
   pattern: ArrangementSettings["guitarPattern"],
   meter: Meter,
+  voicer: Voicer,
+  lastChordStart: number,
 ): NoteEvent[] {
   if (pattern === "off") return [];
-  if (pattern === "bossa") return generateBossaGuitar(chords, meter);
+  if (pattern === "bossa") return generateBossaGuitar(chords, meter, voicer);
   const notes: NoteEvent[] = [];
   for (const chord of chords) {
-    const pitches = chord.pitches.map((pitch) => pitch + 12);
+    // 旧実装はここで chord.pitches を丸ごと +12 していた。ルートが 48〜59 に
+    // 固定されているため上端が 85 まで届き、旋律 (60〜81) と完全に重なっていた。
+    const pitches = voicer(chord, undefined, chord.start === lastChordStart);
+    if (!pitches.length) continue;
     if (pattern === "interlocking") {
       const pulses = [0, 0.75, 1.5, 2.5, 3.25];
       for (let barStart = 0; barStart < chord.durationBeats - 1e-9; barStart += 4) {
@@ -447,11 +531,10 @@ function generateGuitar(
  * 2 小節で呼吸するボサノヴァのナイロンギター型。
  * 低音はベースへ任せ、3rd/7th/9th を含む上声を滑らかにつなぐ。
  */
-function generateBossaGuitar(chords: ChordEvent[], meter: Meter): NoteEvent[] {
+function generateBossaGuitar(chords: ChordEvent[], meter: Meter, voicer: Voicer): NoteEvent[] {
   const notes: NoteEvent[] = [];
   const sectionBeats = chords.at(-1)!.start + chords.at(-1)!.durationBeats;
   const bb = meter.barBeats;
-  let previousVoicing: number[] | undefined;
 
   for (let bar = 0; bar * bb < sectionBeats - 1e-9; bar++) {
     const barStart = bar * bb;
@@ -465,9 +548,7 @@ function generateBossaGuitar(chords: ChordEvent[], meter: Meter): NoteEvent[] {
       const start = barStart + pulse;
       if (start >= sectionBeats - 1e-9) continue;
       const chord = chordAtBeat(chords, start);
-      const upperTones = chord.pitches.length >= 4 ? chord.pitches.slice(1) : chord.pitches;
-      const voicing = voiceLead(upperTones.map((pitch) => pitch + 12), previousVoicing);
-      previousVoicing = voicing;
+      const voicing = voicer(chord, guideTones(chord));
       const chordEnd = chord.start + chord.durationBeats;
       const strokeDuration = Math.min(pulse % 1 === 0 ? 0.58 : 0.38, chordEnd - start);
       if (strokeDuration < 0.08) continue;
@@ -550,6 +631,8 @@ function applyGroove(
   sectionBeats: number,
   meter: Meter,
   groove?: GrooveProfile,
+  /** 揺らぎで音がコード境界を跨がないようにするための境界一覧 */
+  chordStarts?: number[],
 ): void {
   for (const note of notes) {
     const originalBar = Math.floor((note.start + 1e-9) / meter.barBeats);
@@ -558,7 +641,17 @@ function applyGroove(
     const eighth = Math.round(note.start * 2);
     const swingDelay = eighth % 2 === 1 ? config.swing * 0.16 : 0;
     const jitter = config.humanize > 0 ? (rng.next() * 2 - 1) * config.humanize * 0.035 : 0;
-    note.start = Math.max(barStart, Math.min(barEnd - 0.02, note.start + swingDelay + jitter));
+    // 揺らぎで前のコードへ食い込むと、その和音のために選んだボイシングが
+    // 別の和音の上で鳴る。数ミリ秒でも「和音の音を鳴らしている」という
+    // 前提が崩れるので、自分のコードの開始位置より前へは動かさない
+    const chordFloor = chordStarts?.length
+      ? chordStarts.reduce((best, start) =>
+        start <= note.start + 1e-9 && start > best ? start : best, 0)
+      : barStart;
+    note.start = Math.max(
+      Math.max(barStart, chordFloor),
+      Math.min(barEnd - 0.02, note.start + swingDelay + jitter),
+    );
     note.duration = Math.max(0.03, Math.min(note.duration, barEnd - note.start));
     const velocityJitter = config.humanize > 0
       ? Math.round((rng.next() * 2 - 1) * config.humanize * 10)

@@ -65,6 +65,9 @@
     "repeatNoteProbability": 0.5,
     "motif": { "repeatProbability": 0.85 }
   },
+  "register": {
+    "piano": [50, 70]
+  },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0

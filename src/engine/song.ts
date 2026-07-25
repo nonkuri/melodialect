@@ -18,7 +18,7 @@ import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
 import { chordAtBeat, chordFromRoman, generateProgression } from "./harmony.js";
 import { generateMelody } from "./melody.js";
-import { generateAccompaniment } from "./accompaniment.js";
+import { generateAccompaniment, renderSustainedChord } from "./accompaniment.js";
 import {
   annotateChordOrigins,
   applyMotifAndChorusDesign,
@@ -370,35 +370,18 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       ...finalDialect.defaults.arrangement,
       ...options.arrangement,
     }), finalPlan);
-    const finalRegisterShift = candidateIndex === 0
-      ? 0
-      : Math.round((finalPlan?.registerShift ?? 0) / 12) * 12;
-    if (finalArrangement.pianoPattern !== "off") {
-      const tones = finalArrangement.pianoPattern === "bossa" && lastChord.pitches.length >= 5
-        ? [lastChord.pitches[1]!, lastChord.pitches[3]!, lastChord.pitches[4]!]
-        : finalArrangement.pianoPattern === "bossa" && lastChord.pitches.length >= 4
-          ? lastChord.pitches.slice(1)
-          : lastChord.pitches;
-      for (const pitch of tones) {
-        lastSection.piano.push({
-          start: tailStart, duration: bb, pitch: pitch + finalRegisterShift, velocity: 64,
-        });
-      }
-    }
-    if (finalArrangement.guitarPattern !== "off") {
-      const tones = finalArrangement.guitarPattern === "bossa" && lastChord.pitches.length >= 4
-        ? lastChord.pitches.slice(1)
-        : lastChord.pitches;
-      tones.forEach((pitch, index) => lastSection.guitar.push({
-        start: tailStart + index * 0.014,
-        duration: Math.max(0.1, bb - index * 0.014),
-        pitch: pitch + 12 + finalRegisterShift,
-        velocity: 62 - Math.min(index, 3),
-      }));
-    }
-    lastSection.bass.push({
-      start: tailStart, duration: bb, pitch: lastChord.bassPitch, velocity: 78,
+    // コーダも通常の伴奏と同じボイシング規則を通す。ここで独自に音を積むと
+    // 音域配分から外れ、最後の 1 小節だけ跳ね上がる。
+    const coda = renderSustainedChord(lastChord, {
+      dialect: finalDialect,
+      arrangement: finalArrangement,
+      melody: lastSection.melody,
+      start: tailStart,
+      durationBeats: bb,
     });
+    lastSection.piano.push(...coda.piano);
+    lastSection.guitar.push(...coda.guitar);
+    lastSection.bass.push(...coda.bass);
     lastSection.annotations.push({
       bar: codaBar,
       ruleId: "final-hold",

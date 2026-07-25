@@ -91,6 +91,10 @@
     "nonChordTones": { "appoggiatura": 0.16, "suspension": 0.28, "chromaticPassing": 0.16 },
     "registerShift": { "chorus": 2, "bridge": 1 }
   },
+  "register": {
+    "piano": [46, 72],
+    "minVoicingSpan": 19
+  },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.12

@@ -80,6 +80,10 @@
     "nonChordTones": { "appoggiatura": 0.05, "suspension": 0.08, "chromaticPassing": 0.04 },
     "registerShift": { "chorus": 2 }
   },
+  "register": {
+    "piano": [48, 70],
+    "guitar": [55, 77]
+  },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0
