@@ -4,6 +4,10 @@ import { generateLyrics } from "../src/engine/lyrics.js";
 import { chromatic, twilight } from "../src/dialects/index.js";
 import { encodeWav, type AudioBufferLike } from "../src/export/wav.js";
 import { buildSunoText } from "../src/export/text.js";
+import { buildMusicXml } from "../src/export/musicxml.js";
+import { blue } from "../src/dialects/index.js";
+import { parseForm } from "../src/engine/structure.js";
+import { isTripletDuration, noteValueOf, tripletGroups } from "../src/engine/notation.js";
 
 function fakeBuffer(samples: number[][], sampleRate = 44100): AudioBufferLike {
   return {
@@ -76,5 +80,67 @@ describe("Suno 用テキスト出力 (§4.5)", () => {
     expect(text).toContain("[Chorus 1]");
     expect(text).toContain("Chord Progression");
     expect(text).toContain("seed: 7");
+  });
+});
+
+describe("連符の記譜 (§4.2)", () => {
+  it("3 連符だけを 3 連符と判定する", () => {
+    expect(isTripletDuration(1 / 3)).toBe(true);
+    expect(isTripletDuration(2 / 3)).toBe(true);
+    expect(isTripletDuration(1)).toBe(false);
+    expect(isTripletDuration(1.5)).toBe(false);
+    expect(isTripletDuration(0.5)).toBe(false);
+    expect(isTripletDuration(0.25)).toBe(false);
+  });
+
+  it("3 連符は実拍の 1.5 倍の音価で書く (2/3 拍 → 4 分音符)", () => {
+    expect(noteValueOf(2 / 3).xml).toBe("quarter");
+    expect(noteValueOf(1 / 3).xml).toBe("eighth");
+    expect(noteValueOf(0.75)).toMatchObject({ xml: "eighth", dotted: true });
+    expect(noteValueOf(0.25).xml).toBe("16th");
+  });
+
+  it("シャッフルの 2/3+1/3 が 1 つの連符にまとまる", () => {
+    expect(tripletGroups([2 / 3, 1 / 3, 1, 2 / 3, 1 / 3])).toEqual([[0, 1], [3, 4]]);
+    // 拍の整数倍で閉じないまま途切れた並びは連符にしない
+    expect(tripletGroups([2 / 3, 1, 1])).toEqual([]);
+  });
+
+  it("記譜音価の合計が各小節の拍数と一致する (Blue のシャッフル)", () => {
+    const song = generateSong({
+      dialect: blue, seed: 5, keyName: blue.defaults.key, bpm: blue.defaults.bpm,
+      form: parseForm("v,c"), ending: "final",
+    });
+    const barBeats = song.meter.barBeats;
+    let checked = 0;
+    for (const section of song.sections) {
+      const bars = new Map<number, number>();
+      for (const note of section.melody) {
+        const bar = Math.floor(note.start / barBeats + 1e-9);
+        // NOTE_VALUES.beats は付点込みの実拍。連符は 3:2 で圧縮して鳴る
+        const value = noteValueOf(note.duration);
+        const written = value.beats * (isTripletDuration(note.duration) ? 2 / 3 : 1);
+        bars.set(bar, (bars.get(bar) ?? 0) + written);
+      }
+      for (const [, total] of bars) {
+        checked++;
+        // 休符を含む小節は合計が小節長未満になりうるが、超えてはいけない
+        expect(total).toBeLessThanOrEqual(barBeats + 1e-6);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("MusicXML が 3 連符に time-modification を付ける", () => {
+    const song = generateSong({
+      dialect: blue, seed: 5, keyName: blue.defaults.key, bpm: blue.defaults.bpm,
+      form: parseForm("v,c"), ending: "final",
+    });
+    const xml = buildMusicXml(song);
+    const hasTriplet = song.sections.some((section) =>
+      section.melody.some((note) => isTripletDuration(note.duration)));
+    expect(hasTriplet).toBe(true);
+    expect(xml).toContain("<actual-notes>3</actual-notes><normal-notes>2</normal-notes>");
+    expect(xml).toContain("<type>quarter</type>");
   });
 });

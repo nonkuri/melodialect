@@ -139,7 +139,9 @@ describe("v1.2 harmony, bass and accompaniment planning", () => {
       .toBe(true);
   });
 
-  it("keeps chorus and outro accompaniment in-key and inside safe density bounds", () => {
+  // 全ダイアレクト × 候補 3 を生成するので重い。ダイアレクトが 18 に増えて
+  // 既定の 5 秒をまたぐようになったため、明示的に上限を伸ばす
+  it("keeps chorus and outro accompaniment in-key and inside safe density bounds", { timeout: 30_000 }, () => {
     const uniqueDialects = [...new Map(Object.values(dialects).map((dialect) =>
       [dialect.id, dialect])).values()];
     const parts = ["piano", "guitar"] as const;

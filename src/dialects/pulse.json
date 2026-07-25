@@ -1,0 +1,132 @@
+{
+  "id": "four-on-floor",
+  "name": "Pulse (4つ打ち+疾走する8分の推進力)",
+  "stylePrompt": "uptempo four-on-the-floor dance pop, driving eighth-note bass, bright sustained keys, open hi-hat on the offbeat, euphoric anthemic chorus, energetic clean vocal",
+  "defaults": {
+    "key": "E",
+    "mode": "major",
+    "bpm": 138,
+    "meter": "4/4",
+    "arrangement": {
+      "pianoPattern": "eighth",
+      "guitarPattern": "syncopated",
+      "drumPattern": "drive",
+      "swing": 0,
+      "humanize": 0.05,
+      "velocityScale": 1.04
+    },
+    "arrangementVariants": [
+      { "name": "4つ打ち", "weight": 3, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "syncopated", "drumPattern": "drive" } },
+      { "name": "シンセ主体", "weight": 2, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "drive" } },
+      { "name": "ギターダンス", "weight": 2, "arrangement": { "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "drive" } }
+    ]
+  },
+  "chord": {
+    "vocabulary": ["I", "Isus4", "IV", "V", "Vsus4", "vi", "ii7", "♭VII"],
+    "transitions": {
+      "I": { "V": 0.26, "vi": 0.24, "IV": 0.22, "ii7": 0.12, "Isus4": 0.08, "♭VII": 0.08 },
+      "Isus4": { "I": 0.6, "IV": 0.24, "V": 0.16 },
+      "IV": { "V": 0.36, "I": 0.28, "vi": 0.24, "♭VII": 0.12 },
+      "V": { "vi": 0.36, "I": 0.34, "IV": 0.2, "ii7": 0.1 },
+      "Vsus4": { "V": 0.62, "I": 0.24, "vi": 0.14 },
+      "vi": { "IV": 0.38, "V": 0.24, "ii7": 0.2, "I": 0.18 },
+      "ii7": { "V": 0.44, "Vsus4": 0.24, "IV": 0.2, "I": 0.12 },
+      "♭VII": { "I": 0.46, "IV": 0.32, "V": 0.22 }
+    },
+    "idioms": [
+      { "symbols": ["vi", "IV", "I", "V"], "weight": 4 },
+      { "symbols": ["I", "V", "vi", "IV"], "weight": 3 },
+      { "symbols": ["vi", "IV", "I", "♭VII"], "weight": 2 }
+    ],
+    "idiomProbability": 0.72,
+    "cadences": {
+      "final": [
+        { "symbols": ["V", "I"], "weight": 3 },
+        { "symbols": ["Vsus4", "I"], "weight": 2 }
+      ],
+      "half": [
+        { "symbols": ["V"], "weight": 3 },
+        { "symbols": ["Vsus4"], "weight": 2 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.3, "1": 0.7 },
+      "chorus": { "1": 0.85, "2": 0.15 }
+    },
+    "cliches": ["suspension-resolution"],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "breathProbability": 0.22,
+    "templates": {
+      "4/4": [
+        { "beats": [0.5, 0.5, 1, 0.5, 1.5], "weight": 3 },
+        { "beats": [0.5, 1, 0.5, 0.5, 1.5], "weight": 3 },
+        { "beats": [1.5, 0.5, 1.5, 0.5], "weight": 2 },
+        { "beats": [0.5, 0.5, 0.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [-0.5, 1, 1, 1, 0.5], "weight": 2 }
+      ]
+    },
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [1.5, 0.5, 2], "weight": 2 },
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [4], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.5,
+    "chorusDensityBias": 0.3
+  },
+  "melody": {
+    "finalDegree": { "1": 3, "3": 2, "5": 3, "9": 1 },
+    "pitchCollection": "major",
+    "leapProbability": { "default": 0.12, "chorusHead": 0.55 },
+    "leapRangeSemitones": [5, 12],
+    "afterLeapBias": "down",
+    "contour": "repetitive",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.3,
+    "motif": { "repeatProbability": 0.78 },
+    "nonChordTones": { "appoggiatura": 0.08, "suspension": 0.14, "chromaticPassing": 0.03 },
+    "registerShift": { "chorus": 5, "bridge": -2 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["ostinato"],
+      "verse": ["root"],
+      "chorus": ["ostinato"],
+      "bridge": ["pedal"],
+      "outro": ["ostinato"]
+    },
+    "activity": 0.82, "syncopation": 0.1, "rests": 0.04, "chordToneRatio": 0.94,
+    "approachRatio": 0.18, "diatonicApproachRatio": 0.5, "chromaticApproachRatio": 0.08, "enclosureRatio": 0.04,
+    "resolveLeapRatio": 0.8, "fifthOctaveRatio": 0.45, "fillProbability": 0.12,
+    "range": [36, 55], "maxLeap": 12
+  },
+  "register": {
+    "melody": [62, 83],
+    "piano": [52, 74],
+    "guitar": [55, 78]
+  },
+  "expected": { "nonChordToneRatio": 0.26, "clashPerBar": 0.16 },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  },
+  "groove": {
+    "subdivision": 0.5,
+    "accentPattern": [0, 1, 2, 3],
+    "anticipation": 0.5
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "0.5": 1 } },
+    "chorus": {
+      "idiomProbability": 0.85,
+      "idioms": [
+        { "symbols": ["vi", "IV", "I", "V"], "weight": 4 },
+        { "symbols": ["I", "V", "vi", "IV"], "weight": 3 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  }
+}

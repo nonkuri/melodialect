@@ -18,6 +18,10 @@ import {
   lament,
   interlock,
   voicing,
+  drift,
+  pulse,
+  ember,
+  prism,
   dialectList,
 } from "../src/dialects/index.js";
 import { scaleOf } from "../src/engine/harmony.js";
@@ -510,10 +514,10 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
   });
 });
 
-describe("追加ダイアレクト D10〜D14", () => {
-  it("全14ダイアレクトが重複なく推奨伴奏を持つ", () => {
-    expect(dialectList).toHaveLength(14);
-    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(14);
+describe("追加ダイアレクト D10〜D18", () => {
+  it("全18ダイアレクトが重複なく推奨伴奏を持つ", () => {
+    expect(dialectList).toHaveLength(18);
+    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(18);
     for (const dialect of dialectList) {
       expect(dialect.defaults.arrangement).toBeDefined();
       expect(generateSong({ dialect, seed: 1 }).arrangement).toMatchObject(
@@ -600,6 +604,67 @@ describe("追加ダイアレクト D10〜D14", () => {
           : Math.round(voiceIndex * (previous.length - 1) / (current.length - 1));
         expect(Math.abs(pitch - previous[targetIndex]!)).toBeLessThanOrEqual(7);
       });
+    }
+  });
+});
+
+describe("旋法と変拍子のダイアレクト D15〜D18", () => {
+  const FORM = parseForm("i,v,c,v,c,b,c,o");
+
+  it("Drift: ドリアン音集合と長三和音の IV (短調に♮6が差す) を使う", () => {
+    const song = generateSong({ dialect: drift, seed: 5, form: FORM });
+    expect(song.key.mode).toBe("minor");
+    // ドリアンの ♮6 = 主音 + 9 半音。自然短音階には無い
+    expect(scaleOf(song.key, drift.melody.pitchCollection)).toContain((song.key.tonic + 9) % 12);
+    const fourths = song.sections.flatMap((s) => s.chords).filter((c) => c.symbol === "IV");
+    expect(fourths.length).toBeGreaterThan(0);
+    // 短調の IV は長三和音として鳴る (根音 +4 半音が構成音にある)
+    for (const chord of fourths.slice(0, 5)) {
+      expect(chord.pitches.map((p) => ((p - chord.pitches[0]!) % 12 + 12) % 12)).toContain(4);
+    }
+  });
+
+  it("Pulse: 4つ打ちドラムが毎拍キックを鳴らし、裏拍にオープンハイハットを置く", () => {
+    const song = generateSong({ dialect: pulse, seed: 3, form: FORM });
+    expect(song.arrangement?.drumPattern).toBe("drive");
+    const chorus = song.sections.find((s) => s.plan.type === "chorus")!;
+    const at = (beat: number, pitch: number) =>
+      chorus.drums.some((n) => Math.abs(n.start - beat) < 0.05 && n.pitch === pitch);
+    for (const beat of [0, 1, 2, 3]) expect(at(beat, 36), `${beat}拍のキック`).toBe(true);
+    for (const beat of [0.5, 1.5, 2.5, 3.5]) expect(at(beat, 46), `${beat}拍のオープン`).toBe(true);
+  });
+
+  it("Ember: 7/8 の小節にフリギアの♭II が鳴り、音符が小節をはみ出さない", () => {
+    const song = generateSong({ dialect: ember, seed: 11, form: FORM });
+    expect(song.meter.name).toBe("7/8");
+    expect(song.meter.barBeats).toBe(3.5);
+    // ♭II = 主音 +1 半音の長三和音。フリギア以外では出てこない
+    const flatTwo = song.sections.flatMap((s) => s.chords).filter((c) => c.symbol.startsWith("♭II"));
+    expect(flatTwo.length).toBeGreaterThan(0);
+    expect(flatTwo[0]!.rootPc).toBe((song.key.tonic + 1) % 12);
+    for (const section of song.sections) {
+      for (const note of section.melody) {
+        const bar = Math.floor(note.start / 3.5 + 1e-9);
+        expect(note.start + note.duration).toBeLessThanOrEqual((bar + 1) * 3.5 + 1e-6);
+      }
+    }
+  });
+
+  it("Prism: 5/4 を 3+2 で刻み、リディアンの♯4 を含む II が鳴る", () => {
+    // シードによっては伴奏バリアントが「鍵盤独奏」(ドラム無し) を全セクションに
+    // 選ぶため、拍節を確認できるシードを使う
+    const song = generateSong({ dialect: prism, seed: 3, form: FORM });
+    expect(song.meter.name).toBe("5/4");
+    expect(song.meter.barBeats).toBe(5);
+    expect(scaleOf(song.key, prism.melody.pitchCollection)).toContain((song.key.tonic + 6) % 12);
+    const two = song.sections.flatMap((s) => s.chords).find((c) => c.symbol === "II")!;
+    // II の第 3 音 = 主音 +6 半音 = リディアンの♯4
+    expect(two.pitches.map((p) => ((p - song.key.tonic) % 12 + 12) % 12)).toContain(6);
+    // 3+2 のグループ頭 (0 拍と 3 拍) にキックが乗る
+    const chorus = song.sections.find((s) => s.plan.type === "chorus")!;
+    for (const beat of [0, 3]) {
+      expect(chorus.drums.some((n) => Math.abs(n.start - beat) < 0.05 && n.pitch === 36),
+        `${beat}拍のキック`).toBe(true);
     }
   });
 });

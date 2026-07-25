@@ -1,6 +1,6 @@
 # Melodialect ユーザーガイド
 
-対象バージョン: v1.5.0
+対象バージョン: v1.6.0
 
 [READMEへ戻る](https://github.com/nonkuri/melodialect#readme) | [パラメーターリファレンス](https://github.com/nonkuri/melodialect/blob/main/docs/PARAMETERS.md)
 

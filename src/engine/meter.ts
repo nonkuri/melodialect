@@ -14,6 +14,12 @@ export interface Meter {
   midiDenominator: number;
   /** メトロノームクリック間隔 (MIDI クロック)。6/8 は付点 4 分 = 36 */
   midiClocks: number;
+  /**
+   * 変拍子の内部グルーピング (4 分音符単位)。5/4 = 3+2、7/8 = 2+2+3 八分。
+   * 均等拍子には持たせない。これがある拍子は「1 小節を等間隔で割り切れない」
+   * ため、伴奏・ベースは小節頭からグループ単位で敷き直す。
+   */
+  groups?: number[];
 }
 
 export const METERS: Record<string, Meter> = {
@@ -29,7 +35,29 @@ export const METERS: Record<string, Meter> = {
     name: "6/8", barBeats: 3, strongBeats: [0, 1.5],
     midiNumerator: 6, midiDenominator: 8, midiClocks: 36,
   },
+  "5/4": {
+    name: "5/4", barBeats: 5, strongBeats: [0, 3],
+    midiNumerator: 5, midiDenominator: 4, midiClocks: 24,
+    groups: [3, 2],
+  },
+  "7/8": {
+    name: "7/8", barBeats: 3.5, strongBeats: [0, 1, 2],
+    midiNumerator: 7, midiDenominator: 8, midiClocks: 12,
+    groups: [1, 1, 1.5],
+  },
 };
+
+/** グループの頭 (小節内 beat)。均等拍子は強拍をそのまま返す。 */
+export function groupHeads(meter: Meter): number[] {
+  if (!meter.groups) return meter.strongBeats;
+  const heads: number[] = [];
+  let beat = 0;
+  for (const group of meter.groups) {
+    heads.push(beat);
+    beat += group;
+  }
+  return heads;
+}
 
 export const DEFAULT_METER: Meter = METERS["4/4"]!;
 

@@ -1,0 +1,126 @@
+{
+  "id": "dorian-drift",
+  "name": "Drift (ドリアン旋法+長調のIVが差す短調)",
+  "stylePrompt": "dorian modal pop, minor tonic with a bright major IV, floating suspended arpeggios, warm electric piano and clean guitar, unhurried mid-tempo groove, wistful but not sad vocal",
+  "defaults": {
+    "key": "D",
+    "mode": "minor",
+    "bpm": 96,
+    "meter": "4/4",
+    "arrangement": {
+      "pianoPattern": "arpeggio",
+      "guitarPattern": "arpeggio",
+      "drumPattern": "basic",
+      "swing": 0,
+      "humanize": 0.11,
+      "velocityScale": 0.95
+    },
+    "arrangementVariants": [
+      { "name": "アルペジオ", "weight": 3, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "arpeggio", "drumPattern": "basic" } },
+      { "name": "ギターと歌", "weight": 2, "arrangement": { "pianoPattern": "off", "guitarPattern": "arpeggio", "drumPattern": "off" } },
+      { "name": "バンド", "weight": 2, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "strum", "drumPattern": "rock" } }
+    ]
+  },
+  "chord": {
+    "vocabulary": ["i", "i7", "ii7", "III", "IV", "v", "VII"],
+    "transitions": {
+      "i": { "IV": 0.32, "VII": 0.2, "ii7": 0.16, "III": 0.12, "i7": 0.12, "v": 0.08 },
+      "i7": { "IV": 0.46, "ii7": 0.24, "VII": 0.2, "i": 0.1 },
+      "ii7": { "IV": 0.34, "i": 0.3, "v": 0.22, "VII": 0.14 },
+      "III": { "VII": 0.36, "IV": 0.3, "i": 0.2, "ii7": 0.14 },
+      "IV": { "i": 0.42, "VII": 0.22, "ii7": 0.18, "III": 0.18 },
+      "v": { "i": 0.5, "IV": 0.28, "VII": 0.22 },
+      "VII": { "i": 0.38, "IV": 0.26, "III": 0.22, "ii7": 0.14 }
+    },
+    "idioms": [
+      { "symbols": ["i", "IV", "i", "IV"], "weight": 4 },
+      { "symbols": ["i7", "IV", "ii7", "VII"], "weight": 3 },
+      { "symbols": ["i", "III", "VII", "IV"], "weight": 2 }
+    ],
+    "idiomProbability": 0.6,
+    "cadences": {
+      "final": [
+        { "symbols": ["IV", "i"], "weight": 4 },
+        { "symbols": ["VII", "i"], "weight": 2 }
+      ],
+      "half": [
+        { "symbols": ["IV"], "weight": 3 },
+        { "symbols": ["ii7"], "weight": 2 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "1": 0.4, "2": 0.6 },
+      "chorus": { "1": 0.55, "2": 0.45 }
+    },
+    "cliches": ["parallel-planing"],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "breathProbability": 0.34,
+    "templates": {
+      "4/4": [
+        { "beats": [1, 0.5, 0.5, 1, 1], "weight": 3 },
+        { "beats": [0.5, 1, 0.5, 2], "weight": 2 },
+        { "beats": [1.5, 0.5, 1, 1], "weight": 2 },
+        { "beats": [-0.5, 1.5, 1, 1], "weight": 2 },
+        { "beats": [2, 1, 1], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "4/4": [
+        { "beats": [4], "weight": 2 },
+        { "beats": [3, 1], "weight": 1 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.3,
+    "chorusDensityBias": 0.2
+  },
+  "melody": {
+    "finalDegree": { "1": 3, "3": 1, "5": 2, "9": 1 },
+    "pitchCollection": "dorian",
+    "leapProbability": { "default": 0.14, "chorusHead": 0.45 },
+    "leapRangeSemitones": [5, 9],
+    "afterLeapBias": "down",
+    "contour": "arch",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.14,
+    "motif": { "repeatProbability": 0.66 },
+    "nonChordTones": { "appoggiatura": 0.16, "suspension": 0.2, "chromaticPassing": 0.04 },
+    "registerShift": { "chorus": 4, "bridge": 2 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root"],
+      "chorus": ["root", "counterline"],
+      "bridge": ["pedal"],
+      "outro": ["root"]
+    },
+    "activity": 0.5, "syncopation": 0.16, "rests": 0.08, "chordToneRatio": 0.88,
+    "approachRatio": 0.32, "diatonicApproachRatio": 0.72, "chromaticApproachRatio": 0.06, "enclosureRatio": 0.06,
+    "resolveLeapRatio": 0.72, "fifthOctaveRatio": 0.3, "fillProbability": 0.14,
+    "range": [36, 56], "maxLeap": 9
+  },
+  "register": {
+    "melody": [59, 79],
+    "piano": [48, 70],
+    "guitar": [55, 76]
+  },
+  "expected": { "nonChordToneRatio": 0.34, "clashPerBar": 0.2 },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.06
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "0.5": 0.6, "1": 0.4 } },
+    "chorus": {
+      "idiomProbability": 0.76,
+      "idioms": [
+        { "symbols": ["i", "IV", "i", "IV"], "weight": 4 },
+        { "symbols": ["i7", "IV", "VII", "III"], "weight": 2 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  }
+}

@@ -26,7 +26,7 @@ URLをブラウザで開くだけで使えます。公開PWAの利用に Node.js
 
 ## 特徴
 
-- **14 のダイアレクト** — Chromatic（半音階クリシェと旋律的なベース）、Modal（モード中心の旋律と♭VII）、Pedal（持続音とsus/add9）をはじめ、Twilight / Angular / Orchestral / Bossa / Ostinato / Serene / Flow / Blue / Lament / Interlock / Voicingを収録
+- **18 のダイアレクト** — Chromatic（半音階クリシェと旋律的なベース）、Modal（モード中心の旋律と♭VII）、Pedal（持続音とsus/add9）をはじめ、Twilight / Angular / Orchestral / Bossa / Ostinato / Serene / Flow / Blue / Lament / Interlock / Voicing に加え、教会旋法と変拍子の Drift（ドリアン）/ Pulse（4つ打ち138BPM）/ Ember（フリギア・7/8）/ Prism（リディアン・5/4）を収録
 - **明示的な作曲ルール** — コード進行、リズム語彙、モチーフ、旋律輪郭、非和声音、セクション対比、転調、音階、グルーヴを組み合わせて生成。根拠は曲全体、セクション、小節の3段階で表示
 - **セクション単位の作曲設計** — VerseとChorusで別のダイアレクトを使う合作モード、モチーフ固定、Chorus間の変奏量、緊張度・密度・明るさ・終止形、構成の編集に対応
 - **コード進行の計画と制御** — セクションの到達先と緊張曲線を見ながら複数案を探索し、セカンダリードミナント、借用和音、ピボットコード、拡張和音、スラッシュコードを扱う。コード原案の固定、空欄補完、旋律を考慮したリハーモナイズ、原案復元にも対応
@@ -138,7 +138,7 @@ npm run generate -- --seed 123 --key G --bpm 110 --form v,c,b,c
 | `--key` | キー(C, Db, D, ... B) | ダイアレクトの推奨キー |
 | `--bpm` | テンポ(40〜200) | ダイアレクトの推奨値 |
 | `--form` | 構成(v=Verse, c=Chorus, b=Bridge, i=Intro, o=Outro をカンマ区切り)。`v:modal,c:twilight` でセクション別ダイアレクト指定(合作モード) | v,c,v,c |
-| `--meter` | 拍子(4/4, 3/4, 6/8) | ダイアレクトの推奨拍子 (通常 4/4、serene は 3/4、flow は 6/8) |
+| `--meter` | 拍子(4/4, 3/4, 6/8, 5/4, 7/8) | ダイアレクトの推奨拍子 (通常 4/4、serene は 3/4、flow は 6/8、prism は 5/4、ember は 7/8) |
 | `--dialect` | ダイアレクト名(chromatic / modal / pedal / twilight / angular / orchestral / bossa / ostinato / serene / flow / blue / lament / interlock / voicing) | chromatic |
 | `--loop` | ループモード(半終止で終わり曲頭へ戻る。コーダなし) | なし (終止+コーダ) |
 | `--out` | 出力先フォルダ | out |
@@ -174,7 +174,7 @@ test/         Vitest テスト
 |---|---|---|
 | M1 | 生成エンジン核 (Chromatic ダイアレクト + MIDI 書き出し) | ✅ 完了 |
 | M2 | ブラウザ UI (設定パネル + Web Audio 再生 + ピアノロール) | ✅ 完了 |
-| M3 | 全 14 ダイアレクト・合作モード・譜面表示 | ✅ 完了 |
+| M3 | 全 14 ダイアレクト・合作モード・譜面表示 (v1.6 で 18 ダイアレクトへ拡張) | ✅ 完了 |
 | M4 | WAV 書き出し・仮歌詞・Suno 用テキスト出力 | ✅ 完了 |
 | M5 | PWA公開・基本ダイアレクトエディタ・品質保証 | ✅ v1.0 |
 | M6 | 候補評価基盤・コード／ベース／伴奏生成・候補比較・3段階の生成根拠 | ✅ v1.2 |

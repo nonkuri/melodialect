@@ -91,7 +91,7 @@ export type GuitarPattern =
   | "bossa"
   | "syncopated"
   | "interlocking";
-export type DrumPattern = "off" | "basic" | "rock" | "bossa" | "shuffle" | "interlock";
+export type DrumPattern = "off" | "basic" | "rock" | "bossa" | "shuffle" | "interlock" | "drive";
 export type SongPart = "melody" | "piano" | "guitar" | "bass" | "drums";
 
 export interface ArrangementSettings {
@@ -380,7 +380,10 @@ export interface WeightedProgression {
 
 export type PitchCollection =
   | "major"
+  | "lydian"
   | "mixolydian"
+  | "dorian"
+  | "phrygian"
   | "natural-minor"
   | "harmonic-minor"
   | "major-pentatonic"

@@ -45,11 +45,29 @@ const BUILTIN_TEMPLATES: Record<string, RhythmTemplate[]> = {
     { beats: [1.5, 0.5, 0.5, 0.5], weight: 1 },
     { beats: [1.5, 1, 0.5], weight: 1 },
   ],
+  // 変拍子はグルーピング (5/4 = 3+2、7/8 = 2+2+3 八分) を跨がない形を基本にする
+  "5/4": [
+    { beats: [1, 1, 1, 1, 1], weight: 1 },
+    { beats: [3, 2], weight: 1 },
+    { beats: [1.5, 1.5, 2], weight: 1 },
+    { beats: [2, 1, 2], weight: 1 },
+    { beats: [1, 0.5, 0.5, 1, 2], weight: 1 },
+  ],
+  "7/8": [
+    { beats: [1, 1, 1.5], weight: 1 },
+    { beats: [1, 1, 1, 0.5], weight: 1 },
+    { beats: [0.5, 0.5, 1, 1.5], weight: 1 },
+    { beats: [2, 1.5], weight: 1 },
+    { beats: [1, 0.5, 0.5, 1.5], weight: 1 },
+  ],
 };
+// 末尾は 1 音で埋めず、譜面で表せる音価に分ける (5 拍・3.5 拍の単音は書けない)
 const BUILTIN_FINAL: Record<string, RhythmTemplate[]> = {
   "4/4": [{ beats: [4], weight: 1 }, { beats: [2, 2], weight: 1 }],
   "3/4": [{ beats: [3], weight: 1 }, { beats: [2, 1], weight: 1 }],
   "6/8": [{ beats: [3], weight: 1 }, { beats: [1.5, 1.5], weight: 1 }],
+  "5/4": [{ beats: [3, 2], weight: 1 }, { beats: [2, 1, 2], weight: 1 }],
+  "7/8": [{ beats: [2, 1.5], weight: 1 }, { beats: [1.5, 2], weight: 1 }],
 };
 
 export interface MelodyResult {

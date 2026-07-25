@@ -19,7 +19,10 @@ const NATURAL_MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10] as const;
 
 const PITCH_COLLECTIONS: Record<PitchCollection, readonly number[]> = {
   major: MAJOR_SCALE,
+  lydian: [0, 2, 4, 6, 7, 9, 11],
   mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  phrygian: [0, 1, 3, 5, 7, 8, 10],
   "natural-minor": NATURAL_MINOR_SCALE,
   "harmonic-minor": [0, 2, 3, 5, 7, 8, 11],
   "major-pentatonic": [0, 2, 4, 7, 9],
@@ -380,6 +383,31 @@ function desiredTension(position: number, sectionType: SectionPlan["type"], amou
   return Math.max(0.08, Math.min(0.95, arc + sectionBias + (amount - 0.5) * 0.28));
 }
 
+/**
+ * 遷移表に載っていない組み合わせに与える重み。
+ *
+ * 以前は定数 0.015 (イディオム経路では 0.03) を使っていた。これは log 換算で
+ * -1.76 の減点になり、機能和声の加点 (最大 0.7) でも緊張度の適合 (最大 0.9)
+ * でも覆せない。結果として「遷移表のどの行にも現れない和音は、語彙に宣言して
+ * あっても一度も鳴らない」状態になり、18 ダイアレクト中 13 個で実際に起きて
+ * いた (chromatic の iii・III7・♭VII、bossa の III7・viiø7 など)。
+ *
+ * 遷移表は「その和音から次へ」の相対的な好みであって禁止表ではないので、
+ * 行内の最小重みの半分を弱い経路として残す。行が粗い (数個しか書いていない)
+ * ダイアレクトで未記載が優勢にならないよう上限も設ける。
+ */
+const UNLISTED_TRANSITION_CAP = 0.06;
+
+function unlistedTransitionWeight(table: Record<string, number> | undefined): number {
+  let min = Infinity;
+  if (table) for (const weight of Object.values(table)) {
+    if (weight > 0 && weight < min) min = weight;
+  }
+  return Number.isFinite(min)
+    ? Math.min(min * 0.5, UNLISTED_TRANSITION_CAP)
+    : UNLISTED_TRANSITION_CAP;
+}
+
 function functionalPathScore(
   previous: string,
   next: string,
@@ -404,8 +432,31 @@ function functionalPathScore(
       ? referenceSymbol === next ? -0.18 : 0.08
       : referenceSymbol === next ? 0.24 : 0
     : 0;
-  return Math.log(Math.max(0.005, transitionWeight)) * 0.42 + tensionFit * 0.9 +
+  return Math.log(Math.max(0.005, transitionWeight)) * BEAM_TEMPERATURE + tensionFit * 0.9 +
     functionalBonus + relationship - repetitionPenalty;
+}
+
+/**
+ * ビームサーチの探索温度。log(遷移重み) の係数と Gumbel 雑音の尺度の両方に使う。
+ *
+ * 両方を同じ値にすると、選ばれる確率が exp(スコア/T) ∝ 遷移重み × exp(その他/T)
+ * になる (Gumbel-max トリック)。つまり**遷移表の重みは常に宣言どおりの比率で
+ * 標本化され**、T は「緊張度・機能和声・イディオムといった音楽的な項が、
+ * どれだけ確率差を押し広げるか」だけを決める。小さいほど音楽的な項が支配的。
+ *
+ * 以前は係数 0.42 に対して一様乱数 0〜0.18 を足していた。これは重み 0.4 と 0.1
+ * の差 (log 換算で 0.58) を越えられないため、遷移表は「最も強い 1 本を選ぶ
+ * 順位付け」としてしか働かず、重み 0.1〜0.2 で宣言した和音は一度も鳴らなかった
+ * (18 ダイアレクト中 14 個で発生)。
+ *
+ * 値は実測で決めた。T を上げると語彙の到達率が上がり、下げるとダイアレクトの
+ * 識別性が上がる。両方を満たす範囲の中央として 0.26 を採る (経緯は SPEC §6.2)。
+ */
+const BEAM_TEMPERATURE = 0.34;
+
+function gumbel(rng: Rng): number {
+  const u = Math.min(1 - 1e-9, Math.max(1e-9, rng.next()));
+  return -Math.log(-Math.log(u));
 }
 
 /** Destination-aware beam search over the dialect vocabulary and its idioms. */
@@ -435,13 +486,14 @@ function planFunctionalProgression(
       const previous = path.symbols.at(-1)!;
       const position = path.symbols.length / Math.max(1, bodySlots);
       const table = dialect.chord.transitions[previous] ?? {};
+      const unlisted = unlistedTransitionWeight(table);
       for (const symbol of dialect.chord.vocabulary) {
-        const transitionWeight = table[symbol] ?? 0.015;
+        const transitionWeight = table[symbol] ?? unlisted;
         expanded.push({
           symbols: [...path.symbols, symbol],
           score: path.score + functionalPathScore(
             previous, symbol, transitionWeight, position, plan, tension, reference,
-          ) + rng.next() * 0.18,
+          ) + gumbel(rng) * BEAM_TEMPERATURE,
           idioms: path.idioms,
         });
       }
@@ -451,7 +503,8 @@ function planFunctionalProgression(
         let score = path.score + Math.log1p(idiom.weight) * 0.55 + idiomProbability * 0.8;
         let from = previous;
         placement.forEach((symbol, offset) => {
-          const transitionWeight = dialect.chord.transitions[from]?.[symbol] ?? 0.03;
+          const fromTable = dialect.chord.transitions[from];
+          const transitionWeight = fromTable?.[symbol] ?? unlistedTransitionWeight(fromTable);
           score += functionalPathScore(
             from, symbol, transitionWeight,
             (path.symbols.length + offset) / Math.max(1, bodySlots), plan, tension, reference,
@@ -460,7 +513,7 @@ function planFunctionalProgression(
         });
         expanded.push({
           symbols: [...path.symbols, ...placement],
-          score: score + rng.next() * 0.18,
+          score: score + gumbel(rng) * BEAM_TEMPERATURE,
           idioms: [...path.idioms, { index: path.symbols.length, symbols: idiom.symbols }],
         });
       }

@@ -244,6 +244,7 @@ export function ArrangementPanel(props: Props) {
             <option value="off">なし</option><option value="basic">ベーシック</option>
             <option value="rock">ロック</option><option value="bossa">ボサノヴァ</option>
             <option value="shuffle">シャッフル</option><option value="interlock">インターロック</option>
+            <option value="drive">4つ打ち</option>
           </select></label>
         </div>
         <div className="control-grid">

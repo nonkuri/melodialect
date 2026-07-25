@@ -1,5 +1,6 @@
 import type { ChordEvent, NoteEvent, Song, SongPart } from "../engine/types.js";
 import { chordDisplayName, scaleOf } from "../engine/harmony.js";
+import { isTripletDuration, noteValueOf } from "../engine/notation.js";
 import { generateLyrics, type SectionLyrics } from "../engine/lyrics.js";
 
 const DIVISIONS = 12;
@@ -29,7 +30,14 @@ function pitchXml(pitch: number): string {
 
 function noteXml(note: NoteEvent, voice: number, syllable?: string): string {
   const lyric = syllable ? `<lyric number="1"><syllabic>single</syllabic><text>${escapeXml(syllable)}</text></lyric>` : "";
-  return `<note>${pitchXml(note.pitch)}<duration>${duration(note.duration)}</duration><voice>${voice}</voice><velocity>${note.velocity}</velocity>${lyric}</note>`;
+  // divisions=12 なので 3 連符の実時間 (1/3・2/3 拍) は割り切れるが、type と
+  // time-modification が無いと楽譜ソフトは連符として組んでくれない
+  const value = noteValueOf(note.duration);
+  const type = `<type>${value.xml}</type>${value.dotted ? "<dot/>" : ""}`;
+  const tripletMark = isTripletDuration(note.duration)
+    ? "<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>"
+    : "";
+  return `<note>${pitchXml(note.pitch)}<duration>${duration(note.duration)}</duration><voice>${voice}</voice>${type}${tripletMark}<velocity>${note.velocity}</velocity>${lyric}</note>`;
 }
 
 function harmonyXml(chord: ChordEvent, song: Song): string {

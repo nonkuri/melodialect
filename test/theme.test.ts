@@ -161,7 +161,17 @@ describe("主題の規則はダイアレクトと利用者の指定で変えら�
       pitches(large[1]!.melody) !== pitches(large[0]!.melody),
     ).toBe(true);
     const same = sectionsOf(generateSong({ ...options, design: design("same") }), "chorus");
-    expect(pitches(same[1]!.melody)).toBe(pitches(same[0]!.melody));
+    // SHORT_FORM では 2 つ目の Chorus が最終セクションなので、末尾は終止形へ
+    // 差し替わる。和音が変われば強拍の音はその和音へ吸着されるため、完全一致を
+    // 求めると「終止形がたまたま主題と同じ和音になったシードだけ通る」テストに
+    // なる。進行が一致している範囲で「主題そのもの」を確認する
+    const sharedBeats = same[0]!.chords.reduce((end, chord, index) =>
+      same[1]!.chords[index]?.symbol === chord.symbol
+        ? Math.max(end, chord.start + chord.durationBeats) : end, 0);
+    expect(sharedBeats).toBeGreaterThan(0);
+    const shared = (section: GeneratedSection) =>
+      pitches(section.melody.filter((note) => note.start < sharedBeats));
+    expect(shared(same[1]!)).toBe(shared(same[0]!));
   });
 
   it("同じシードなら主題の再現も含めて決定的", () => {

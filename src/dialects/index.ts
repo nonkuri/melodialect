@@ -16,6 +16,10 @@ import blueJson from "./blue.json" with { type: "json" };
 import lamentJson from "./lament.json" with { type: "json" };
 import interlockJson from "./interlock.json" with { type: "json" };
 import voicingJson from "./voicing.json" with { type: "json" };
+import driftJson from "./drift.json" with { type: "json" };
+import pulseJson from "./pulse.json" with { type: "json" };
+import emberJson from "./ember.json" with { type: "json" };
+import prismJson from "./prism.json" with { type: "json" };
 
 export interface DialectValidationIssue {
   path: string;
@@ -30,11 +34,12 @@ export const MELODIC_CONTOURS = [
   "descending", "interlocking", "voice-led",
 ] as const;
 export const PITCH_COLLECTIONS = [
-  "major", "mixolydian", "natural-minor", "harmonic-minor", "major-pentatonic", "minor-pentatonic", "blues",
+  "major", "lydian", "mixolydian", "dorian", "phrygian",
+  "natural-minor", "harmonic-minor", "major-pentatonic", "minor-pentatonic", "blues",
 ] as const;
 export const PIANO_PATTERNS = ["off", "block", "arpeggio", "bossa", "eighth", "ballad", "syncopated", "voice-led"] as const;
 export const GUITAR_PATTERNS = ["off", "strum", "arpeggio", "bossa", "syncopated", "interlocking"] as const;
-export const DRUM_PATTERNS = ["off", "basic", "rock", "bossa", "shuffle", "interlock"] as const;
+export const DRUM_PATTERNS = ["off", "basic", "rock", "bossa", "shuffle", "interlock", "drive"] as const;
 export const THEME_RETURNS = ["same", "vary", "new"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,7 +78,7 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
     if (typeof d.defaults.key !== "string" || !/^[A-G](?:#|b)?$/.test(d.defaults.key)) add("defaults.key", "C、F#、Bb などで指定してください");
     if (d.defaults.mode !== "major" && d.defaults.mode !== "minor") add("defaults.mode", "major または minor を指定してください");
     if (!Number.isFinite(d.defaults.bpm) || d.defaults.bpm! < 40 || d.defaults.bpm! > 240) add("defaults.bpm", "40〜240の範囲で指定してください");
-    if (d.defaults.meter && !["4/4", "3/4", "6/8"].includes(d.defaults.meter)) add("defaults.meter", "4/4、3/4、6/8 のいずれかです");
+    if (d.defaults.meter && !(d.defaults.meter in METERS)) add("defaults.meter", `${Object.keys(METERS).join("、")} のいずれかです`);
   }
   if (d.stylePrompt !== undefined && (typeof d.stylePrompt !== "string" || d.stylePrompt.length > 2000)) {
     add("stylePrompt", "2000文字以内の文字列で指定してください");
@@ -263,7 +268,7 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
     if (!isRecord(groups)) return add(path, "拍子別テンプレートのオブジェクトが必要です");
     Object.entries(groups).forEach(([meterName, templates]) => {
       const meter = METERS[meterName];
-      if (!meter) add(`${path}.${meterName}`, "4/4、3/4、6/8 のいずれかを指定してください");
+      if (!meter) add(`${path}.${meterName}`, `${Object.keys(METERS).join("、")} のいずれかを指定してください`);
       if (!Array.isArray(templates) || !templates.length || templates.length > 64) return add(`${path}.${meterName}`, "1〜64個のテンプレートを配列で指定してください");
       templates.forEach((template, index) => {
         const itemPath = `${path}.${meterName}[${index}]`;
@@ -433,6 +438,10 @@ export const blue: Dialect = loadDialect(blueJson);
 export const lament: Dialect = loadDialect(lamentJson);
 export const interlock: Dialect = loadDialect(interlockJson);
 export const voicing: Dialect = loadDialect(voicingJson);
+export const drift: Dialect = loadDialect(driftJson);
+export const pulse: Dialect = loadDialect(pulseJson);
+export const ember: Dialect = loadDialect(emberJson);
+export const prism: Dialect = loadDialect(prismJson);
 
 /** id と短縮名の両方で引ける */
 export const dialects: Record<string, Dialect> = {
@@ -450,6 +459,10 @@ export const dialects: Record<string, Dialect> = {
   [lament.id]: lament,
   [interlock.id]: interlock,
   [voicing.id]: voicing,
+  [drift.id]: drift,
+  [pulse.id]: pulse,
+  [ember.id]: ember,
+  [prism.id]: prism,
   chromatic,
   modal,
   pedal,
@@ -464,6 +477,10 @@ export const dialects: Record<string, Dialect> = {
   lament,
   interlock,
   voicing,
+  drift,
+  pulse,
+  ember,
+  prism,
 };
 
 /** UI 表示用の重複なしリスト */
@@ -482,6 +499,10 @@ export const dialectList: Dialect[] = [
   lament,
   interlock,
   voicing,
+  drift,
+  pulse,
+  ember,
+  prism,
 ];
 
 const USER_DIALECTS_KEY = "melodialect.userDialects.v1";

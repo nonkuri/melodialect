@@ -9,10 +9,12 @@ import {
   Renderer,
   Stave,
   StaveNote,
+  Tuplet,
   Voice,
 } from "vexflow";
 import type { NoteEvent, Song } from "../engine/types.js";
 import { chordDisplayName, scaleOf } from "../engine/harmony.js";
+import { noteValueOf, tripletGroups } from "../engine/notation.js";
 import type { SectionLyrics } from "../engine/lyrics.js";
 
 const SHARP_NAMES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
@@ -30,16 +32,6 @@ function pitchToVexKey(pitch: number, useFlats: boolean): string {
   return `${names[pitch % 12]}/${octave}`;
 }
 
-/** 拍数 → VexFlow の音価。リズムテンプレートの値 (4, 3, 2, 1.5, 1, 0.5) に対応 */
-function durationOf(beats: number): { duration: string; dotted: boolean } {
-  if (beats === 4) return { duration: "w", dotted: false };
-  if (beats === 3) return { duration: "h", dotted: true };
-  if (beats === 2) return { duration: "h", dotted: false };
-  if (beats === 1.5) return { duration: "q", dotted: true };
-  if (beats === 1) return { duration: "q", dotted: false };
-  if (beats === 0.5) return { duration: "8", dotted: false };
-  return { duration: "q", dotted: false };
-}
 
 interface ScoredNote {
   note: NoteEvent;
@@ -133,10 +125,10 @@ export function ScoreView({
       if (barData.notes.length === 0) return;
 
       const staveNotes = barData.notes.map((sn, i) => {
-        const { duration, dotted } = durationOf(sn.note.duration);
+        const { vex, dotted } = noteValueOf(sn.note.duration);
         const note = new StaveNote({
           keys: [pitchToVexKey(sn.note.pitch, useFlats)],
-          duration,
+          duration: vex,
         });
         if (dotted) Dot.buildAndAttach([note], { all: true });
         if (i === 0 && barData.chordName) {
@@ -162,10 +154,18 @@ export function ScoreView({
       }).setStrict(false);
       voice.addTickables(staveNotes);
       Accidental.applyAccidentals([voice], song.keyName);
+      // 3 連符は括弧で括る。括らないと 2/3 拍が 4 分音符として読まれ、
+      // 小節の音価合計が拍子と合わなくなる
+      const tuplets = tripletGroups(barData.notes.map((sn) => sn.note.duration))
+        .map((indices) => new Tuplet(indices.map((index) => staveNotes[index]!), {
+          numNotes: 3,
+          notesOccupied: 2,
+        }));
       const beams = Beam.generateBeams(staveNotes);
       new Formatter().joinVoices([voice]).formatToStave([voice], stave);
       voice.draw(context, stave);
       beams.forEach((b) => b.setContext(context).draw());
+      tuplets.forEach((t) => t.setContext(context).draw());
     });
   }, [song, lyrics]);
 

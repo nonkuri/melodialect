@@ -10,6 +10,7 @@ import type {
   SectionPlan,
 } from "./types.js";
 import type { Meter } from "./meter.js";
+import { groupHeads } from "./meter.js";
 import type { Rng } from "./rng.js";
 import { createNamedRng } from "./rng.js";
 import { chordAtBeat, pcToPitch, scaleOf } from "./harmony.js";
@@ -449,7 +450,10 @@ function generateBossaPiano(chords: ChordEvent[], meter: Meter, voicer: Voicer):
     const barStart = bar * bb;
     const pulses = meter.name === "4/4"
       ? bar % 2 === 0 ? [0, 1.5, 3] : [0.5, 2, 3.5]
-      : [0, Math.max(0.5, bb / 2)].filter((pulse) => pulse < bb);
+      : meter.groups
+        // 変拍子はグループ頭を外すと拍子が聞こえなくなるので、頭は必ず打つ
+        ? bar % 2 === 0 ? groupHeads(meter) : groupHeads(meter).map((head, i) => i === 0 ? head : head + 0.5)
+        : [0, Math.max(0.5, bb / 2)].filter((pulse) => pulse < bb);
     for (const pulse of pulses) {
       const start = barStart + pulse;
       if (start >= sectionBeats - 1e-9) continue;
@@ -571,6 +575,7 @@ function generateDrums(
   if (pattern === "off") return [];
   const notes: NoteEvent[] = [];
   const bb = meter.barBeats;
+  const heads = groupHeads(meter);
   const hit = (start: number, pitch: number, velocity: number) =>
     notes.push({ start, duration: 0.12, pitch, velocity });
   for (let bar = 0; bar < bars; bar++) {
@@ -579,6 +584,31 @@ function generateDrums(
       for (let t = 0; t < bb; t += 0.5) hit(start + t, 42, t === 0 ? 78 : 62);
       hit(start, 36, 96);
       hit(start + 1.5, 38, 88);
+      continue;
+    }
+    if (meter.groups) {
+      // 変拍子: グループの頭にキック、グループ内の 2 拍目にスネア
+      for (let t = 0; t < bb - 1e-9; t += 0.5) {
+        hit(start + t, 42, heads.includes(t) ? 74 : t % 1 === 0 ? 64 : 56);
+      }
+      // 2 拍以上のグループはその内側にバックビートを置ける。7/8 のように
+      // 短いグループしかない拍子は、最後のグループ頭をスネアに充てる
+      const snareOnLastHead = !meter.groups.some((group) => group >= 2);
+      heads.forEach((head, index) => {
+        const isSnareHead = snareOnLastHead && index === heads.length - 1;
+        if (isSnareHead) hit(start + head, 38, 92);
+        else hit(start + head, 36, index === 0 ? 98 : 84);
+        const group = meter.groups![index]!;
+        if (group >= 2) hit(start + head + (index > 0 ? 1 : group - 1), 38, index > 0 ? 88 : 90);
+      });
+      continue;
+    }
+    if (pattern === "drive") {
+      // 4 つ打ち: 毎拍キック + 裏拍オープンハイハット + 2/4 拍にスネア
+      for (let beat = 0; beat < bb; beat++) hit(start + beat, 36, beat === 0 ? 100 : 92);
+      for (let t = 0.5; t < bb; t += 1) hit(start + t, 46, 70);
+      for (let t = 0; t < bb; t += 1) hit(start + t, 42, 58);
+      for (const t of [1, 3]) if (t < bb) hit(start + t, 38, t === 1 ? 88 : 94);
       continue;
     }
     if (pattern === "shuffle") {
@@ -776,7 +806,8 @@ function generateDroneBass(
 ): NoteEvent[] {
   const notes: NoteEvent[] = [];
   const tonic = pcToPitch(key.tonic, 36);
-  const pulse = meter.name === "4/4" ? 2 : 1.5;
+  // 4/4 は 2 分、3 拍系は付点 4 分、変拍子は半小節でルートと 5 度を入れ替える
+  const pulse = meter.name === "4/4" ? 2 : meter.barBeats % 3 === 0 ? 1.5 : meter.barBeats / 2;
   for (let start = 0, index = 0; start < sectionBeats - 1e-9; start += pulse, index++) {
     notes.push({
       start,

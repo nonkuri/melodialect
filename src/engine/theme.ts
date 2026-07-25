@@ -213,6 +213,8 @@ export function restateMelody(
   const strong = new Set(meter.strongBeats);
 
   const notes: NoteEvent[] = [];
+  /** 変奏で音程を書き換えた音。前後が変わると隣接半音の根拠が消えるので後で見る */
+  const variedNotes = new Set<number>();
   for (const source of theme.melody) {
     if (source.start >= limit - 1e-7) break;
     const duration = Math.min(source.duration, limit - source.start);
@@ -238,6 +240,7 @@ export function restateMelody(
     if (harmonyMoved && onStrongBeat && duration >= 1 && !isChordTone(pitch, chord)) {
       pitch = snapToChordTone(pitch, chord);
     }
+    if (varied) variedNotes.add(notes.length);
     notes.push({
       start: source.start,
       duration,
@@ -245,6 +248,28 @@ export function restateMelody(
       velocity: source.velocity,
     });
   }
+
+  // 主題の半音階経過音は「前後の音と半音で繋がること」を生成時に検証して出した
+  // もの。隣の音が変奏されるとその根拠だけが消え、音が宙に浮く。上の吸着は強拍の
+  // 長い音しか見ないため、弱拍の半音がそのまま残っていた (実測 20,489 音中 33 音
+  // = 0.16%。例: 主題では B→A♯→A の下降だった音が、隣が変奏されて G→A♯→G の
+  // 跳躍で挟まれ、音階音でもコードトーンでも隣接半音でもない音になっていた)。
+  //
+  // 対象は「自分か隣が変奏された音」に限る。変奏していない音まで見ると、最終
+  // セクションで終止形に差し替わった和音を理由に主題の音を書き換えてしまい、
+  // finalLift の「最後の Chorus は主題そのもの」が崩れる (テストが検出した)。
+  notes.forEach((note, index) => {
+    if (!variedNotes.has(index) && !variedNotes.has(index - 1) && !variedNotes.has(index + 1)) return;
+    const chord = chordAtBeat(chords, note.start);
+    const pc = ((note.pitch % 12) + 12) % 12;
+    if (scalePcs.includes(pc) || isChordTone(note.pitch, chord)) return;
+    const previous = notes[index - 1];
+    const next = notes[index + 1];
+    const neighbours = (previous !== undefined && Math.abs(note.pitch - previous.pitch) === 1) ||
+      (next !== undefined && Math.abs(note.pitch - next.pitch) === 1);
+    if (neighbours) return;
+    note.pitch = foldIntoRange(snapToChordTone(note.pitch, chord), low, high);
+  });
 
   // 終止音は和音構成音を必須にする (§4.1)。最終セクションでは主題の末尾 2 和音が
   // 終止形へ差し替わるため、そのままだと v1.3 で 26%→0% にした

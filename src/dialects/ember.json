@@ -1,0 +1,135 @@
+{
+  "id": "phrygian-seven",
+  "name": "Ember (フリギア♭II+7/8の駆ける短調)",
+  "stylePrompt": "phrygian minor with a flat-second chord, asymmetric 7/8 groove in two-two-three, nylon and steel string guitars, hand percussion, urgent descending vocal line, mediterranean modal color",
+  "defaults": {
+    "key": "E",
+    "mode": "minor",
+    "bpm": 132,
+    "meter": "7/8",
+    "arrangement": {
+      "pianoPattern": "off",
+      "guitarPattern": "strum",
+      "drumPattern": "basic",
+      "swing": 0,
+      "humanize": 0.09,
+      "velocityScale": 1
+    },
+    "arrangementVariants": [
+      { "name": "ギターと打楽器", "weight": 3, "arrangement": { "pianoPattern": "off", "guitarPattern": "strum", "drumPattern": "basic" } },
+      { "name": "アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "off", "guitarPattern": "arpeggio", "drumPattern": "basic" } },
+      { "name": "鍵盤を足す", "weight": 2, "arrangement": { "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "rock" } }
+    ]
+  },
+  "chord": {
+    "vocabulary": ["i", "i7", "♭II", "♭II△7", "III", "iv", "iv7", "v", "VI", "VII"],
+    "transitions": {
+      "i": { "♭II": 0.3, "♭II△7": 0.14, "VII": 0.16, "iv": 0.14, "VI": 0.14, "III": 0.12 },
+      "i7": { "♭II△7": 0.4, "iv7": 0.26, "VII": 0.2, "i": 0.14 },
+      "♭II": { "i": 0.48, "i7": 0.14, "VII": 0.14, "III": 0.12, "iv": 0.12 },
+      "♭II△7": { "i7": 0.42, "i": 0.28, "III": 0.16, "iv7": 0.14 },
+      "III": { "♭II△7": 0.26, "♭II": 0.24, "VII": 0.22, "iv7": 0.16, "i": 0.12 },
+      "iv": { "i": 0.36, "♭II": 0.3, "v": 0.18, "VII": 0.16 },
+      "iv7": { "i7": 0.38, "♭II△7": 0.3, "v": 0.18, "VII": 0.14 },
+      "v": { "i": 0.4, "i7": 0.16, "♭II": 0.26, "VI": 0.18 },
+      "VI": { "VII": 0.3, "♭II△7": 0.24, "i": 0.22, "iv7": 0.24 },
+      "VII": { "i": 0.32, "i7": 0.16, "VI": 0.2, "♭II": 0.2, "III": 0.12 }
+    },
+    "idioms": [
+      { "symbols": ["i7", "♭II△7", "i7", "VII"], "weight": 4 },
+      { "symbols": ["i", "VII", "VI", "♭II△7"], "weight": 3 },
+      { "symbols": ["iv7", "III", "♭II△7", "i7"], "weight": 2 }
+    ],
+    "idiomProbability": 0.72,
+    "cadences": {
+      "final": [
+        { "symbols": ["♭II△7", "i"], "weight": 3 },
+        { "symbols": ["♭II", "i"], "weight": 2 },
+        { "symbols": ["iv", "i"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["♭II△7"], "weight": 3 },
+        { "symbols": ["VII"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "1": 1 },
+      "chorus": { "1": 1 }
+    },
+    "cliches": ["pedal-shift"],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "breathProbability": 0.26,
+    "templates": {
+      "7/8": [
+        { "beats": [1, 1, 1.5], "weight": 3 },
+        { "beats": [1, 1, 1, 0.5], "weight": 2 },
+        { "beats": [0.5, 0.5, 1, 1.5], "weight": 2 },
+        { "beats": [2, 1.5], "weight": 2 },
+        { "beats": [-0.5, 0.5, 1, 1.5], "weight": 1 },
+        { "beats": [0.5, 0.5, 1, 0.5, 1], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "7/8": [
+        { "beats": [2, 1.5], "weight": 3 },
+        { "beats": [1.5, 2], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.36,
+    "chorusDensityBias": 0.24
+  },
+  "melody": {
+    "finalDegree": { "1": 4, "3": 2, "5": 1 },
+    "pitchCollection": "phrygian",
+    "leapProbability": { "default": 0.11, "chorusHead": 0.42 },
+    "leapRangeSemitones": [5, 8],
+    "afterLeapBias": "down",
+    "contour": "descending",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.2,
+    "motif": { "repeatProbability": 0.74 },
+    "nonChordTones": { "appoggiatura": 0.22, "suspension": 0.1, "chromaticPassing": 0.06 },
+    "registerShift": { "chorus": 3, "bridge": -2 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root"],
+      "chorus": ["ostinato"],
+      "bridge": ["pedal"],
+      "outro": ["root"]
+    },
+    "activity": 0.62, "syncopation": 0.24, "rests": 0.08, "chordToneRatio": 0.9,
+    "approachRatio": 0.26, "diatonicApproachRatio": 0.6, "chromaticApproachRatio": 0.14, "enclosureRatio": 0.06,
+    "resolveLeapRatio": 0.74, "fifthOctaveRatio": 0.32, "fillProbability": 0.16,
+    "range": [36, 55], "maxLeap": 9
+  },
+  "register": {
+    "melody": [60, 80],
+    "piano": [48, 70],
+    "guitar": [52, 76]
+  },
+  "expected": { "nonChordToneRatio": 0.36, "clashPerBar": 0.24 },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0
+  },
+  "groove": {
+    "subdivision": 0.5,
+    "accentPattern": [0, 1, 2],
+    "anticipation": 0
+  },
+  "sectionRules": {
+    "intro": { "phraseLengths": [4], "harmonicRhythm": { "1": 1 } },
+    "chorus": {
+      "idiomProbability": 0.86,
+      "idioms": [
+        { "symbols": ["i7", "♭II△7", "i7", "VII"], "weight": 4 },
+        { "symbols": ["i", "VII", "VI", "♭II△7"], "weight": 2 }
+      ]
+    },
+    "outro": { "phraseLengths": [4] }
+  }
+}

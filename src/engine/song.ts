@@ -85,7 +85,7 @@ export interface GenerateOptions {
   /** 例: "C", "F#"。省略時はダイアレクトのデフォルト */
   keyName?: string;
   bpm?: number;
-  /** 拍子 ("4/4" | "3/4" | "6/8")。省略時は 4/4 */
+  /** 拍子 (METERS のキー: "4/4" | "3/4" | "6/8" | "5/4" | "7/8")。省略時は 4/4 */
   mode?: Mode;
   meterName?: string;
   /**

@@ -104,13 +104,25 @@ function slotStarts(
   role: BassRole,
 ): number[] {
   if (role === "pedal") {
-    const pulse = meter.name === "4/4" ? 2 : 1.5;
+    const pulse = meter.name === "4/4" ? 2 : meter.groups ? meter.barBeats / 2 : 1.5;
     return Array.from({ length: Math.ceil(sectionBeats / pulse) }, (_, index) => index * pulse)
       .filter((beat) => beat < sectionBeats - 1e-7);
   }
   const pulse = meter.name === "6/8" ? (profile.activity > 0.72 ? 0.75 : 1.5)
     : profile.activity > 0.78 ? 0.5 : profile.activity > 0.4 ? 1 : 2;
   const starts: number[] = [];
+  if (meter.groups) {
+    // 変拍子は 1 小節を等間隔で割り切れない。通しで敷くと小節線を跨いだ位置に
+    // ベースが落ちて拍子が消えるため、小節頭から敷き直す
+    const bb = meter.barBeats;
+    for (let bar = 0; bar * bb < sectionBeats - 1e-7; bar++) {
+      for (let offset = 0; offset < bb - 1e-7; offset += pulse) {
+        const beat = bar * bb + offset;
+        if (beat < sectionBeats - 1e-7) starts.push(beat);
+      }
+    }
+    return starts;
+  }
   for (let beat = 0; beat < sectionBeats - 1e-7; beat += pulse) starts.push(beat);
   return starts;
 }
