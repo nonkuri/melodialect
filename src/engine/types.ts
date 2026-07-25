@@ -232,6 +232,12 @@ export interface GenerationMetrics {
   bassSmoothness: number;
   accompanimentClarity: number;
   sectionContrast: number;
+  /** 旋律と伴奏が拍頭の持続音どうしで半音衝突していないか。ダイアレクト相対 */
+  dissonanceControl: number;
+  /** セクション末とフレーズ末が和音構成音へ着地しているか */
+  cadenceLanding: number;
+  /** 候補が形状ガードで全て弾かれ、基準候補に落ちた */
+  fellBackToReference?: boolean;
 }
 
 export type DiversityLevel = "stable" | "standard" | "adventurous";
@@ -262,6 +268,12 @@ export interface GeneratedSection {
   guitar: NoteEvent[];
   drums: NoteEvent[];
   bpm?: number;
+  /**
+   * v1.3: このセクションを生成したダイアレクトの期待値。評価関数が
+   * 不協和をダイアレクト相対で判定するために、生成時の値をここへ焼き付ける。
+   * 参照で引くと、ユーザー定義ダイアレクトや合作モードで解決できない
+   */
+  expected?: DialectExpectation;
 }
 
 /**
@@ -448,6 +460,17 @@ export interface RegisterPlan {
   lowIntervalLimit: number;
 }
 
+/**
+ * ダイアレクトごとの生成傾向の期待値。評価関数はこの値からの乖離を測る。
+ * ブルースの ♭5 やテンションを絶対値で減点して個性を潰さないための基準。
+ */
+export interface DialectExpectation {
+  /** メロディの非和声音率 0..1 */
+  nonChordToneRatio: number;
+  /** 拍頭の持続音どうしが同オクターブで短 2 度になる、1 小節あたりの回数 */
+  clashPerBar: number;
+}
+
 export type AccompanimentTexture =
   | "block"
   | "arpeggio"
@@ -594,6 +617,8 @@ export interface Dialect {
   bass?: Partial<BassProfile>;
   /** v1.3: パート間の音域配分。省略時はエンジン既定 (DEFAULT_REGISTER)。 */
   register?: Partial<RegisterPlan>;
+  /** v1.3: 評価関数がダイアレクト相対で判定するための期待値。 */
+  expected?: Partial<DialectExpectation>;
   /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
   sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**

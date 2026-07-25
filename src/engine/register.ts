@@ -1,4 +1,4 @@
-import type { Dialect, NoteEvent, RegisterPlan } from "./types.js";
+import type { Dialect, DialectExpectation, NoteEvent, RegisterPlan } from "./types.js";
 
 /**
  * 音域配分の既定値 (§4.1)。
@@ -26,6 +26,11 @@ const ABSOLUTE_FLOOR = 40;
 /** 旋律を避けるために窓を動かせる上限。これ以上動かすと編成そのものが変わる */
 const MAX_SHIFT = 10;
 
+export const DEFAULT_EXPECTATION: DialectExpectation = {
+  nonChordToneRatio: 0.24,
+  clashPerBar: 0.15,
+};
+
 export function registerPlanFor(dialect: Dialect): RegisterPlan {
   const source = dialect.register;
   return {
@@ -35,6 +40,13 @@ export function registerPlanFor(dialect: Dialect): RegisterPlan {
     melodyClearance: source?.melodyClearance ?? DEFAULT_REGISTER.melodyClearance,
     minVoicingSpan: source?.minVoicingSpan ?? DEFAULT_REGISTER.minVoicingSpan,
     lowIntervalLimit: source?.lowIntervalLimit ?? DEFAULT_REGISTER.lowIntervalLimit,
+  };
+}
+
+export function expectationFor(dialect: Dialect): DialectExpectation {
+  return {
+    nonChordToneRatio: dialect.expected?.nonChordToneRatio ?? DEFAULT_EXPECTATION.nonChordToneRatio,
+    clashPerBar: dialect.expected?.clashPerBar ?? DEFAULT_EXPECTATION.clashPerBar,
   };
 }
 

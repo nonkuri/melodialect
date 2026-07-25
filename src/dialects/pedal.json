@@ -78,6 +78,7 @@
     "melodyClearance": 1,
     "guitar": [55, 79]
   },
+  "expected": { "nonChordToneRatio": 0.34, "clashPerBar": 0.05 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.08

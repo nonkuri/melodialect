@@ -82,6 +82,7 @@
   "register": {
     "melodyClearance": 3
   },
+  "expected": { "nonChordToneRatio": 0.35, "clashPerBar": 0.56 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.42

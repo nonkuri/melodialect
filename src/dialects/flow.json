@@ -85,6 +85,7 @@
     "piano": [46, 68],
     "guitar": [55, 77]
   },
+  "expected": { "nonChordToneRatio": 0.29, "clashPerBar": 0.05 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.05

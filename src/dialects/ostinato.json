@@ -70,6 +70,7 @@
   "register": {
     "piano": [50, 70]
   },
+  "expected": { "nonChordToneRatio": 0.38, "clashPerBar": 0.05 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0

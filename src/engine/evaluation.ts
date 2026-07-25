@@ -164,21 +164,42 @@ function harmonicCoherence(song: Song): number {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
+/**
+ * 声部移動の評価 (§4.4)。
+ *
+ * 旧実装は移動量の合計をそのまま減点していたため、まったく動かない伴奏が
+ * 最高得点になった。この指標の重みを上げると静止した伴奏が選ばれ、
+ * セクション対比と正面から衝突する。
+ *
+ * また加算がオンセット群の数に比例していたので、打点の多いパターン
+ * (eighth / interlocking) は「密度が高いだけ」で減点されていた。
+ * interlock-332 と ostinato-minimal は定義どおりのことをして罰せられる。
+ * ここでは 1 遷移 = 1 サンプルとして平均し、密度の影響を打ち消す。
+ */
+function movementScore(distance: number): number {
+  if (distance === 0) return 0.72; // 静止は中立。最良でも最悪でもない
+  if (distance <= 3) return 1;
+  return clamp01(1 - (distance - 3) / 9);
+}
+
+function nearestMovement(pitch: number, previous: number[]): number {
+  return Math.min(...previous.map((source) => {
+    const raw = Math.abs(pitch - source);
+    return Math.min(raw, Math.abs(raw - 12), Math.abs(raw - 24));
+  }));
+}
+
 function voiceLeading(song: Song): number {
-  let movement = 0;
-  let count = 0;
+  const transitions: number[] = [];
+  const scoreTransition = (previous: number[], current: number[]): void => {
+    if (!previous.length || !current.length) return;
+    const mean = current.reduce((sum, pitch) => sum + nearestMovement(pitch, previous), 0) /
+      current.length;
+    transitions.push(movementScore(mean));
+  };
   for (const section of song.sections) {
     for (let index = 1; index < section.chords.length; index++) {
-      const previous = section.chords[index - 1]!.pitches;
-      const current = section.chords[index]!.pitches;
-      if (!previous.length || !current.length) continue;
-      current.forEach((pitch) => {
-        movement += Math.min(...previous.map((source) => {
-          const raw = Math.abs(pitch - source);
-          return Math.min(raw, Math.abs(raw - 12), Math.abs(raw - 24));
-        }));
-        count += 1;
-      });
+      scoreTransition(section.chords[index - 1]!.pitches, section.chords[index]!.pitches);
     }
     for (const part of ["piano", "guitar"] as const) {
       const onsets = new Map<string, number[]>();
@@ -190,19 +211,106 @@ function voiceLeading(song: Song): number {
       });
       const groups = Array.from(onsets.entries()).sort((a, b) => Number(a[0]) - Number(b[0]))
         .map(([, pitches]) => pitches);
-      groups.slice(1).forEach((current, index) => {
-        const previous = groups[index]!;
-        current.forEach((pitch) => {
-          movement += Math.min(...previous.map((source) => {
-            const raw = Math.abs(pitch - source);
-            return Math.min(raw, Math.abs(raw - 12), Math.abs(raw - 24));
-          }));
-          count += 1;
-        });
-      });
+      groups.slice(1).forEach((current, index) => scoreTransition(groups[index]!, current));
     }
   }
-  return count ? clamp01(1 - movement / count / 7) : 0.7;
+  return transitions.length
+    ? transitions.reduce((sum, value) => sum + value, 0) / transitions.length
+    : 0.7;
+}
+
+/** 衝突検出用の 0.25 拍バケット。素直な総当たりは旋律 × 伴奏の O(n²) になる */
+const CLASH_BUCKET = 0.25;
+/** 装飾音や 16 分の経過音は無罪にする。これ未満の音は数えない */
+const CLASH_MIN_DURATION = 0.5;
+/** 同時に鳴っていると言える最小の重なり */
+const CLASH_MIN_OVERLAP = 0.25;
+
+function bucketNotes(notes: NoteEvent[]): Map<number, NoteEvent[]> {
+  const buckets = new Map<number, NoteEvent[]>();
+  for (const note of notes) {
+    if (note.duration < CLASH_MIN_DURATION - EPSILON) continue;
+    const last = Math.floor((note.start + note.duration - EPSILON) / CLASH_BUCKET);
+    for (let index = Math.floor(note.start / CLASH_BUCKET); index <= last; index++) {
+      const group = buckets.get(index) ?? [];
+      group.push(note);
+      buckets.set(index, group);
+    }
+  }
+  return buckets;
+}
+
+/**
+ * 不協和の制御 (§4.4)。
+ *
+ * 短 2 度を一律に減点すると、ブルース音階の ♭5 が構造的に和音から外れる
+ * blue-shuffle、angular-sevenths、extended-voicing が常に不利になり、
+ * セレクタが一番無難な候補ばかり選んでこの 3 つの個性が消える。
+ *
+ * そこで二重に絞る。(1) 短い装飾音やすれ違いの経過音は無罪とし、0.5 拍以上
+ * 保持される音どうしが 0.25 拍以上重なって半音・短 9 度になる場合だけを数える。
+ * (2) 絶対値ではなくダイアレクトが宣言した期待値からの超過分を測る。
+ *
+ * (1) だけをもっと厳しくすると全ダイアレクトで 0 になり、指標としての
+ * 判別力が消える (accompanimentClarity が 0.98 で飽和していたのと同じ失敗)。
+ * 実測で定義を比較し、ダイアレクト間の標準偏差が最大になる形を選んでいる。
+ */
+function dissonanceControl(song: Song): number {
+  const values: number[] = [];
+  for (const section of song.sections) {
+    const expected = section.expected?.clashPerBar ?? 0.26;
+    const buckets = bucketNotes([...section.piano, ...section.guitar]);
+    let clashes = 0;
+    for (const note of section.melody) {
+      if (note.duration < CLASH_MIN_DURATION - EPSILON) continue;
+      const seen = new Set<NoteEvent>();
+      const last = Math.floor((note.start + note.duration - EPSILON) / CLASH_BUCKET);
+      for (let index = Math.floor(note.start / CLASH_BUCKET); index <= last; index++) {
+        for (const other of buckets.get(index) ?? []) {
+          if (seen.has(other)) continue;
+          seen.add(other);
+          const overlap = Math.min(note.start + note.duration, other.start + other.duration) -
+            Math.max(note.start, other.start);
+          if (overlap < CLASH_MIN_OVERLAP - EPSILON) continue;
+          const interval = Math.abs(note.pitch - other.pitch);
+          if (interval === 1 || interval === 13) clashes += 1;
+        }
+      }
+    }
+    const perBar = clashes / Math.max(1, section.plan.bars);
+    values.push(clamp01(1 - Math.max(0, perBar - expected) / 0.4));
+  }
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 1;
+}
+
+/** セクション末とフレーズ末が和音構成音へ着地しているか (§4.4) */
+function cadenceLanding(song: Song): number {
+  const values: number[] = [];
+  for (const section of song.sections) {
+    if (!section.melody.length || !section.chords.length) continue;
+    const ordered = [...section.melody].sort((a, b) => a.start - b.start);
+    const barBeats = song.meter.barBeats;
+    // フレーズ末の音 = 各フレーズ最終小節で最後に鳴る音
+    const phraseEnds: NoteEvent[] = [];
+    let bar = 0;
+    for (const length of section.plan.phraseLengths) {
+      bar += length;
+      const limit = bar * barBeats;
+      const candidate = [...ordered].reverse().find((note) => note.start < limit - EPSILON);
+      if (candidate) phraseEnds.push(candidate);
+    }
+    const last = ordered.at(-1)!;
+    if (!phraseEnds.includes(last)) phraseEnds.push(last);
+    for (const note of phraseEnds) {
+      const chord = chordAtBeat(section.chords, note.start);
+      const chordPcs = chord.pitches.map((pitch) => ((pitch % 12) + 12) % 12);
+      // 曲末は特に厳しく見る
+      const weight = note === last ? 2 : 1;
+      const fitted = chordPcs.includes(((note.pitch % 12) + 12) % 12) ? 1 : 0;
+      for (let index = 0; index < weight; index++) values.push(fitted);
+    }
+  }
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 1;
 }
 
 function melodicFit(song: Song): number {
@@ -307,39 +415,39 @@ function ratioWithin(value: number, reference: number, minimum: number, maximum:
 }
 
 /**
- * The first candidate is the compatibility baseline. Alternatives may improve it,
- * but automatic selection must not create a radically denser chorus or a hollow
- * outro merely because a global contrast score increased.
+ * 基準候補 (候補 0) からの逸脱を、セクションの「形」の観点だけで制限する。
+ *
+ * ここは以前、各指標に個別のハードしきい値も課していた。しかし候補間の指標差は
+ * 0.02〜0.03 程度しかないため、「不協和が 0.03 良くなったが旋律適合が 0.02
+ * 落ちた」という健全なトレードオフまで機械的に弾いていた。実測で 112 曲中
+ * 81 曲 (72%) で代替案が全滅し、候補を 3 つ作る意味が失われていた。
+ *
+ * 指標間のトレードオフは quality の重み付き和が既に扱っている。ここは
+ * 本来の目的 (サビだけ極端に厚くなる、アウトロが空洞になる、といった構造の
+ * 破壊を防ぐ) に絞る。
  */
 function preservesSectionShape(candidate: Song, reference: Song): boolean {
   if (candidate.sections.length !== reference.sections.length) return false;
-  const metrics = candidate.generationReport?.metrics ?? evaluateSong(candidate);
-  const baseline = reference.generationReport?.metrics ?? evaluateSong(reference);
-  if (metrics.harmonicCoherence < baseline.harmonicCoherence - 0.025 ||
-    metrics.voiceLeading < baseline.voiceLeading - 0.025 ||
-    metrics.melodicFit < baseline.melodicFit - 0.02 ||
-    metrics.bassSmoothness < baseline.bassSmoothness - 0.035 ||
-    metrics.accompanimentClarity < baseline.accompanimentClarity - 0.025) return false;
   return candidate.sections.every((section, index) => {
     const original = reference.sections[index]!;
     if (section.plan.type !== original.plan.type) return false;
     const total = densityOf(section, ["piano", "guitar", "bass", "drums"]);
     const originalTotal = densityOf(original, ["piano", "guitar", "bass", "drums"]);
-    const harmony = densityOf(section, ["piano", "guitar"]);
-    const originalHarmony = densityOf(original, ["piano", "guitar"]);
     const bass = densityOf(section, ["bass"]);
     const originalBass = densityOf(original, ["bass"]);
     const drums = densityOf(section, ["drums"]);
     const originalDrums = densityOf(original, ["drums"]);
+    // ピアノとギターの担当交代は編曲プランが意図してやっていることで、
+    // UI も「伴奏編成を変更」を候補の違いとして提示している。和声楽器を
+    // 個別に縛ると、その入れ替えが全部「構造の破壊」として弾かれる。
+    // 縛るのは総密度と、曲のエネルギーを担うベース・ドラムだけにする。
     if (section.plan.type === "chorus") {
       return ratioWithin(total, originalTotal, 0.68, 1.42) &&
-        ratioWithin(harmony, originalHarmony, 0.55, 1.5) &&
         ratioWithin(bass, originalBass, 0.55, 1.5) &&
         ratioWithin(drums, originalDrums, 0.65, 1.35);
     }
     if (section.plan.type === "outro") {
       return ratioWithin(total, originalTotal, 0.48, 1.25) &&
-        ratioWithin(harmony, originalHarmony, 0.4, 1.35) &&
         ratioWithin(bass, originalBass, 0.55, 1.45) &&
         ratioWithin(drums, originalDrums, 0.3, 1.2);
     }
@@ -355,9 +463,11 @@ export function evaluateSong(song: Song): GenerationMetrics {
   const bass = bassSmoothness(song);
   const accompaniment = accompanimentClarity(song);
   const contrast = sectionContrast(song);
+  const dissonance = dissonanceControl(song);
+  const landing = cadenceLanding(song);
   const quality = clamp01(
-    harmonic * 0.21 + voices * 0.1 + melody * 0.2 + bass * 0.19 +
-    accompaniment * 0.16 + contrast * 0.14 -
+    harmonic * 0.17 + voices * 0.12 + melody * 0.16 + bass * 0.13 +
+    accompaniment * 0.12 + contrast * 0.1 + dissonance * 0.12 + landing * 0.08 -
     violations.length * 0.25,
   );
   return {
@@ -370,6 +480,8 @@ export function evaluateSong(song: Song): GenerationMetrics {
     bassSmoothness: bass,
     accompanimentClarity: accompaniment,
     sectionContrast: contrast,
+    dissonanceControl: dissonance,
+    cadenceLanding: landing,
   };
 }
 
@@ -449,6 +561,12 @@ export function selectSongCandidate(
   const reference = candidates[0]!;
   const guarded = pool.filter((song) => song === reference || preservesSectionShape(song, reference));
   const qualified = guarded.length ? guarded : [reference];
+  // 形状ガードは reference を無条件で通すので、guarded が空になることはまずない。
+  // 実際に起きるのは「代替案だけが全部弾かれ、選択肢が reference 1 つになる」形。
+  // 無言で落ちると「候補が同点だった」のか「ガードが働いた」のか区別できない
+  if (candidates.length > 1 && qualified.every((song) => song === reference)) {
+    reference.generationReport!.metrics.fellBackToReference = true;
+  }
   const maxQuality = Math.max(...qualified.map((song) => song.generationReport!.metrics.quality));
   const referenceQuality = reference.generationReport!.metrics.quality;
   // A different automatic result must show a meaningful measured improvement.

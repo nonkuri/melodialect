@@ -71,6 +71,7 @@
   "register": {
     "piano": [50, 74]
   },
+  "expected": { "nonChordToneRatio": 0.3, "clashPerBar": 0.05 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.15

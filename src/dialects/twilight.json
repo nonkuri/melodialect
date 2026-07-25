@@ -71,6 +71,7 @@
     "nonChordTones": { "appoggiatura": 0.22, "suspension": 0.08, "chromaticPassing": 0.08 },
     "registerShift": { "chorus": 4 }
   },
+  "expected": { "nonChordToneRatio": 0.35, "clashPerBar": 0.5 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.0

@@ -83,6 +83,7 @@
     "piano": [46, 72],
     "minVoicingSpan": 19
   },
+  "expected": { "nonChordToneRatio": 0.29, "clashPerBar": 0.56 },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0.1

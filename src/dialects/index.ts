@@ -312,6 +312,13 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       }
     }
   }
+  if (d.expected !== undefined) {
+    if (!isRecord(d.expected)) add("expected", "期待値のオブジェクトが必要です");
+    else {
+      if (d.expected.nonChordToneRatio !== undefined) probability("expected.nonChordToneRatio", d.expected.nonChordToneRatio);
+      if (d.expected.clashPerBar !== undefined) range("expected.clashPerBar", d.expected.clashPerBar, 0, 8);
+    }
+  }
   if (d.sectionRules !== undefined) {
     if (!isRecord(d.sectionRules)) add("sectionRules", "セクション別規則のオブジェクトが必要です");
     else Object.entries(d.sectionRules).forEach(([section, rule]) => {
