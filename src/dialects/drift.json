@@ -56,14 +56,16 @@
     "borrowedChords": false
   },
   "rhythm": {
-    "breathProbability": 0.34,
+    "breathProbability": 0.4,
     "templates": {
       "4/4": [
-        { "beats": [1, 0.5, 0.5, 1, 1], "weight": 3 },
+        { "beats": [1, 0.5, 0.5, 1, 1], "weight": 2 },
         { "beats": [0.5, 1, 0.5, 2], "weight": 2 },
         { "beats": [1.5, 0.5, 1, 1], "weight": 2 },
         { "beats": [-0.5, 1.5, 1, 1], "weight": 2 },
-        { "beats": [2, 1, 1], "weight": 1 }
+        { "beats": [2, 1, 1], "weight": 2 },
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [-1, 2, 1], "weight": 1 }
       ]
     },
     "finalTemplates": {

@@ -40,6 +40,7 @@ import { CompositionDesignDialog, type CompositionTool } from "./CompositionDesi
 import { PwaStatusNotice } from "./PwaStatusNotice.js";
 import { createStarterWorkspace } from "./starterPresets.js";
 import { validateSoundFontAssignments } from "../audio/soundfonts.js";
+import { applyTimbrePreset } from "../audio/timbrePresets.js";
 import {
   addNote,
   analyzeControlChange,
@@ -1451,6 +1452,8 @@ export function ComposerApp() {
             mixer[part].soundfont = assignment;
             commitAudioSettings({ mixer }, true);
           }}
+          onApplyTimbrePreset={(preset) =>
+            commitAudioSettings({ mixer: applyTimbrePreset(workspace.mixer!, preset) }, true)}
         />
       )}
     </div>

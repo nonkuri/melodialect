@@ -22,6 +22,8 @@ import {
   pulse,
   ember,
   prism,
+  ryukyu,
+  miyakobushi,
   dialectList,
 } from "../src/dialects/index.js";
 import { scaleOf } from "../src/engine/harmony.js";
@@ -514,10 +516,10 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
   });
 });
 
-describe("追加ダイアレクト D10〜D18", () => {
-  it("全18ダイアレクトが重複なく推奨伴奏を持つ", () => {
-    expect(dialectList).toHaveLength(18);
-    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(18);
+describe("追加ダイアレクト D10〜D20", () => {
+  it("全20ダイアレクトが重複なく推奨伴奏を持つ", () => {
+    expect(dialectList).toHaveLength(20);
+    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(20);
     for (const dialect of dialectList) {
       expect(dialect.defaults.arrangement).toBeDefined();
       expect(generateSong({ dialect, seed: 1 }).arrangement).toMatchObject(
@@ -666,6 +668,52 @@ describe("旋法と変拍子のダイアレクト D15〜D18", () => {
       expect(chorus.drums.some((n) => Math.abs(n.start - beat) < 0.05 && n.pitch === 36),
         `${beat}拍のキック`).toBe(true);
     }
+  });
+});
+
+describe("日本の音階のダイアレクト D19〜D20", () => {
+  const FORM = parseForm("i,v,c,v,c,b,c,o");
+  const degreeOf = (pitch: number, tonic: number) => (((pitch - tonic) % 12) + 12) % 12;
+
+  it("Ryukyu: 琉球音階 (♮3・♮7 を含み 2 度と 6 度が無い) で歌い、三線のストロークを保つ", () => {
+    const song = generateSong({ dialect: ryukyu, seed: 21, form: FORM });
+    const RYUKYU = [0, 4, 5, 7, 11];
+    expect(scaleOf(song.key, ryukyu.melody.pitchCollection))
+      .toEqual(RYUKYU.map((offset) => (song.key.tonic + offset) % 12));
+    const degrees = song.sections.flatMap((section) => section.melody)
+      .map((note) => degreeOf(note.pitch, song.key.tonic));
+    expect(degrees.filter((degree) => RYUKYU.includes(degree)).length / degrees.length)
+      .toBeGreaterThan(0.9);
+    // 長 2 度と長 6 度は琉球音階に無い。ここが混ざると本土のヨナ抜きに寄る
+    expect(degrees.filter((degree) => degree === 2 || degree === 9).length / degrees.length)
+      .toBeLessThan(0.06);
+    // 三線に当たるギターのストロークはダイアレクトの定義的な奏法なので、
+    // どの伴奏バリアントでも外れない
+    for (const variant of ryukyu.defaults.arrangementVariants!) {
+      expect(variant.arrangement.guitarPattern).toBe("strum");
+    }
+  });
+
+  it("Miyakobushi: 都節音階の♭2 と♭II が鳴り、持続低音の上で音が長く伸びる", () => {
+    const song = generateSong({ dialect: miyakobushi, seed: 3, form: FORM });
+    expect(song.key.mode).toBe("minor");
+    // 都節の顔は主音のすぐ上の半音。律音階やヨナ抜き短音階には無い
+    expect(scaleOf(song.key, miyakobushi.melody.pitchCollection))
+      .toEqual([0, 1, 5, 7, 8].map((offset) => (song.key.tonic + offset) % 12));
+    const melody = song.sections.flatMap((section) => section.melody);
+    expect(melody.filter((note) => degreeOf(note.pitch, song.key.tonic) === 1).length)
+      .toBeGreaterThan(0);
+    const flatTwo = song.sections.flatMap((section) => section.chords)
+      .filter((chord) => chord.symbol.startsWith("♭II"));
+    expect(flatTwo.length).toBeGreaterThan(0);
+    expect(flatTwo[0]!.rootPc).toBe((song.key.tonic + 1) % 12);
+
+    const bars = song.sections.reduce((sum, section) => sum + section.plan.bars, 0);
+    expect(melody.length / bars).toBeLessThan(2.5);
+    expect(melody.filter((note) => note.duration >= 2).length / melody.length)
+      .toBeGreaterThan(0.35);
+    // ベースは調の中心を保つペダル。コードごとに動き回らない
+    expect(song.sections.flatMap((section) => section.bass).length / bars).toBeLessThan(2.2);
   });
 });
 

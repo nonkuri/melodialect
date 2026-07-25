@@ -23,6 +23,7 @@ import {
   GENERALUSER_SOUNDFONT_VERSION,
   generalUserAssignments,
 } from "../audio/standardSoundFont.js";
+import { TIMBRE_PRESETS, type TimbrePreset } from "../audio/timbrePresets.js";
 
 const PARTS: Array<[SongPart, string]> = [
   ["melody", "メロディ"],
@@ -43,11 +44,13 @@ export function SoundFontLibrary({
   onClose,
   onAssign,
   onUseQualityStandard,
+  onApplyTimbrePreset,
   issues = [],
 }: {
   onClose: () => void;
   onAssign: (part: SongPart, assignment: SoundFontAssignment) => void;
   onUseQualityStandard: (assignments: Record<SongPart, SoundFontAssignment>) => void;
+  onApplyTimbrePreset: (preset: TimbrePreset) => void;
   issues?: string[];
 }) {
   const [fonts, setFonts] = useState<SoundFontMetadata[]>([]);
@@ -193,6 +196,38 @@ export function SoundFontLibrary({
             )}
           </div>
         </div>
+
+        <section className="timbre-presets">
+          <header>
+            <strong>内蔵の音色セット</strong>
+            <span>
+              GeneralUser GS の音色で 5 パートをまとめて着せ替えます。
+              {qualityStatus?.installed ? "" : "先に上の高音質音源を準備してください。"}
+            </span>
+          </header>
+          <div className="timbre-preset-list">
+            {TIMBRE_PRESETS.map((preset) => (
+              <article key={preset.id}>
+                <div>
+                  <strong>{preset.name}</strong>
+                  <small>{preset.description}</small>
+                  <small>
+                    相性: {preset.suitedTo} ／{" "}
+                    {(Object.keys(preset.parts) as SongPart[])
+                      .map((part) => preset.parts[part].presetName).join(" · ")}
+                  </small>
+                </div>
+                <button
+                  disabled={!qualityStatus?.installed}
+                  onClick={() => {
+                    onApplyTimbrePreset(preset);
+                    setMessage(`音色セット「${preset.name}」を適用しました`);
+                  }}
+                >適用</button>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <div className="soundfont-storage">
           <span>使用量: {bytes(report?.usage)}</span>

@@ -28,6 +28,11 @@ const PITCH_COLLECTIONS: Record<PitchCollection, readonly number[]> = {
   "major-pentatonic": [0, 2, 4, 7, 9],
   "minor-pentatonic": [0, 3, 5, 7, 10],
   blues: [0, 3, 5, 6, 7, 10],
+  // 日本の音階。半音を含む都節と、半音を含まない律 (どちらも 5 音) を分けて持つ。
+  // 琉球 (沖縄) 音階は長 3 度・長 7 度を持つため長調の I・IV・V に乗る
+  ryukyu: [0, 4, 5, 7, 11],
+  miyakobushi: [0, 1, 5, 7, 8],
+  ritsu: [0, 2, 5, 7, 9],
 };
 
 const DEGREE_MAP: Record<string, number> = {

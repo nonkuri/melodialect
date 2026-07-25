@@ -20,6 +20,8 @@ import driftJson from "./drift.json" with { type: "json" };
 import pulseJson from "./pulse.json" with { type: "json" };
 import emberJson from "./ember.json" with { type: "json" };
 import prismJson from "./prism.json" with { type: "json" };
+import ryukyuJson from "./ryukyu.json" with { type: "json" };
+import miyakobushiJson from "./miyakobushi.json" with { type: "json" };
 
 export interface DialectValidationIssue {
   path: string;
@@ -36,6 +38,7 @@ export const MELODIC_CONTOURS = [
 export const PITCH_COLLECTIONS = [
   "major", "lydian", "mixolydian", "dorian", "phrygian",
   "natural-minor", "harmonic-minor", "major-pentatonic", "minor-pentatonic", "blues",
+  "ryukyu", "miyakobushi", "ritsu",
 ] as const;
 export const PIANO_PATTERNS = ["off", "block", "arpeggio", "bossa", "eighth", "ballad", "syncopated", "voice-led"] as const;
 export const GUITAR_PATTERNS = ["off", "strum", "arpeggio", "bossa", "syncopated", "interlocking"] as const;
@@ -442,6 +445,8 @@ export const drift: Dialect = loadDialect(driftJson);
 export const pulse: Dialect = loadDialect(pulseJson);
 export const ember: Dialect = loadDialect(emberJson);
 export const prism: Dialect = loadDialect(prismJson);
+export const ryukyu: Dialect = loadDialect(ryukyuJson);
+export const miyakobushi: Dialect = loadDialect(miyakobushiJson);
 
 /** id と短縮名の両方で引ける */
 export const dialects: Record<string, Dialect> = {
@@ -463,6 +468,8 @@ export const dialects: Record<string, Dialect> = {
   [pulse.id]: pulse,
   [ember.id]: ember,
   [prism.id]: prism,
+  [ryukyu.id]: ryukyu,
+  [miyakobushi.id]: miyakobushi,
   chromatic,
   modal,
   pedal,
@@ -481,6 +488,8 @@ export const dialects: Record<string, Dialect> = {
   pulse,
   ember,
   prism,
+  ryukyu,
+  miyakobushi,
 };
 
 /** UI 表示用の重複なしリスト */
@@ -503,6 +512,8 @@ export const dialectList: Dialect[] = [
   pulse,
   ember,
   prism,
+  ryukyu,
+  miyakobushi,
 ];
 
 const USER_DIALECTS_KEY = "melodialect.userDialects.v1";

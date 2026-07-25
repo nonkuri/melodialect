@@ -1,6 +1,6 @@
 {
   "name": "melodialect",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -19,6 +19,7 @@
     "test:e2e:install": "playwright install --with-deps chrome msedge firefox webkit",
     "test:links": "node scripts/check-links.mjs",
     "test:performance": "tsx scripts/benchmark-generation.ts && npm run test:audio",
+    "calibrate:timbres": "tsx scripts/calibrate-timbres.ts",
     "test:watch": "vitest --watch test",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run test:links && npm run build",

@@ -7,6 +7,7 @@ import type {
   SongPart,
 } from "../engine/types.js";
 import { normalizeMixer } from "../engine/controls.js";
+import { TIMBRE_PRESETS, applyTimbrePreset, findTimbrePreset } from "../audio/timbrePresets.js";
 
 export interface LevelValue {
   peak: number;
@@ -299,6 +300,20 @@ export function ArrangementPanel(props: Props) {
           }}>
             <option value="">プリセットを選択…</option>
             {presets.map((preset, index) => <option value={index} key={`${preset.name}-${index}`}>{preset.name}</option>)}
+          </select>
+          <select
+            aria-label="内蔵音色セット"
+            value=""
+            title="GeneralUser GS の音色で 5 パートをまとめて着せ替えます"
+            onChange={(event) => {
+              const preset = findTimbrePreset(event.target.value);
+              if (preset) onMixerChange(applyTimbrePreset(mixer, preset), true);
+            }}
+          >
+            <option value="">音色セット…</option>
+            {TIMBRE_PRESETS.map((preset) => (
+              <option value={preset.id} key={preset.id}>{preset.name}</option>
+            ))}
           </select>
           <button disabled={selectedPresetIndex === ""} onClick={overwriteSelectedPreset}>上書き</button>
           <button className="danger" disabled={selectedPresetIndex === ""} onClick={deleteSelectedPreset}>削除</button>

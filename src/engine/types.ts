@@ -388,7 +388,10 @@ export type PitchCollection =
   | "harmonic-minor"
   | "major-pentatonic"
   | "minor-pentatonic"
-  | "blues";
+  | "blues"
+  | "ryukyu"
+  | "miyakobushi"
+  | "ritsu";
 
 export type MelodicContour =
   | "stepwise"

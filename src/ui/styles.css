@@ -947,6 +947,14 @@ kbd { color: #8993a9; font: inherit; font-size: 10px; }
 .help-guide footer { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
 .help-guide a { color: #9db8ff; }
 
+.timbre-presets { margin: 10px 0; }
+.timbre-presets header { display: grid; gap: 2px; margin-bottom: 6px; }
+.timbre-presets header span { color: #9da7ba; font-size: 12px; }
+.timbre-preset-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px; }
+.timbre-preset-list article { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; background: #292e3a; border: 1px solid #3d4351; border-radius: 6px; }
+.timbre-preset-list article > div { display: grid; gap: 2px; }
+.timbre-preset-list small { color: #8993a9; font-size: 11px; line-height: 1.5; }
+
 .soundfont-library { width: min(1080px, 97vw); }
 .soundfont-toolbar { flex-wrap: wrap; }
 .soundfont-toolbar select { min-width: 280px; }
