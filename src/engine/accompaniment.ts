@@ -151,11 +151,7 @@ export function generateAccompaniment(
   });
 
   const baseConfig = normalizeArrangement({ ...dialect.defaults.arrangement, ...arrangement });
-  const config = settingsForArrangementPlan(
-    baseConfig,
-    context?.arrangementSection,
-    context?.candidateIndex ?? 0,
-  );
+  const config = settingsForArrangementPlan(baseConfig, context?.arrangementSection);
   if (config.pianoPattern !== "block") {
     piano.splice(0, piano.length, ...generatePianoPattern(chords, config.pianoPattern, meter));
   }
@@ -226,8 +222,9 @@ export function generateAccompaniment(
       guitar: namedRng("guitar"),
       drums: namedRng("drums"),
     },
-    (context?.candidateIndex ?? 0) === 0 || config.pianoPattern === "bossa" ||
-      config.pianoPattern === "voice-led" || config.guitarPattern === "bossa",
+    // 手で組んだ伴奏型だけは間引き・音域変更から守る。候補 0 かどうかは条件にしない
+    config.pianoPattern === "bossa" || config.pianoPattern === "voice-led" ||
+      config.guitarPattern === "bossa",
   );
   piano.splice(0, piano.length, ...arranged.piano);
   guitar.splice(0, guitar.length, ...arranged.guitar);

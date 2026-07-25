@@ -99,11 +99,17 @@ export function createArrangementPlan(
 ): ArrangementPlan {
   const config = normalizeArrangement(arrangement);
   const rng = createNamedRng(seed, "arrangement-plan", 0, candidateIndex);
-  const legacyStrategy: ArrangementPlan["strategy"] = config.guitarPattern === "off"
-    ? "piano-led" : config.pianoPattern === "off" ? "guitar-led" : "ensemble";
-  const strategy = !config.autoArrange || candidateIndex === 0
-    ? legacyStrategy
-    : rng.pick(STRATEGIES);
+  // 戦略名は注記に出るので、鳴っていない楽器を主役だと言わせない。
+  // ピアノとギターの両方が有効なときだけ全戦略から選ぶ
+  const pianoOff = config.pianoPattern === "off";
+  const guitarOff = config.guitarPattern === "off";
+  const available: ArrangementPlan["strategy"][] = guitarOff
+    ? ["piano-led"]
+    : pianoOff ? ["guitar-led"] : STRATEGIES;
+  // 候補 0 だけを別扱いすると、候補 0 には間引きも音域変更も適用されないまま
+  // 候補 1 以降にだけ適用され、形状ガードが常に代替案を弾く。全候補を
+  // 同じ規則で作り、違いは乱数だけにする
+  const strategy = !config.autoArrange ? available[0]! : rng.pick(available);
   const densityControl = config.accompanimentDensity ?? 0.5;
   const development = config.development ?? 0.5;
   return {
@@ -116,22 +122,13 @@ export function createArrangementPlan(
       const repeatIndex = types.slice(0, sectionIndex).filter((candidate) => candidate === type).length;
       const repeatGrowth = repeatIndex * development * 0.06;
       const density = clamp01(sectionBaseDensity(type) + (densityControl - 0.5) * 0.5 + repeatGrowth);
-      const automaticallyVary = Boolean(config.autoArrange && candidateIndex > 0);
-      const sourcePianoActive = dialectConfig.pianoPattern !== "off";
-      const sourceGuitarActive = dialectConfig.guitarPattern !== "off";
-      let pianoActive = automaticallyVary
-        ? sourcePianoActive && strategy !== "guitar-led"
-        : sourcePianoActive;
-      let guitarActive = automaticallyVary
-        ? sourceGuitarActive && strategy !== "piano-led"
-        : sourceGuitarActive;
-      // 自動編曲は既存パートを引き算して役割を分ける。ダイアレクトが
-      // 無効にしている楽器を勝手に追加せず、和声楽器が全消音になる場合だけ
-      // 元の有効パートを残す。
-      if (!pianoActive && !guitarActive) {
-        if (sourcePianoActive) pianoActive = true;
-        else if (sourceGuitarActive) guitarActive = true;
-      }
+      // ダイアレクトが宣言した編成はそのまま尊重する。以前は戦略によって
+      // ピアノやギターを曲全体で消音していたが、これはダイアレクトの
+      // 性格そのものを消す (piano-led のダイアレクトからピアノが消える)。
+      // 役割分担は avoidPartCollision が打点単位でやるので、
+      // 戦略はテクスチャと密度の振り分けだけを担当する。
+      const pianoActive = dialectConfig.pianoPattern !== "off";
+      const guitarActive = dialectConfig.guitarPattern !== "off";
       const drumsActive = dialectConfig.drumPattern !== "off";
       return {
         sectionIndex,
@@ -156,9 +153,8 @@ export function createArrangementPlan(
 export function settingsForArrangementPlan(
   source: ArrangementSettings,
   section: ArrangementSectionPlan | undefined,
-  candidateIndex: number,
 ): ArrangementSettings {
-  if (!section || !source.autoArrange || candidateIndex === 0) return source;
+  if (!section || !source.autoArrange) return source;
   const next = { ...source };
   if (!section.pianoActive) next.pianoPattern = "off";
   else if (source.pianoPattern !== "bossa" && source.pianoPattern !== "voice-led") {
@@ -259,15 +255,16 @@ export function applyArrangementSectionPlan(
   meter: Meter,
   bars: number,
   rng: { piano: Rng; guitar: Rng; drums: Rng },
+  /** 手で組んだ型 (bossa / voice-led) は間引きも音域変更もせず、そのまま残す */
   preservePattern: boolean,
 ): { piano: NoteEvent[]; guitar: NoteEvent[]; drums: NoteEvent[]; annotations: Annotation[] } {
   if (!section) return { ...values, annotations: [] };
-  // 旧版互換候補には自動編曲の音域変更を適用しない。自動候補でも
-  // 半音単位の値が混入してコード外音にならないようオクターブへ正規化する。
+  // 音域変更は移調ではないので必ずオクターブ単位にする
   const registerShift = preservePattern ? 0 : Math.round(section.registerShift / 12) * 12;
   let piano = values.piano.map((note) => ({ ...note, pitch: note.pitch + registerShift }));
   let guitar = values.guitar.map((note) => ({ ...note, pitch: note.pitch + registerShift }));
   let drums = [...values.drums];
+  const before = { piano: piano.length, guitar: guitar.length, drums: drums.length };
   if (!preservePattern) {
     piano = thinByOnset(piano, section.density, rng.piano, meter.barBeats);
     guitar = thinByOnset(guitar, section.density, rng.guitar, meter.barBeats);
@@ -282,25 +279,39 @@ export function applyArrangementSectionPlan(
     ? [Math.max(1, finalBar - 1)] : [];
   section.pickupBars = !preservePattern && section.density >= 0.5 && section.density <= 0.7
     ? [finalBar] : [];
-  if (!preservePattern && section.breakBars.length) {
+  if (section.breakBars.length) {
     const breakStart = section.breakBars[0]! * meter.barBeats + meter.barBeats * 0.75;
     piano = piano.filter((note) => note.start < breakStart);
     guitar = guitar.filter((note) => note.start < breakStart);
     drums = drums.filter((note) => note.start < breakStart);
   }
-  if (!preservePattern && section.drumsActive) {
+  if (section.drumsActive) {
     section.fillBars.forEach((bar) => { drums = addDrumFill(drums, bar, meter); });
   }
-  if (!preservePattern) {
-    section.pickupBars.forEach((bar) => {
-      if (section.guitarActive && guitar.length) guitar = addHarmonicPickup(guitar, bar, meter);
-      else if (section.pianoActive && piano.length) piano = addHarmonicPickup(piano, bar, meter);
-    });
-  }
+  const pickupApplied: number[] = [];
+  section.pickupBars.forEach((bar) => {
+    const size = guitar.length + piano.length;
+    if (section.guitarActive && guitar.length) guitar = addHarmonicPickup(guitar, bar, meter);
+    else if (section.pianoActive && piano.length) piano = addHarmonicPickup(piano, bar, meter);
+    if (guitar.length + piano.length > size) pickupApplied.push(bar);
+  });
+  section.pickupBars = pickupApplied;
+
+  // 注記は「計画」ではなく「実際に起きたこと」から作る。以前はここが
+  // 計画値をそのまま読み上げていたため、適用をスキップした場合でも
+  // 「音域差+12半音に設定」「伴奏を間引いた」と表示し続けていた
+  const thinned = [
+    before.piano && piano.length < before.piano ? "ピアノ" : "",
+    before.guitar && guitar.length < before.guitar ? "ギター" : "",
+    before.drums && drums.length < before.drums ? "ドラム" : "",
+  ].filter(Boolean);
   const gestureText = [
-    section.fillBars.length ? `末尾${section.fillBars.map((bar) => bar + 1).join("・")}小節にフィル` : "",
+    section.fillBars.length ? `${section.fillBars.map((bar) => bar + 1).join("・")}小節にフィル` : "",
     section.breakBars.length ? `${section.breakBars.map((bar) => bar + 1).join("・")}小節にブレイク` : "",
     section.pickupBars.length ? `${section.pickupBars.map((bar) => bar + 1).join("・")}小節末にピックアップ` : "",
+    thinned.length ? `${thinned.join("・")}を間引き` : "",
+    registerShift !== 0 ? `音域を${registerShift > 0 ? "+" : ""}${registerShift}半音` : "",
+    preservePattern ? "専用の伴奏型なのでそのまま使用" : "",
   ].filter(Boolean).join("、");
   return {
     piano,
@@ -309,7 +320,7 @@ export function applyArrangementSectionPlan(
     annotations: [{
       bar: 0,
       ruleId: "arrangement-plan",
-      text: `${section.strategy}の編曲戦略で、密度${Math.round(section.density * 100)}%・音域差${section.registerShift >= 0 ? "+" : ""}${section.registerShift}半音に設定${gestureText ? `。${gestureText}` : ""}。旋律が細かい場所は伴奏を間引いた`,
+      text: `${section.strategy}の編曲戦略、密度${Math.round(section.density * 100)}%${gestureText ? `。${gestureText}` : ""}`,
       level: "section",
       category: "arrangement",
     }],

@@ -13,7 +13,7 @@ import type {
   SectionControl,
   Song,
 } from "./types.js";
-import { createNamedRng, createRng } from "./rng.js";
+import { createNamedRng } from "./rng.js";
 import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
 import { chordAtBeat, chordFromRoman, generateProgression } from "./harmony.js";
@@ -179,11 +179,9 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     const isLastEntry = i === entries.length - 1;
     // ループモードでは最終セクションも半終止で終え、曲頭の I へ戻れるようにする
     const baseSectionSeed = options.sectionSeeds?.[i] ?? sectionSeed(seed, i);
-    // Candidate zero keeps the established section layout for project continuity;
-    // alternatives use an isolated stream and cannot consume another part's RNG.
-    const structureRng = candidateIndex === 0
-      ? createRng(baseSectionSeed)
-      : createNamedRng(baseSectionSeed, "structure", i, candidateIndex);
+    // 全パートを名前付きストリームで独立させる。以前は候補 0 だけが
+    // 親シードを直接消費していたため、候補 0 と代替案が別の規則で作られていた
+    const structureRng = createNamedRng(baseSectionSeed, "structure", i, candidateIndex);
     const modulationRng = createNamedRng(baseSectionSeed, "modulation", i, candidateIndex);
     const harmonyRng = createNamedRng(baseSectionSeed, "harmony", i, candidateIndex);
     const melodyRng = createNamedRng(baseSectionSeed, "melody", i, candidateIndex);
@@ -371,7 +369,7 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     const finalArrangement = settingsForArrangementPlan(normalizeArrangement({
       ...finalDialect.defaults.arrangement,
       ...options.arrangement,
-    }), finalPlan, candidateIndex);
+    }), finalPlan);
     const finalRegisterShift = candidateIndex === 0
       ? 0
       : Math.round((finalPlan?.registerShift ?? 0) / 12) * 12;
