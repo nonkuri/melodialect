@@ -13,6 +13,8 @@ import {
   generalUserAssignment,
   isLegacyStandardAssignment,
 } from "../audio/standardSoundFont.js";
+import { relandFinalNote } from "./melody.js";
+import { createNamedRng } from "./rng.js";
 
 export const DEFAULT_ARRANGEMENT: ArrangementSettings = {
   pianoPattern: "block",
@@ -230,6 +232,7 @@ export function applyCompositionControls(
   song: Song,
   controls: CompositionControls,
   sectionExpressions?: SectionExpression[],
+  resolveDialect?: (id: string) => Dialect | undefined,
 ): Song {
   const next = structuredClone(song);
   next.composition = controls;
@@ -245,6 +248,15 @@ export function applyCompositionControls(
     } : controls;
     section.key.mode = controls.mode;
     section.melody = shapeMelody(section.melody, sectionControls, next.meter.barBeats);
+    // 密度・シンコペーションは音を間引く／分割する／ずらすので、生成時に
+    // 保証した「終止音は和音構成音」が壊れうる。加工後にもう一度着地させる。
+    const dialect = resolveDialect?.(section.dialectId);
+    if (dialect && section.melody.length && section.chords.length) {
+      relandFinalNote(
+        section.melody, section.chords, dialect, section.key,
+        createNamedRng(next.seed, "final-landing", index),
+      );
+    }
     if (expression) {
       section.annotations.push({
         bar: 0,

@@ -422,7 +422,8 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     totalBars: startBar,
   };
   const controlled = options.composition || options.design?.sectionExpressions
-    ? applyCompositionControls(song, controls, options.design?.sectionExpressions)
+    ? applyCompositionControls(song, controls, options.design?.sectionExpressions, (id) =>
+        entries.find((entry) => entry.dialect.id === id)?.dialect ?? mainDialect)
     : song;
   return options.design ? applyMotifAndChorusDesign(controlled, options.design) : controlled;
 }

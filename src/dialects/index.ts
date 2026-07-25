@@ -201,6 +201,19 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
         if (d.melody.nonChordTones[key] !== undefined) probability(`melody.nonChordTones.${key}`, d.melody.nonChordTones[key]);
       }
     }
+    if (d.melody.finalDegree !== undefined) {
+      if (!isRecord(d.melody.finalDegree)) add("melody.finalDegree", "終止音の度数と重みのオブジェクトが必要です");
+      else {
+        const entries = Object.entries(d.melody.finalDegree);
+        if (!entries.some(([, weight]) => finite(weight) && weight > 0)) {
+          add("melody.finalDegree", "1個以上の度数に正の重みが必要です (全て0だと終止音を選べません)");
+        }
+        entries.forEach(([degree, weight]) => {
+          if (!["1", "3", "5", "7", "9"].includes(degree)) add(`melody.finalDegree.${degree}`, "1、3、5、7、9のいずれかを指定してください");
+          range(`melody.finalDegree.${degree}`, weight, 0, 100);
+        });
+      }
+    }
     if (d.melody.registerShift !== undefined) {
       if (!isRecord(d.melody.registerShift)) add("melody.registerShift", "セクション別音域のオブジェクトが必要です");
       else Object.entries(d.melody.registerShift).forEach(([section, shift]) => {
@@ -239,6 +252,7 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (d.rhythm.finalTemplates !== undefined) validateRhythmGroups("rhythm.finalTemplates", d.rhythm.finalTemplates);
       if (d.rhythm.anacrusisProbability !== undefined) probability("rhythm.anacrusisProbability", d.rhythm.anacrusisProbability);
       if (d.rhythm.chorusDensityBias !== undefined) probability("rhythm.chorusDensityBias", d.rhythm.chorusDensityBias);
+      if (d.rhythm.breathProbability !== undefined) probability("rhythm.breathProbability", d.rhythm.breathProbability);
     }
   }
   if (d.groove !== undefined) {

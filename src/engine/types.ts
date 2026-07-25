@@ -543,6 +543,11 @@ export interface Dialect {
     anacrusisProbability?: number;
     /** サビで音数の多いテンプレートを優先する度合い (0〜1)。セクション対比に使う */
     chorusDensityBias?: number;
+    /**
+     * フレーズ末尾に息継ぎ (休符) を置く確率。アウフタクトとは排他で、
+     * 両方が当たった小節ではアウフタクトを優先する
+     */
+    breathProbability?: number;
   };
   melody: {
     /** 旋律に使う音集合。省略時は調性に応じた長音階/自然短音階。 */
@@ -572,6 +577,12 @@ export interface Dialect {
     };
     /** セクションタイプ別の音域中心シフト (半音)。サビで音域を上げる等の対比に使う */
     registerShift?: Partial<Record<SectionType, number>>;
+    /**
+     * 終止音の度数の好み。キーは和音の度数 (1=ルート, 3, 5, 7)。
+     * 和音構成音であることは常に必須で、そのうちどれに着地しやすいかだけを決める。
+     * 主音を 100% 強制すると全ダイアレクトが同じ終わり方になるため重み付けにしている
+     */
+    finalDegree?: Record<string, number>;
   };
   structure: {
     phraseLengths: number[];

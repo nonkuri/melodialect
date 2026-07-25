@@ -49,6 +49,7 @@
     "borrowedChords": true
   },
   "rhythm": {
+    "breathProbability": 0.3,
     "templates": {
       "4/4": [
         { "beats": [2, 2], "weight": 2 },
@@ -63,6 +64,7 @@
     "chorusDensityBias": 0.15
   },
   "melody": {
+    "finalDegree": { "1": 2, "3": 1.5, "5": 3, "7": 0.8 },
     "pitchCollection": "mixolydian",
     "leapProbability": { "default": 0.06, "chorusHead": 0.25 },
     "leapRangeSemitones": [5, 9],
