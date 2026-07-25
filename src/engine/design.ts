@@ -410,44 +410,26 @@ function keyDelta(from: number, to: number): number {
   return delta;
 }
 
-function cloneChorusMelody(source: GeneratedSection, target: GeneratedSection, mode: "same" | "light", barBeats: number): NoteEvent[] {
-  const delta = keyDelta(source.key.tonic, target.key.tonic);
-  const limit = target.plan.bars * barBeats;
-  return source.melody.filter((note) => note.start < limit).map((note, index) => {
-    const lightPitch = mode === "light" && index % 4 === 3 ? (index % 8 === 3 ? 2 : -2) : 0;
-    const start = mode === "light" && index % 6 === 4
-      ? Math.min(note.start + 0.125, Math.max(note.start, limit - 0.125))
-      : note.start;
-    return {
-      ...note,
-      start,
-      duration: Math.min(note.duration, Math.max(0.125, limit - start)),
-      pitch: note.pitch + delta + lightPitch,
-    };
-  });
-}
-
-/** 固定モチーフと Chorus 間の同一／軽い変奏／大きな変奏を生成結果へ適用する。 */
+/**
+ * 固定モチーフを生成結果へ適用する。
+ *
+ * Chorus 間の再現はここではなく生成中 (song.ts の主題の記憶) が担当する。
+ * 以前はここだけが担当していたため、design を渡さない既定フロー
+ * (ダイアレクト選択 → 全体生成) では Chorus が一度も再現されず、
+ * 実測で繰り返す Chorus の旋律一致は 0% だった。生成中に移したことで、
+ * 主題は進行・小節割りと整合したまま戻る
+ */
 export function applyMotifAndChorusDesign(song: Song, design: CompositionDesign): Song {
   const next = structuredClone(song);
   const choruses = next.sections.map((section, index) => ({ section, index }))
     .filter(({ section }) => section.plan.type === "chorus");
-  const first = choruses[0]?.section;
-  if (first && design.chorusVariation !== "large") {
-    const variation = design.chorusVariation;
-    choruses.slice(1).forEach(({ section }) => {
-      section.melody = cloneChorusMelody(first, section, variation, next.meter.barBeats);
-      section.annotations.push({
-        bar: 0,
-        ruleId: "chorus-variation",
-        text: variation === "same" ? "Chorus間: 同じ旋律を再使用" : "Chorus間: リズムと音程を軽く変奏",
-      });
-    });
-  } else if (design.chorusVariation === "large") {
-    choruses.slice(1).forEach(({ section }) => section.annotations.push({
-      bar: 0, ruleId: "chorus-variation", text: "Chorus間: ダイアレクト規則から大きく変奏",
-    }));
-  }
+  choruses.slice(1).forEach(({ section }) => section.annotations.push({
+    bar: 0,
+    ruleId: "chorus-variation",
+    text: design.chorusVariation === "same" ? "Chorus間: 同じ旋律を再使用"
+      : design.chorusVariation === "large" ? "Chorus間: ダイアレクト規則から大きく変奏"
+        : "Chorus間: リズムを保ったまま音程を軽く変奏",
+  }));
 
   const motif = design.motif;
   if (!motif?.notes.length) return next;

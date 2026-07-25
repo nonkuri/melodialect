@@ -152,7 +152,14 @@ describe("v0.9 motif, lyrics and dialect extensibility", () => {
         motif: motif!,
       },
     });
-    expect(song.sections[1]!.melody).toEqual(song.sections[0]!.melody);
+    // Chorus 間の再現は生成中に行われるため、ループ継ぎ目の調整より先に効く。
+    // 最後の音だけは ending: "loop" が曲頭へ戻れる高さへ寄せるので、
+    // そこを除いて一致することを見る (継ぎ目は §4.2 の意図した加工)
+    expect(song.sections[1]!.melody.slice(0, -1)).toEqual(song.sections[0]!.melody.slice(0, -1));
+    const seam = song.sections[1]!.melody.at(-1)!;
+    const source0 = song.sections[0]!.melody.at(-1)!;
+    expect(seam.start).toBe(source0.start);
+    expect(seam.duration).toBe(source0.duration);
     expect(song.sections.every((section) => section.annotations.some((item) => item.ruleId === "fixed-motif"))).toBe(true);
   });
 

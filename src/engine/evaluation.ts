@@ -4,6 +4,7 @@ import type {
   GenerationReason,
   GeneratedSection,
   NoteEvent,
+  SectionType,
   Song,
   SongFingerprint,
 } from "./types.js";
@@ -414,45 +415,85 @@ function ratioWithin(value: number, reference: number, minimum: number, maximum:
   return ratio >= minimum && ratio <= maximum;
 }
 
+const SHAPE_PARTS = ["piano", "guitar", "bass", "drums"] as const;
+
 /**
- * 基準候補 (候補 0) からの逸脱を、セクションの「形」の観点だけで制限する。
+ * 曲全体の厚みで正規化した、セクションごとの密度曲線。
+ *
+ * 絶対密度で候補を比べると、伴奏バリアントが宣言どおりに編成を薄くした候補
+ * (例: Voicing の「無伴奏に近い」) まで「構造の破壊」として弾かれる。
+ * 守りたいのはセクション間の起伏であって、曲全体の音量ではない。
+ */
+function densityContour(song: Song): number[] {
+  const densities = song.sections.map((section) => densityOf(section, [...SHAPE_PARTS]));
+  const total = densities.reduce((sum, value) => sum + value, 0);
+  const average = total / Math.max(1, densities.length);
+  if (average < 1e-7) return densities.map(() => 0);
+  return densities.map((value) => value / average);
+}
+
+function averageDensity(song: Song, type: SectionType): number | null {
+  const sections = song.sections.filter((section) => section.plan.type === type);
+  if (!sections.length) return null;
+  return sections.reduce((sum, section) => sum + densityOf(section, [...SHAPE_PARTS]), 0) /
+    sections.length;
+}
+
+/**
+ * 候補それ自体が、曲としての起伏を保っているか。
+ *
+ * v1.2.1 で直した破綻 (サビで全楽器を強制する、アウトロでドラムが突然止まる)
+ * は「候補 0 と比べて違う」ことではなく「その曲の中で逆さま」であることが問題
+ * だった。判定を候補間の比較から曲内の比較へ移す。
+ */
+function hasCoherentShape(song: Song): boolean {
+  const verse = averageDensity(song, "verse");
+  const chorus = averageDensity(song, "chorus");
+  // サビが Verse より薄い曲は、盛り上がりが逆さまになっている
+  if (verse !== null && chorus !== null && verse > 1e-7 && chorus < verse * 0.8) return false;
+  const outro = averageDensity(song, "outro");
+  const peak = Math.max(...song.sections.map((section) => densityOf(section, [...SHAPE_PARTS])));
+  // アウトロが曲中で最も厚いのも同じく逆さま
+  if (outro !== null && peak > 1e-7 && outro > peak * 1.05) return false;
+  // 一度鳴り出したドラムが、あるセクションだけ完全に消えるのは破綻
+  const drums = song.sections.map((section) => section.drums.length);
+  if (drums.some((count) => count > 0) && drums.some((count) => count === 0)) {
+    const silent = song.sections.filter((section) => section.drums.length === 0);
+    // 入口と出口を抜くのは編曲上の意図。それ以外での消音だけを破綻とみなす
+    if (silent.some((section) => section.plan.type !== "intro" && section.plan.type !== "outro")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * 基準候補 (候補 0) と同じ起伏を保っているか。
  *
  * ここは以前、各指標に個別のハードしきい値も課していた。しかし候補間の指標差は
  * 0.02〜0.03 程度しかないため、「不協和が 0.03 良くなったが旋律適合が 0.02
  * 落ちた」という健全なトレードオフまで機械的に弾いていた。実測で 112 曲中
  * 81 曲 (72%) で代替案が全滅し、候補を 3 つ作る意味が失われていた。
  *
- * 指標間のトレードオフは quality の重み付き和が既に扱っている。ここは
- * 本来の目的 (サビだけ極端に厚くなる、アウトロが空洞になる、といった構造の
- * 破壊を防ぐ) に絞る。
+ * v1.4 で伴奏バリアントを入れた後は、残った絶対密度の比較が今度は
+ * バリアントと衝突した。実測 (14 ダイアレクト × 12 シード) では代替候補の
+ * 46.7% がここで棄却され、25.6% の曲で代替案が全滅していた。しかも棄却理由は
+ * ほぼ全部が「総密度が候補 0 と違う」で、ハード制約違反は 0% だった。
+ * つまり弾いていたのは破綻ではなく、宣言どおりに編成を変えた候補だった。
+ *
+ * そこで比較を「正規化した密度曲線の形」に限り、絶対量の違いは
+ * hasCoherentShape が曲内で見る。
  */
 function preservesSectionShape(candidate: Song, reference: Song): boolean {
   if (candidate.sections.length !== reference.sections.length) return false;
-  return candidate.sections.every((section, index) => {
-    const original = reference.sections[index]!;
-    if (section.plan.type !== original.plan.type) return false;
-    const total = densityOf(section, ["piano", "guitar", "bass", "drums"]);
-    const originalTotal = densityOf(original, ["piano", "guitar", "bass", "drums"]);
-    const bass = densityOf(section, ["bass"]);
-    const originalBass = densityOf(original, ["bass"]);
-    const drums = densityOf(section, ["drums"]);
-    const originalDrums = densityOf(original, ["drums"]);
-    // ピアノとギターの担当交代は編曲プランが意図してやっていることで、
-    // UI も「伴奏編成を変更」を候補の違いとして提示している。和声楽器を
-    // 個別に縛ると、その入れ替えが全部「構造の破壊」として弾かれる。
-    // 縛るのは総密度と、曲のエネルギーを担うベース・ドラムだけにする。
-    if (section.plan.type === "chorus") {
-      return ratioWithin(total, originalTotal, 0.68, 1.42) &&
-        ratioWithin(bass, originalBass, 0.55, 1.5) &&
-        ratioWithin(drums, originalDrums, 0.65, 1.35);
-    }
-    if (section.plan.type === "outro") {
-      return ratioWithin(total, originalTotal, 0.48, 1.25) &&
-        ratioWithin(bass, originalBass, 0.55, 1.45) &&
-        ratioWithin(drums, originalDrums, 0.3, 1.2);
-    }
-    return ratioWithin(total, originalTotal, 0.5, 1.6);
-  });
+  if (candidate.sections.some((section, index) =>
+    section.plan.type !== reference.sections[index]!.plan.type)) return false;
+  if (!hasCoherentShape(candidate)) return false;
+  const a = densityContour(candidate);
+  const b = densityContour(reference);
+  // 正規化後の差。0.55 は「あるセクションだけ相対的な厚みが半分以下／1.5 倍以上」
+  // に相当し、編成の入れ替えは通し、特定セクションの空洞化は止める
+  return a.every((value, index) => Math.abs(value - b[index]!) <= 0.55);
 }
 
 export function evaluateSong(song: Song): GenerationMetrics {

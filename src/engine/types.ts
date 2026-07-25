@@ -471,6 +471,42 @@ export interface DialectExpectation {
   clashPerBar: number;
 }
 
+/**
+ * 繰り返すセクションで主題をどう戻すか (§4.1)。
+ * "same" = そのまま再現、"vary" = 律動を保ったまま音程を変奏、"new" = 作り直す
+ */
+export type ThemeReturn = "same" | "vary" | "new";
+
+/**
+ * ダイアレクトが所有する主題の展開規則 (§4.1)。
+ *
+ * これがない頃は、繰り返す Chorus が毎回まったく別の素材になっていた
+ * (実測: 進行の一致 6%、旋律の律動の一致 0%、音列の一致 0%)。
+ * セクション内では小節反復 45%・フレーズ反復 48% と反復しているのに、
+ * セクション境界で主題が破棄されるため、サビが記憶に残らなかった。
+ *
+ * 多様性はシード間ですでに飽和している (別シードで進行が一致するのは 5%)。
+ * 足りないのは曲の中の統一感なので、ここは「戻す」ことを既定にする。
+ */
+export interface ThemeGrammar {
+  /**
+   * セクションタイプ別の主題の戻し方。"default" はそれ以外すべて。
+   * 省略時はエンジン既定 (verse・chorus は戻し、それ以外は作り直す)
+   */
+  recurrence: Partial<Record<SectionType | "default", ThemeReturn>>;
+  /**
+   * "vary" のときに音程を書き換える割合 0..1。律動は常に保たれる。
+   * 0.25 なら「軽い変奏」、0.6 なら「歌詞違いの 2 番」程度の変化になる
+   */
+  variation: Partial<Record<SectionType | "default", number>>;
+  /**
+   * 最後の chorus を主題の拡大として扱い、変奏せずそのまま再現する。
+   * 厚みは編曲側の development 曲線が既に担当しているため、
+   * ここで編成や音域を触ると v1.2.1 で直した「サビで全楽器強制」へ戻る
+   */
+  finalLift: boolean;
+}
+
 export type AccompanimentTexture =
   | "block"
   | "arpeggio"
@@ -645,6 +681,8 @@ export interface Dialect {
   register?: Partial<RegisterPlan>;
   /** v1.3: 評価関数がダイアレクト相対で判定するための期待値。 */
   expected?: Partial<DialectExpectation>;
+  /** v1.5: 繰り返すセクションで主題をどう戻すか。省略時はエンジン既定 (DEFAULT_THEME)。 */
+  theme?: Partial<ThemeGrammar>;
   /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
   sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**

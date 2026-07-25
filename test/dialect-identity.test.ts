@@ -150,6 +150,42 @@ describe("ダイアレクトの識別性 (複数シードの特徴量分布)", (
     points: vectors(profile, CORE_FEATURES),
   }));
 
+  /**
+   * 1 曲ずつ「どのダイアレクトの重心に最も近いか」を当てる (leave-one-out)。
+   *
+   * 以前は「最近傍ダイアレクトまでの距離 ÷ 自身のシード間ばらつき」で測っていたが、
+   * この比は分母にダイアレクト内の多様性が入るため、多様性を増やすと識別性が
+   * 下がったように見える。v1.5 で主題の再帰を入れると、1 曲の中で同じ素材が
+   * 繰り返される分だけシードごとの差が際立ち、ばらつきが増えた。
+   * 実際に確かめたいのは「この曲がどのダイアレクトのものか分かるか」なので、
+   * 分類精度で直接測る。
+   */
+  it("1 曲ずつ、最も近い重心が自分のダイアレクトになる", () => {
+    let hits = 0;
+    let total = 0;
+    const misses: string[] = [];
+    for (const own of cores) {
+      let ownHits = 0;
+      own.points.forEach((point, index) => {
+        // 自分の重心はその曲を除いて計算する。含めると自明に自分が最も近くなる
+        const ownCenter = centroid(own.points.filter((_, i) => i !== index));
+        const ranked = [
+          { id: own.profile.id, value: distance(point, ownCenter) },
+          ...cores.filter((other) => other.profile.id !== own.profile.id)
+            .map((other) => ({ id: other.profile.id, value: distance(point, centroid(other.points)) })),
+        ].sort((a, b) => a.value - b.value);
+        total++;
+        if (ranked[0]!.id === own.profile.id) { hits++; ownHits++; }
+      });
+      // どのダイアレクトも過半数は自分だと分かる。1 つのダイアレクトが
+      // 全滅していても全体精度なら埋もれてしまうため、個別にも見る
+      expect(ownHits / own.points.length, `${own.profile.id} が他と混ざっている`)
+        .toBeGreaterThan(0.5);
+      if (ownHits < own.points.length) misses.push(`${own.profile.id} ${ownHits}/${own.points.length}`);
+    }
+    expect(hits / total, `分類できなかった組: ${misses.join(", ")}`).toBeGreaterThan(0.9);
+  });
+
   it("どのダイアレクトも、最も近い他ダイアレクトが自身のシード間ばらつきより遠い", () => {
     const rows = cores.map(({ profile, points }) => {
       const center = centroid(points);
@@ -161,11 +197,12 @@ describe("ダイアレクトの識別性 (複数シードの特徴量分布)", (
     });
     for (const row of rows) {
       // 1.0 で「シードを変えた自分」と「別のダイアレクト」が同じ距離になる。
-      // 1.4 は、聴き分けの余裕を持たせた下限
+      // 聴き分けの余裕として 1.2 を下限に置く。上の分類テストが本命で、
+      // ここは重心そのものが重なる退行を捕まえるための下支え
       expect(
         row.distance / row.spread,
         `${row.id} は ${row.nearest} と混ざっている (距離 ${row.distance.toFixed(2)} / ばらつき ${row.spread.toFixed(2)})`,
-      ).toBeGreaterThan(1.4);
+      ).toBeGreaterThan(1.2);
     }
   });
 

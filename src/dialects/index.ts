@@ -35,6 +35,7 @@ export const PITCH_COLLECTIONS = [
 export const PIANO_PATTERNS = ["off", "block", "arpeggio", "bossa", "eighth", "ballad", "syncopated", "voice-led"] as const;
 export const GUITAR_PATTERNS = ["off", "strum", "arpeggio", "bossa", "syncopated", "interlocking"] as const;
 export const DRUM_PATTERNS = ["off", "basic", "rock", "bossa", "shuffle", "interlock"] as const;
+export const THEME_RETURNS = ["same", "vary", "new"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -348,6 +349,31 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
     else {
       if (d.expected.nonChordToneRatio !== undefined) probability("expected.nonChordToneRatio", d.expected.nonChordToneRatio);
       if (d.expected.clashPerBar !== undefined) range("expected.clashPerBar", d.expected.clashPerBar, 0, 8);
+    }
+  }
+  if (d.theme !== undefined) {
+    if (!isRecord(d.theme)) add("theme", "主題規則のオブジェクトが必要です");
+    else {
+      const themeKeys = [...SECTION_KEYS, "default"];
+      if (d.theme.recurrence !== undefined) {
+        if (!isRecord(d.theme.recurrence)) add("theme.recurrence", "セクション別の指定が必要です");
+        else Object.entries(d.theme.recurrence).forEach(([section, value]) => {
+          const path = `theme.recurrence.${section}`;
+          if (!themeKeys.includes(section)) add(path, "未知のセクションです");
+          if (!THEME_RETURNS.includes(value as typeof THEME_RETURNS[number])) {
+            add(path, `${THEME_RETURNS.join(" / ")} のいずれかを指定してください`);
+          }
+        });
+      }
+      if (d.theme.variation !== undefined) {
+        if (!isRecord(d.theme.variation)) add("theme.variation", "セクション別の指定が必要です");
+        else Object.entries(d.theme.variation).forEach(([section, value]) => {
+          const path = `theme.variation.${section}`;
+          if (!themeKeys.includes(section)) add(path, "未知のセクションです");
+          probability(path, value);
+        });
+      }
+      if (d.theme.finalLift !== undefined) boolean("theme.finalLift", d.theme.finalLift);
     }
   }
   if (d.sectionRules !== undefined) {

@@ -87,6 +87,7 @@
     "range": [33, 53], "maxLeap": 7
   },
   "expected": { "nonChordToneRatio": 0.38, "clashPerBar": 0.05 },
+  "theme": { "recurrence": { "verse": "same", "chorus": "same" } },
   "structure": {
     "phraseLengths": [4, 4],
     "irregularPhraseProbability": 0

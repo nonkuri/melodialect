@@ -353,6 +353,14 @@ SPA 1 画面構成:
     "nonChordToneRatio": 0.35,                 // 旋律の非和声音率の期待値
     "clashPerBar": 0.5                         // 1 小節あたりの半音・短 9 度衝突の期待値
   },
+  // theme は繰り返すセクションで主題をどう戻すか (§4.1)。省略時は定型的なポップ
+  // (Chorus は律動も音程もほぼ再現、Verse は律動を共有して音程を変える、
+  //  最後の Chorus は主題そのまま、それ以外のセクションは作り直す)
+  "theme": {
+    "recurrence": { "verse": "same", "chorus": "same" },  // same / vary / new
+    "variation": { "chorus": 0.25, "verse": 0.6 },        // vary のときの音程書き換え率
+    "finalLift": true                                     // 最後の Chorus を主題そのままにする
+  },
   "structure": {
     "phraseLengths": [4, 4, 4, 4],
     "irregularPhraseProbability": 0.0          // Modal では 0.3 等
@@ -370,7 +378,11 @@ SPA 1 画面構成:
 }
 ```
 
-新フィールド (`idioms` / `cadences` / `harmonicRhythm` / `rhythm` / `pitchCollection` / `motif` / `nonChordTones` / `finalDegree` / `registerShift` / `register` / `expected` / `groove` / `bass` / `sectionRules` / `modulation` / `defaults.arrangement` / `defaults.arrangementVariants`) はすべて省略可で、省略時はエンジンの既定値 (マルコフ+V7 カデンツ+内蔵リズムテンプレート+`DEFAULT_REGISTER`+共通伴奏) にフォールバックする。
+新フィールド (`idioms` / `cadences` / `harmonicRhythm` / `rhythm` / `pitchCollection` / `motif` / `nonChordTones` / `finalDegree` / `registerShift` / `register` / `expected` / `theme` / `groove` / `bass` / `sectionRules` / `modulation` / `defaults.arrangement` / `defaults.arrangementVariants`) はすべて省略可で、省略時はエンジンの既定値 (マルコフ+V7 カデンツ+内蔵リズムテンプレート+`DEFAULT_REGISTER`+`DEFAULT_THEME`+共通伴奏) にフォールバックする。
+
+**繰り返すセクションは主題へ戻る。** 同じタイプのセクションが 2 度目以降に現れたとき、エンジンは最初の出現を主題として記憶し、進行と旋律の律動をそのまま戻す。戻し方は `theme.recurrence` がセクションタイプ別に決め、`"vary"` では律動を保ったまま `theme.variation` の割合で音程だけを書き換える。`theme.finalLift` が真なら最後の Chorus は変奏せず主題そのものを再提示し、厚みの拡大は編曲側の development 曲線が担当する。主題を戻したセクションは小節割りも主題に合わせる。長さが違うと再現ではなく「途中で切れた引用」になるため。
+
+この規則がなかった頃は、繰り返す Chorus 同士で進行の一致が 6%、旋律の律動の一致が 0%、音列の一致が 0% だった (14 ダイアレクト × 10 シードの実測)。セクション内では小節反復 45%・フレーズ反復 48% と反復していたので、セクション境界で主題が破棄されることだけが問題だった。シードを変えたときの多様性は別の話で、こちらは主題の再帰を入れた後も飽和したまま (別シードで進行が一致するのは 8%、旋律の音列が一致するのは 0%)。
 
 **宣言は実際に使われなければならない。** 内蔵 14 ダイアレクトは全て `cliches` (名前付き技法)、`bass` (BassProfile)、`register.melody`、`defaults.arrangementVariants` を宣言する。宣言したのにエンジンが無視する状態 (例: レガシー経路が常に優先される、活動量が音数へ届かない、宣言した音域から旋律がはみ出す) は仕様違反として扱い、`test/dialect-identity.test.ts` の統計テストで監視する。
 
@@ -399,6 +411,7 @@ src/
     harmony.ts     # コード進行生成(遷移表・借用・クリシェ)
     melody.ts      # メロディ輪郭・リズム割付・非和声音の解決検証・終止着地
     bass.ts        # ベースの役割と経路
+    theme.ts       # 繰り返すセクションの主題の記憶・進行と旋律の再現・変奏
     register.ts    # パート間の音域配分(RegisterPlan)とダイアレクト期待値
     voicing.ts     # 転回形と声部連結(ChordEvent は変更しない純関数)
     accompaniment.ts

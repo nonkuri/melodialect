@@ -812,6 +812,11 @@ export function relandFinalNote(
   rng: Rng,
   registerShift = 0,
 ): void {
+  // 壊れていない終止音は引き直さない。ここは加工で崩れた着地を直すための
+  // 経路で、無条件に重み付き再抽選をすると、主題を再現したセクションの
+  // 最後の 1 音だけが毎回別の音になり「同じサビ」が成立しなくなる
+  const last = notes.at(-1);
+  if (last && chords.length && isChordTone(last.pitch, chordAtBeat(chords, last.start))) return;
   const plan = registerPlanFor(dialect);
   landFinalNote(
     notes, chords, scaleOf(key, dialect.melody.pitchCollection), dialect, rng,

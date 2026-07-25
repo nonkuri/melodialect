@@ -182,14 +182,25 @@ describe("v1.2 harmony, bass and accompaniment planning", () => {
           expect(lastSection.guitar.some((note) => note.start >= codaStart)).toBe(false);
         }
       }
-      for (const type of ["chorus", "outro"] as const) {
-        const reference = baseline.sections.find((section) => section.plan.type === type)!;
-        const result = selected.sections.find((section) => section.plan.type === type)!;
-        const ratio = density(result) / density(reference);
-        expect(ratio).toBeGreaterThanOrEqual(type === "chorus" ? 0.68 : 0.48);
-        expect(ratio).toBeLessThanOrEqual(type === "chorus" ? 1.42 : 1.25);
-        if (type === "outro" && reference.drums.length > 0) {
-          expect(result.drums.length).toBeGreaterThan(0);
+      // 起伏は「候補 0 と同じ絶対密度か」ではなく「その曲の中で逆さまでないか」で見る。
+      // v1.4 の伴奏バリアントは編成そのものを振るので、絶対密度で縛ると
+      // 宣言どおりに薄くした候補まで破綻として弾かれる (実測で代替候補の
+      // 46.7% が棄却され、25.6% の曲で代替案が全滅していた)
+      for (const candidate of [baseline, selected]) {
+        const verse = candidate.sections.find((section) => section.plan.type === "verse")!;
+        const chorus = candidate.sections.find((section) => section.plan.type === "chorus")!;
+        const outro = candidate.sections.find((section) => section.plan.type === "outro")!;
+        // サビが Verse より薄い曲は盛り上がりが逆さま
+        expect(density(chorus)).toBeGreaterThanOrEqual(density(verse) * 0.8);
+        // アウトロが曲中で最も厚いのも逆さま
+        const peak = Math.max(...candidate.sections.map(density));
+        expect(density(outro)).toBeLessThanOrEqual(peak * 1.05);
+        // 一度鳴り出したドラムが、入口・出口以外のセクションで消えない
+        if (candidate.sections.some((section) => section.drums.length > 0)) {
+          const silent = candidate.sections.filter((section) =>
+            section.drums.length === 0 &&
+            section.plan.type !== "intro" && section.plan.type !== "outro");
+          expect(silent.map((section) => section.plan.type)).toEqual([]);
         }
       }
     }

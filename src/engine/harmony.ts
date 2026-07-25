@@ -311,7 +311,7 @@ function planChordSlots(
 }
 
 /** 終止形の注記ラベル (§4.1)。V→I 全終止、IV→I 変格終止、V→vi 偽終止など */
-function finalCadenceLabel(pair: string[]): string {
+export function finalCadenceLabel(pair: string[]): string {
   try {
     const from = parseRoman(pair[0]!);
     const to = parseRoman(pair[1]!);
@@ -328,7 +328,7 @@ function finalCadenceLabel(pair: string[]): string {
   return "終止";
 }
 
-function halfCadenceLabel(symbol: string): string {
+export function halfCadenceLabel(symbol: string): string {
   try {
     const p = parseRoman(symbol);
     if (p.degree === 5 && !p.flat) return "半終止 (V で開いたまま次へ)";

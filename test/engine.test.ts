@@ -63,10 +63,13 @@ describe("generateSong (Chromatic, seed 固定)", () => {
     expect(symbols(other) + melodyPitches(other)).not.toBe(symbols(song) + melodyPitches(song));
   });
 
-  it("構成は V-C-V-C を基本に、変則7小節と最終コーダを再現可能", () => {
+  it("構成は V-C-V-C を基本に、繰り返すセクションは主題と同じ長さ、最終コーダ付き", () => {
     expect(song.sections.map((s) => s.plan.type)).toEqual(["verse", "chorus", "verse", "chorus"]);
-    expect(song.sections.map((s) => s.plan.bars)).toEqual([8, 8, 7, 9]);
-    expect(song.totalBars).toBe(32);
+    // 2 度目の Verse / Chorus は主題の小節割りを受け継ぐ。変則フレーズ長は
+    // 初出のセクションで決まり、再現側が別の長さを引き直すと
+    // 「再現」ではなく「途中で切れた引用」になる。最後の Chorus は +1 小節のコーダ
+    expect(song.sections.map((s) => s.plan.bars)).toEqual([8, 8, 8, 9]);
+    expect(song.totalBars).toBe(33);
   });
 
   it("コードイベントはセクション全体を隙間なく被覆する (ハーモニックリズム)", () => {
@@ -189,7 +192,7 @@ describe("generateSong (Chromatic, seed 固定)", () => {
   it("loop: コーダなし・半終止で終わり、最後の音が曲頭の音に近い", () => {
     const looped = generateSong({ dialect: chromatic, seed: 42, ending: "loop" });
     expect(looped.ending).toBe("loop");
-    expect(looped.totalBars).toBe(31);
+    expect(looped.totalBars).toBe(32);
     const last = looped.sections.at(-1)!;
     const lastChord = last.chords.at(-1)!;
     // 半終止 (V7 / IV) のまま曲頭の I へ戻る

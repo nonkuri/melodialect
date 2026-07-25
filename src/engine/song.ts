@@ -1,6 +1,7 @@
 import type {
   Annotation,
   ArrangementSettings,
+  ChorusVariation,
   CompositionControls,
   CompositionDesign,
   DiversityLevel,
@@ -12,11 +13,19 @@ import type {
   SectionType,
   SectionControl,
   Song,
+  ThemeGrammar,
+  ThemeReturn,
 } from "./types.js";
 import { createNamedRng } from "./rng.js";
 import { meterOf, DEFAULT_METER, type Meter } from "./meter.js";
 import { planSection, type FormEntry } from "./structure.js";
-import { chordAtBeat, chordFromRoman, generateProgression } from "./harmony.js";
+import {
+  chordAtBeat,
+  chordFromRoman,
+  finalCadenceLabel,
+  generateProgression,
+  halfCadenceLabel,
+} from "./harmony.js";
 import { generateMelody } from "./melody.js";
 import { generateAccompaniment, renderSustainedChord } from "./accompaniment.js";
 import {
@@ -40,6 +49,14 @@ import {
 } from "./evaluation.js";
 import { createArrangementPlan, settingsForArrangementPlan } from "./arrangement.js";
 import { expectationFor } from "./register.js";
+import {
+  captureTheme,
+  recurrenceFor,
+  restateMelody,
+  restateProgression,
+  themeGrammarFor,
+  type SectionTheme,
+} from "./theme.js";
 const NOTE_NAMES: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5,
   "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11,
@@ -104,6 +121,34 @@ function sectionSeed(seed: number, index: number): number {
   x = Math.imul(x, 0x85ebca6b) >>> 0;
   x ^= x >>> 13;
   return x >>> 0;
+}
+
+/**
+ * このセクションで主題をどう戻すか。
+ *
+ * 利用者が作曲設計で Chorus の変奏量を明示した場合は、その意思を
+ * ダイアレクトの宣言より優先する。以前は同じことを生成後の
+ * applyMotifAndChorusDesign が担当していたが、あちらは design が
+ * 無いと走らないため、既定フローでは Chorus が一度も再現されなかった
+ */
+function themeModeFor(
+  grammar: ThemeGrammar,
+  type: SectionType,
+  chorusVariation: ChorusVariation | undefined,
+  isLastOfType: boolean,
+): ThemeReturn {
+  // "light" は作曲設計を作った時点で入る正規化の既定値であって、利用者が
+  // 選んだ意思とは限らない。これを上書きとして扱うと、設計ダイアログを一度でも
+  // 開いた曲でダイアレクトの theme 宣言が無言で無効化される。明示的に振り切った
+  // "same" / "large" だけを上書きとして扱い、"light" はダイアレクトへ委ねる
+  if (type === "chorus" && (chorusVariation === "same" || chorusVariation === "large")) {
+    return chorusVariation === "same" ? "same" : "new";
+  }
+  const mode = recurrenceFor(grammar, type);
+  // 最後の Chorus は主題の再提示に使う。ここで変奏すると、いちばん記憶に
+  // 残ってほしい箇所が毎回違う旋律になる。厚みは編曲の development 曲線が担当する
+  if (mode === "vary" && type === "chorus" && isLastOfType && grammar.finalLift) return "same";
+  return mode;
 }
 
 /** pitch に最も近い chordPitches のコードトーン (ループ継ぎ目の調整用) */
@@ -172,7 +217,13 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
   );
 
   const sections: GeneratedSection[] = [];
-  const sectionHarmonyMemory = new Map<SectionType, string[]>();
+  // 主題の記憶 (§4.1)。同じタイプのセクションが再び来たら、ここから進行と旋律を戻す。
+  // v1.4 までは進行の記号列だけを覚えて beam search へソフト加点していたが、
+  // 実測で繰り返す Chorus の進行一致は 6%、旋律の一致は 0% にしかならなかった
+  const themeMemory = new Map<SectionType, SectionTheme>();
+  // finalLift 用。同じタイプの最後の出現だけ、変奏せずそのまま再現する
+  const lastIndexOfType = new Map<SectionType, number>();
+  entries.forEach(({ type }, index) => lastIndexOfType.set(type, index));
   let startBar = 0;
   let prevMelodyEnd: number | undefined;
 
@@ -194,13 +245,23 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     const fixedPhraseLengths = sectionControl
       ? [Math.max(1, Math.round(sectionControl.bars) - (isFinalSection ? 1 : 0))]
       : options.sectionPhraseLengths?.[i];
+
+    // 主題を戻すかどうかを、小節割りを決める前に確定させる。繰り返す
+    // セクションの長さが主題と違うと、再現ではなく「途中で切れた引用」になる
+    const theme = themeMemory.get(type);
+    const themeMode = theme
+      ? themeModeFor(themeGrammarFor(dialect), type, options.design?.chorusVariation,
+        lastIndexOfType.get(type) === i)
+      : "new";
     const plan = fixedPhraseLengths
       ? {
           type,
           phraseLengths: [...fixedPhraseLengths],
           bars: fixedPhraseLengths.reduce((sum, bars) => sum + bars, 0),
         }
-      : planSection(type, dialect, structureRng);
+      : theme && themeMode !== "new"
+        ? { type, phraseLengths: [...theme.phraseLengths], bars: theme.bars }
+        : planSection(type, dialect, structureRng);
 
     // 転調 (§4.1): セクションタイプ別の転調傾向 (通常は bridge)。最終セクションは主調のまま
     let sectionKey = key;
@@ -237,7 +298,9 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
         // Repeated sections retain a family resemblance by referencing only the
         // first section of the same type. 最初のChorusにVerse、
         // Outroに直前セクションをそのまま追従させると役割差が失われる。
-        referenceProgression: sectionHarmonyMemory.get(type),
+        // 主題を戻すタイプでは進行ごと差し替えるが、最終セクションの終止形は
+        // ここで選ばれたものを使うので、生成自体は常に通す
+        referenceProgression: theme?.chords.map((chord) => chord.symbol),
       },
     );
     const previousChord = sections.at(-1)?.chords.at(-1);
@@ -270,6 +333,54 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
     }
     let chords = generatedHarmony.chords;
     let harmonyNotes = generatedHarmony.annotations;
+    // 主題の進行を戻す。最終セクションだけは、主題が半終止で終わっている
+    // (途中の Chorus だった) ため、末尾の終止形をこのセクション用に選ばれた
+    // ものへ差し替える。コーダは本体の最後の和音をそのまま伸ばすので、
+    // ここを主題のままにすると曲が解決しないまま終わる
+    let restatedHarmony = false;
+    if (theme && themeMode !== "new") {
+      const restated = restateProgression(theme, sectionKey, plan.bars * meter.barBeats);
+      if (restated.length) {
+        if (isFinalSection) {
+          const cadence = generatedHarmony.chords.slice(-2).map((chord) => chord.symbol);
+          const offset = restated.length - cadence.length;
+          cadence.forEach((symbol, index) => {
+            const slot = restated[offset + index];
+            if (!slot) return;
+            try {
+              restated[offset + index] = {
+                ...chordFromRoman(symbol, slot.bar, sectionKey, slot.start, slot.durationBeats),
+                origin: slot.origin,
+              };
+            } catch { /* この調で解釈できない記号は主題のまま残す */ }
+          });
+        }
+        chords = restated;
+        restatedHarmony = true;
+        // 注記は実際に鳴る和音から作り直す。生成側の注記をそのまま持ち越すと、
+        // 採用しなかった進行の定型句や技法を説明してしまう
+        const cadenceChords = restated.slice(isFinalSection ? -2 : -1);
+        harmonyNotes = [
+          {
+            bar: 0,
+            ruleId: "theme-restate-harmony",
+            text: isFinalSection
+              ? `${type}の主題の進行を再現し、末尾だけ終止形へ差し替え`
+              : `${type}の主題の進行をそのまま再現`,
+            level: "section" as const,
+            category: "harmony" as const,
+          },
+          {
+            bar: cadenceChords[0]!.bar,
+            ruleId: "cadence",
+            text: isFinalSection && cadenceChords.length === 2
+              ? `${finalCadenceLabel(cadenceChords.map((chord) => chord.symbol))}: ${
+                cadenceChords.map((chord) => chord.symbol).join(" → ")}`
+              : halfCadenceLabel(cadenceChords.at(-1)!.symbol),
+          },
+        ];
+      }
+    }
     const harmonyMode = options.design?.harmonyMode ?? "auto";
     if (harmonyMode !== "auto") {
       const sourceDraft = options.design?.chordDrafts[i];
@@ -308,12 +419,17 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       chords = chords.map((chord) => ({ ...chord, origin: "generated" as const }));
       harmonyNotes = [...harmonyNotes, ...annotateChordOrigins(chords, meter)];
     }
-    if (!sectionHarmonyMemory.has(type)) {
-      sectionHarmonyMemory.set(type, chords.map((chord) => chord.symbol));
-    }
-    const melody = generateMelody(plan, chords, dialect, sectionKey, meter, melodyRng, {
-      startPitch: prevMelodyEnd,
-    });
+    // 旋律の再現は、進行の再現が成立したときだけ行う。進行が別物のまま
+    // 律動だけ主題から借りると、音程が全部コードトーンへ吸着し直されて
+    // 主題でも新作でもないものになる
+    const restated = theme && restatedHarmony && themeMode !== "new"
+      ? restateMelody(theme, plan, chords, dialect, sectionKey, meter, melodyRng, themeMode)
+      : null;
+    const melody = restated?.notes.length
+      ? { notes: restated.notes, annotations: restated.annotations }
+      : generateMelody(plan, chords, dialect, sectionKey, meter, melodyRng, {
+        startPitch: prevMelodyEnd,
+      });
     const accomp = generateAccompaniment(
       plan, chords, dialect, sectionKey, meter, accompanimentRng, options.arrangement,
       {
@@ -352,6 +468,9 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
         (a, b) => a.bar - b.bar,
       ),
     });
+    // 主題は最初の 1 回だけ覚える。2 回目以降を覚え直すと、変奏の変奏が
+    // 積み重なって 3 回目の Chorus が主題から離れていく
+    if (!themeMemory.has(type)) themeMemory.set(type, captureTheme(sections.at(-1)!));
     startBar += plan.bars;
   });
 
