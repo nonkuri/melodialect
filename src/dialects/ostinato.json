@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "basic",
       "swing": 0, "humanize": 0.02, "velocityScale": 1
-    }
+    },
+    "arrangementVariants": [
+      { "name": "8分きざみ", "weight": 3, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "反復アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "ギター交差", "weight": 2, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "interlocking", "drumPattern": "interlock" } }
+    ]
   },
   "chord": {
     "vocabulary": ["i", "III", "iv", "v", "VI", "VII"],
@@ -40,7 +45,7 @@
     "harmonicRhythm": {
       "default": { "0.5": 0.4, "1": 0.6 }
     },
-    "cliches": [],
+    "cliches": ["riff-anchor"],
     "borrowedChords": false
   },
   "rhythm": {
@@ -68,7 +73,18 @@
     "motif": { "repeatProbability": 0.85 }
   },
   "register": {
-    "piano": [50, 70]
+    "guitar": [46, 66],
+    "melody": [60, 77],
+    "piano": [44, 62]
+  },
+  "bass": {
+    "roles": {
+      "default": ["ostinato"]
+    },
+    "activity": 0.8, "syncopation": 0.08, "rests": 0.02, "chordToneRatio": 0.95,
+    "approachRatio": 0.12, "diatonicApproachRatio": 0.4, "chromaticApproachRatio": 0.05, "enclosureRatio": 0.02,
+    "resolveLeapRatio": 0.6, "fifthOctaveRatio": 0.2, "fillProbability": 0.05,
+    "range": [33, 53], "maxLeap": 7
   },
   "expected": { "nonChordToneRatio": 0.38, "clashPerBar": 0.05 },
   "structure": {

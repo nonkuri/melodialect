@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "rock",
       "swing": 0, "humanize": 0.15, "velocityScale": 1
-    }
+    },
+    "arrangementVariants": [
+      { "name": "ロックバンド", "weight": 3, "arrangement": { "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "rock" } },
+      { "name": "ギター前景", "weight": 2, "arrangement": { "pianoPattern": "off", "guitarPattern": "strum", "drumPattern": "rock" } },
+      { "name": "アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "arpeggio", "drumPattern": "basic" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I", "♭VII", "♭VI", "iv", "IV", "v", "V7", "vi", "ii7"],
@@ -44,7 +49,7 @@
       "default": { "0.5": 0.4, "1": 0.6 },
       "chorus": { "1": 1 }
     },
-    "cliches": [],
+    "cliches": ["pedal-shift"],
     "borrowedChords": true
   },
   "rhythm": {
@@ -73,6 +78,23 @@
     "motif": { "repeatProbability": 0.62 },
     "nonChordTones": { "appoggiatura": 0.03, "suspension": 0.14, "chromaticPassing": 0.08 },
     "registerShift": { "chorus": 1 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "intro": ["root"],
+      "verse": ["root"],
+      "chorus": ["root", "ostinato"],
+      "bridge": ["ostinato"],
+      "outro": ["root"]
+    },
+    "activity": 0.62, "syncopation": 0.12, "rests": 0.03, "chordToneRatio": 0.9,
+    "approachRatio": 0.25, "diatonicApproachRatio": 0.4, "chromaticApproachRatio": 0.08, "enclosureRatio": 0.05,
+    "resolveLeapRatio": 0.7, "fifthOctaveRatio": 0.35, "fillProbability": 0.2,
+    "range": [36, 58], "maxLeap": 12
+  },
+  "register": {
+    "melody": [59, 79]
   },
   "expected": { "nonChordToneRatio": 0.31, "clashPerBar": 0.31 },
   "structure": {

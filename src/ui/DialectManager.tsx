@@ -205,6 +205,12 @@ export function DialectManager({
           <label>スウィング<input type="number" min={0} max={1} step={0.05} value={draft.defaults.arrangement?.swing ?? 0} onChange={(event) => update((next) => { next.defaults.arrangement = { ...next.defaults.arrangement, swing: number(event.target.value) }; })} /></label>
           <label>揺らぎ<input type="number" min={0} max={1} step={0.05} value={draft.defaults.arrangement?.humanize ?? 0} onChange={(event) => update((next) => { next.defaults.arrangement = { ...next.defaults.arrangement, humanize: number(event.target.value) }; })} /></label>
           <label>音量倍率<input type="number" min={0.5} max={1.5} step={0.05} value={draft.defaults.arrangement?.velocityScale ?? 1} onChange={(event) => update((next) => { next.defaults.arrangement = { ...next.defaults.arrangement, velocityScale: number(event.target.value) }; })} /></label>
+          {draft.defaults.arrangementVariants?.length ? (
+            <p className="advanced-preservation">
+              このダイアレクトは伴奏バリアント（{draft.defaults.arrangementVariants.map((variant) => variant.name).join("、")}）を持ち、
+              自動編曲ではシードに応じてそのうち1つの奏法が使われます。ここで選んだ奏法は、伴奏アレンジの初期値と、自動編曲を切ったときの奏法になります。
+            </p>
+          ) : null}
         </fieldset>
 
         <p className="advanced-preservation">この基本GUIに表示されないリズム、カデンツ、セクション規則、転調などの高度なJSON項目も元のまま保存します。</p>

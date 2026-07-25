@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "basic",
       "swing": 0.08, "humanize": 0.12, "velocityScale": 0.96
-    }
+    },
+    "arrangementVariants": [
+      { "name": "バンド編成", "weight": 3, "arrangement": { "pianoPattern": "block", "guitarPattern": "strum", "drumPattern": "basic" } },
+      { "name": "ピアノ主体", "weight": 2, "arrangement": { "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "8分きざみ", "weight": 2, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "strum", "drumPattern": "rock", "swing": 0.04 } }
+    ]
   },
   "chord": {
     "vocabulary": ["I", "ii7", "iii", "III7", "IV", "iv", "V7", "vi", "II7", "♭VII"],
@@ -65,14 +70,33 @@
   },
   "melody": {
     "finalDegree": { "1": 3, "3": 2, "5": 1.5, "7": 0.4 },
-    "leapProbability": { "default": 0.14, "chorusHead": 0.52 },
-    "leapRangeSemitones": [5, 9],
+    "leapProbability": { "default": 0.1, "chorusHead": 0.52 },
+    "leapRangeSemitones": [3, 7],
     "afterLeapBias": "down",
     "contour": "stepwise",
     "pedalPoint": false,
     "motif": { "repeatProbability": 0.72 },
-    "nonChordTones": { "appoggiatura": 0.14, "suspension": 0.08, "chromaticPassing": 0.14 },
+    "nonChordTones": { "appoggiatura": 0.18, "suspension": 0.08, "chromaticPassing": 0.22 },
     "registerShift": { "chorus": 3 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["counterline"],
+      "intro": ["root"],
+      "verse": ["counterline"],
+      "chorus": ["counterline", "walking"],
+      "bridge": ["counterline"],
+      "outro": ["root"]
+    },
+    "activity": 0.72, "syncopation": 0.2, "rests": 0.04, "chordToneRatio": 0.7,
+    "approachRatio": 0.62, "diatonicApproachRatio": 0.3, "chromaticApproachRatio": 0.55, "enclosureRatio": 0.2,
+    "resolveLeapRatio": 0.75, "fifthOctaveRatio": 0.3, "fillProbability": 0.35,
+    "range": [40, 64], "maxLeap": 12
+  },
+  "register": {
+    "guitar": [46, 66],
+    "piano": [40, 60],
+    "melody": [60, 82]
   },
   "expected": { "nonChordToneRatio": 0.38, "clashPerBar": 0.34 },
   "structure": {

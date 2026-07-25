@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic",
       "swing": 0.05, "humanize": 0.17, "velocityScale": 0.9
-    }
+    },
+    "arrangementVariants": [
+      { "name": "ピアノバラード", "weight": 3, "arrangement": { "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "ギターを重ねる", "weight": 2, "arrangement": { "pianoPattern": "ballad", "guitarPattern": "arpeggio", "drumPattern": "basic" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△7", "IV△7", "III7", "vi", "ii7", "V7", "♭VII"],
@@ -39,14 +44,14 @@
       ]
     },
     "harmonicRhythm": {
-      "default": { "1": 0.8, "2": 0.2 },
+      "default": { "1": 0.82, "0.5": 0.18 },
       "chorus": { "1": 0.5, "2": 0.5 }
     },
-    "cliches": [],
+    "cliches": ["modal-brightening"],
     "borrowedChords": true
   },
   "rhythm": {
-    "breathProbability": 0.5,
+    "breathProbability": 0.62,
     "templates": {
       "4/4": [
         { "beats": [1.5, 1.5, 1], "weight": 2 },
@@ -62,14 +67,30 @@
   },
   "melody": {
     "finalDegree": { "1": 3, "3": 2.5, "5": 1.5, "7": 1 },
-    "leapProbability": { "default": 0.28, "chorusHead": 0.95 },
-    "leapRangeSemitones": [7, 10],
+    "leapProbability": { "default": 0.2, "chorusHead": 0.95 },
+    "leapRangeSemitones": [7, 12],
     "afterLeapBias": "down",
     "contour": "leap-then-descend",
     "pedalPoint": false,
     "motif": { "repeatProbability": 0.5 },
     "nonChordTones": { "appoggiatura": 0.22, "suspension": 0.08, "chromaticPassing": 0.08 },
     "registerShift": { "chorus": 4 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root"],
+      "chorus": ["walking", "counterline"],
+      "bridge": ["counterline"],
+      "outro": ["root"]
+    },
+    "activity": 0.55, "syncopation": 0.3, "rests": 0.1, "chordToneRatio": 0.78,
+    "approachRatio": 0.45, "diatonicApproachRatio": 0.35, "chromaticApproachRatio": 0.3, "enclosureRatio": 0.15,
+    "resolveLeapRatio": 0.75, "fifthOctaveRatio": 0.3, "fillProbability": 0.3,
+    "range": [38, 60], "maxLeap": 12
+  },
+  "register": {
+    "melody": [64, 84]
   },
   "expected": { "nonChordToneRatio": 0.35, "clashPerBar": 0.5 },
   "structure": {

@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "basic",
       "swing": 0, "humanize": 0.18, "velocityScale": 0.88
-    }
+    },
+    "arrangementVariants": [
+      { "name": "声部連結のみ", "weight": 3, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "ギターを添える", "weight": 2, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "arpeggio", "drumPattern": "basic" } },
+      { "name": "ドラムなしの室内楽", "weight": 2, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "off" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi7", "♭VI△7", "♭VII"],
@@ -80,8 +85,23 @@
     "registerShift": { "chorus": 3, "bridge": 2 }
   },
   "register": {
+    "melody": [65, 84],
     "piano": [46, 72],
     "minVoicingSpan": 19
+  },
+  "bass": {
+    "roles": {
+      "default": ["counterline"],
+      "intro": ["root"],
+      "verse": ["counterline"],
+      "chorus": ["counterline", "walking"],
+      "bridge": ["counterline"],
+      "outro": ["root"]
+    },
+    "activity": 0.75, "syncopation": 0.1, "rests": 0.03, "chordToneRatio": 0.85,
+    "approachRatio": 0.5, "diatonicApproachRatio": 0.55, "chromaticApproachRatio": 0.12, "enclosureRatio": 0.1,
+    "resolveLeapRatio": 0.85, "fifthOctaveRatio": 0.2, "fillProbability": 0.2,
+    "range": [36, 58], "maxLeap": 9
   },
   "expected": { "nonChordToneRatio": 0.29, "clashPerBar": 0.56 },
   "structure": {

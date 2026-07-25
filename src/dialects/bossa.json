@@ -14,7 +14,12 @@
       "swing": 0.02,
       "humanize": 0.08,
       "velocityScale": 0.86
-    }
+    },
+    "arrangementVariants": [
+      { "name": "ボサ標準", "weight": 4, "arrangement": { "pianoPattern": "bossa", "guitarPattern": "bossa", "drumPattern": "bossa" } },
+      { "name": "ギターのみ", "weight": 2, "arrangement": { "pianoPattern": "off", "guitarPattern": "bossa", "drumPattern": "bossa" } },
+      { "name": "ピアノコンピング", "weight": 2, "arrangement": { "pianoPattern": "bossa", "guitarPattern": "off", "drumPattern": "bossa" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△9", "I7", "ii9", "II7", "III7", "iii7", "IV△9", "iv7", "V9", "VI7", "vi9", "viiø7"],
@@ -57,7 +62,7 @@
       "intro": { "0.5": 0.15, "1": 0.65, "2": 0.2 },
       "chorus": { "1": 0.2, "2": 0.8 }
     },
-    "cliches": [],
+    "cliches": ["suspension-resolution"],
     "borrowedChords": true
   },
   "rhythm": {
@@ -94,9 +99,19 @@
     "registerShift": { "chorus": 1 }
   },
   "register": {
+    "melody": [58, 78],
     "melodyClearance": 0,
     "piano": [52, 74],
     "guitar": [55, 79]
+  },
+  "bass": {
+    "roles": {
+      "default": ["walking"]
+    },
+    "activity": 0.6, "syncopation": 0.55, "rests": 0.06, "chordToneRatio": 0.92,
+    "approachRatio": 0.3, "diatonicApproachRatio": 0.35, "chromaticApproachRatio": 0.25, "enclosureRatio": 0.08,
+    "resolveLeapRatio": 0.7, "fifthOctaveRatio": 0.62, "fillProbability": 0.15,
+    "range": [36, 55], "maxLeap": 12
   },
   "expected": { "nonChordToneRatio": 0.25, "clashPerBar": 0.65 },
   "structure": {

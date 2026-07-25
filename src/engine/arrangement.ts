@@ -3,6 +3,7 @@ import type {
   ArrangementPlan,
   ArrangementSectionPlan,
   ArrangementSettings,
+  ArrangementVariant,
   Dialect,
   NoteEvent,
   SectionType,
@@ -62,6 +63,23 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+/**
+ * ダイアレクトが宣言した伴奏バリアントをシードで 1 つ選ぶ。
+ * 同じダイアレクトのセクションは同じバリアントになるよう、乱数はセクション番号
+ * ではなくダイアレクト id から派生させる (曲の途中で伴奏の顔が変わらない)。
+ */
+function selectVariant(
+  dialect: Dialect | undefined,
+  seed: number,
+  candidateIndex: number,
+): ArrangementSectionPlan["variant"] {
+  const variants = (dialect?.defaults.arrangementVariants ?? []).filter((item) => item.weight > 0);
+  if (!variants.length) return undefined;
+  const rng = createNamedRng(seed, `arrangement-variant:${dialect!.id}`, 0, candidateIndex);
+  const chosen = rng.weighted(variants.map((item) => [item, item.weight] as [ArrangementVariant, number]));
+  return { name: chosen.name, arrangement: chosen.arrangement };
+}
+
 function sectionBaseDensity(type: SectionType): number {
   switch (type) {
     case "intro": return 0.42;
@@ -100,9 +118,20 @@ export function createArrangementPlan(
   const config = normalizeArrangement(arrangement);
   const rng = createNamedRng(seed, "arrangement-plan", 0, candidateIndex);
   // 戦略名は注記に出るので、鳴っていない楽器を主役だと言わせない。
-  // ピアノとギターの両方が有効なときだけ全戦略から選ぶ
-  const pianoOff = config.pianoPattern === "off";
-  const guitarOff = config.guitarPattern === "off";
+  // ピアノとギターの両方が有効なときだけ全戦略から選ぶ。
+  // 判定は主ダイアレクトの既定伴奏とバリアントまで解決した後の編成で行う。
+  // ここで引数の arrangement だけを見ると、CLI やテストのように arrangement を
+  // 渡さない経路で「ギターが鳴っているのに piano-led」と名乗ることになる
+  const mainVariant = config.autoArrange
+    ? selectVariant(dialects[0], seed, candidateIndex)
+    : undefined;
+  const mainConfig = normalizeArrangement({
+    ...dialects[0]?.defaults.arrangement,
+    ...arrangement,
+    ...mainVariant?.arrangement,
+  });
+  const pianoOff = mainConfig.pianoPattern === "off";
+  const guitarOff = mainConfig.guitarPattern === "off";
   const available: ArrangementPlan["strategy"][] = guitarOff
     ? ["piano-led"]
     : pianoOff ? ["guitar-led"] : STRATEGIES;
@@ -115,9 +144,15 @@ export function createArrangementPlan(
   return {
     strategy,
     sections: types.map((type, sectionIndex) => {
+      // 手動でパターンを選んだ場合 (autoArrange=false) はバリアントを適用しない。
+      // 自動編曲がテクスチャを差し替えるのと同じ条件に揃える
+      const variant = config.autoArrange
+        ? selectVariant(dialects[sectionIndex], seed, candidateIndex)
+        : undefined;
       const dialectConfig = normalizeArrangement({
         ...dialects[sectionIndex]?.defaults.arrangement,
         ...arrangement,
+        ...variant?.arrangement,
       });
       const repeatIndex = types.slice(0, sectionIndex).filter((candidate) => candidate === type).length;
       const repeatGrowth = repeatIndex * development * 0.06;
@@ -145,6 +180,7 @@ export function createArrangementPlan(
         fillBars: [],
         breakBars: [],
         pickupBars: [],
+        ...(variant ? { variant } : {}),
       };
     }),
   };
@@ -155,23 +191,30 @@ export function settingsForArrangementPlan(
   section: ArrangementSectionPlan | undefined,
 ): ArrangementSettings {
   if (!section || !source.autoArrange) return source;
-  const next = { ...source };
+  // バリアントはダイアレクトが宣言した「別の顔つき」なので、テクスチャ差し替えより
+  // 先に重ねる。以降の判定もバリアント適用後の値を見る
+  const declared = section.variant?.arrangement;
+  const base = normalizeArrangement({ ...source, ...declared });
+  const next = { ...base };
+  // バリアントが名指しした奏法はダイアレクトの宣言そのものなので、テクスチャ層で
+  // 上書きしない (bossa / voice-led を保護しているのと同じ理由)
   if (!section.pianoActive) next.pianoPattern = "off";
-  else if (source.pianoPattern !== "bossa" && source.pianoPattern !== "voice-led") {
+  else if (declared?.pianoPattern === undefined &&
+    base.pianoPattern !== "bossa" && base.pianoPattern !== "voice-led") {
     const planned = compatibleLegacyPattern("piano", section.pianoTexture);
     next.pianoPattern = planned === "off" || planned === "block" || planned === "arpeggio" ||
       planned === "bossa" || planned === "eighth" || planned === "ballad" ||
-      planned === "syncopated" || planned === "voice-led" ? planned : source.pianoPattern;
+      planned === "syncopated" || planned === "voice-led" ? planned : base.pianoPattern;
   }
   if (!section.guitarActive) next.guitarPattern = "off";
-  else if (source.guitarPattern !== "bossa") {
+  else if (declared?.guitarPattern === undefined && base.guitarPattern !== "bossa") {
     const planned = compatibleLegacyPattern("guitar", section.guitarTexture);
     next.guitarPattern = planned === "off" || planned === "strum" || planned === "arpeggio" ||
       planned === "bossa" || planned === "syncopated" || planned === "interlocking"
-      ? planned : source.guitarPattern;
+      ? planned : base.guitarPattern;
   }
   if (!section.drumsActive) next.drumPattern = "off";
-  else if (source.drumPattern === "off") next.drumPattern = "basic";
+  else if (base.drumPattern === "off") next.drumPattern = "basic";
   return next;
 }
 
@@ -320,7 +363,7 @@ export function applyArrangementSectionPlan(
     annotations: [{
       bar: 0,
       ruleId: "arrangement-plan",
-      text: `${section.strategy}の編曲戦略、密度${Math.round(section.density * 100)}%${gestureText ? `。${gestureText}` : ""}`,
+      text: `${section.variant ? `伴奏バリアント「${section.variant.name}」、` : ""}${section.strategy}の編曲戦略、密度${Math.round(section.density * 100)}%${gestureText ? `。${gestureText}` : ""}`,
       level: "section",
       category: "arrangement",
     }],

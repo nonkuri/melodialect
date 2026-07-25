@@ -14,7 +14,12 @@
       "swing": 0.16,
       "humanize": 0.15,
       "velocityScale": 0.88
-    }
+    },
+    "arrangementVariants": [
+      { "name": "声部連結のみ", "weight": 3, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "ギターを重ねる", "weight": 2, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "arpeggio", "drumPattern": "basic" } },
+      { "name": "無伴奏に近い", "weight": 2, "arrangement": { "pianoPattern": "voice-led", "guitarPattern": "off", "drumPattern": "off", "swing": 0.24 } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△9", "Iadd9", "Isus2", "ii9", "iii7", "IV△9", "IVsus2", "iv9", "V9", "Vsus4", "vi9", "viiø7", "♭VII△7"],
@@ -57,7 +62,7 @@
       "default": { "1": 0.55, "2": 0.45 },
       "chorus": { "1": 0.4, "2": 0.6 }
     },
-    "cliches": [],
+    "cliches": ["tritone-substitution"],
     "borrowedChords": true
   },
   "rhythm": {
@@ -94,8 +99,22 @@
     "registerShift": { "chorus": 2, "bridge": 1 }
   },
   "register": {
-    "piano": [46, 72],
+    "melody": [61, 82],
+    "piano": [43, 62],
     "minVoicingSpan": 19
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root"],
+      "chorus": ["walking"],
+      "bridge": ["counterline"],
+      "outro": ["root"]
+    },
+    "activity": 0.5, "syncopation": 0.28, "rests": 0.14, "chordToneRatio": 0.85,
+    "approachRatio": 0.42, "diatonicApproachRatio": 0.4, "chromaticApproachRatio": 0.25, "enclosureRatio": 0.18,
+    "resolveLeapRatio": 0.8, "fifthOctaveRatio": 0.35, "fillProbability": 0.28,
+    "range": [36, 57], "maxLeap": 12
   },
   "expected": { "nonChordToneRatio": 0.26, "clashPerBar": 0.51 },
   "structure": {

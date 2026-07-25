@@ -14,7 +14,12 @@
       "swing": 0,
       "humanize": 0.13,
       "velocityScale": 0.92
-    }
+    },
+    "arrangementVariants": [
+      { "name": "ピアノ独奏", "weight": 3, "arrangement": { "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "持続和音", "weight": 2, "arrangement": { "pianoPattern": "block", "guitarPattern": "off", "drumPattern": "off" } }
+    ]
   },
   "chord": {
     "vocabulary": ["i", "ii°", "III", "iv", "V7", "VI", "VII"],
@@ -47,7 +52,7 @@
       "default": { "0.5": 0.15, "1": 0.85 },
       "chorus": { "1": 0.75, "2": 0.25 }
     },
-    "cliches": ["lament-bass"],
+    "cliches": ["lament-bass", "modal-brightening"],
     "borrowedChords": false
   },
   "rhythm": {
@@ -81,6 +86,23 @@
     "motif": { "repeatProbability": 0.6 },
     "nonChordTones": { "appoggiatura": 0.28, "suspension": 0.14, "chromaticPassing": 0.12 },
     "registerShift": { "chorus": 3, "bridge": 1 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root"],
+      "chorus": ["counterline"],
+      "bridge": ["pedal"],
+      "outro": ["root"]
+    },
+    "activity": 0.4, "syncopation": 0.06, "rests": 0.12, "chordToneRatio": 0.9,
+    "approachRatio": 0.4, "diatonicApproachRatio": 0.62, "chromaticApproachRatio": 0.15, "enclosureRatio": 0.08,
+    "resolveLeapRatio": 0.7, "fifthOctaveRatio": 0.25, "fillProbability": 0.1,
+    "range": [33, 55], "maxLeap": 9
+  },
+  "register": {
+    "piano": [43, 61],
+    "melody": [59, 79]
   },
   "expected": { "nonChordToneRatio": 0.32, "clashPerBar": 0.26 },
   "structure": {

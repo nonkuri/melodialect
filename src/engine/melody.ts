@@ -118,10 +118,21 @@ function scaleStepsBetween(from: number, to: number, scalePcs: number[]): number
   return steps;
 }
 
+/**
+ * 音域の外へ出た音を、音階上の音のままオクターブで窓へ折り返す。
+ *
+ * 1 回だけ折り返す実装では、窓から 1 オクターブ以上外れた音が窓の外に残り、
+ * ダイアレクトが宣言した旋律音域が実測で 4〜5 半音下へはみ出していた。
+ * 伴奏のボイシング窓はこの宣言を基準に配分されるため、はみ出しはそのまま
+ * 伴奏と旋律の衝突になる。収まるまで折り返し、それでも収まらない
+ * (窓が極端に狭い) 場合だけ端で止める
+ */
 function clampReflect(pitch: number, scalePcs: number[], low: number, high: number): number {
-  if (pitch > high) return snapToScale(pitch - 12, scalePcs, 0);
-  if (pitch < low) return snapToScale(pitch + 12, scalePcs, 0);
-  return pitch;
+  let value = pitch;
+  for (let guard = 0; guard < 12 && (value > high || value < low); guard++) {
+    value = snapToScale(value + (value > high ? -12 : 12), scalePcs, 0);
+  }
+  return Math.max(low, Math.min(high, value));
 }
 
 const CONTOUR_LABELS: Record<MelodicContour, string> = {

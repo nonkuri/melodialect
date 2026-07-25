@@ -479,6 +479,22 @@ export type AccompanimentTexture =
   | "answer"
   | "interlock";
 
+/**
+ * ダイアレクトが宣言する「伴奏の顔つき」の候補 (§4.1)。
+ * defaults.arrangement 1 つだけだと、シードを変えても伴奏が毎回同じになる。
+ * ダイアレクトの語彙と互換な範囲だけを候補として持たせ、選択はシードで決める。
+ * バリアントはダイアレクトの定義的な奏法を消してはならない (例: Voicing の
+ * voice-led ピアノ)。消すとダイアレクトそのものが別物になる
+ */
+export interface ArrangementVariant {
+  /** 注記に出す短い名前 (例: "アルペジオ主体") */
+  name: string;
+  /** 重み。0 より大きい値のうちから選ぶ */
+  weight: number;
+  /** defaults.arrangement へ重ねる差分 */
+  arrangement: Partial<ArrangementSettings>;
+}
+
 export interface ArrangementSectionPlan {
   sectionIndex: number;
   strategy: "piano-led" | "guitar-led" | "alternating" | "ensemble";
@@ -492,6 +508,11 @@ export interface ArrangementSectionPlan {
   fillBars: number[];
   breakBars: number[];
   pickupBars: number[];
+  /**
+   * 採用した伴奏バリアント。セクション計画へ載せるのは、伴奏生成もコーダも
+   * セクション計画しか受け取らないため。省略時はダイアレクトの既定伴奏のまま
+   */
+  variant?: { name: string; arrangement: Partial<ArrangementSettings> };
 }
 
 export interface ArrangementPlan {
@@ -526,6 +547,11 @@ export interface Dialect {
     meter?: string;
     /** 未指定時に使う推奨伴奏。既存ダイアレクトは従来値へフォールバックする。 */
     arrangement?: Partial<ArrangementSettings>;
+    /**
+     * シードで選ぶ伴奏バリアント。省略時は arrangement だけを使う (従来動作)。
+     * 手動でパターンを指定した場合 (autoArrange=false) は適用しない
+     */
+    arrangementVariants?: ArrangementVariant[];
   };
   chord: {
     vocabulary: string[];

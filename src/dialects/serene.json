@@ -7,7 +7,12 @@
     "arrangement": {
       "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "off",
       "swing": 0, "humanize": 0.16, "velocityScale": 0.82
-    }
+    },
+    "arrangementVariants": [
+      { "name": "アルペジオ", "weight": 3, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "ブロック和音", "weight": 2, "arrangement": { "pianoPattern": "block", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "ギターを添える", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "arpeggio", "drumPattern": "off" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△7", "ii7", "iii7", "IV△7", "V7", "vi"],
@@ -39,7 +44,7 @@
     "harmonicRhythm": {
       "default": { "0.5": 0.35, "1": 0.65 }
     },
-    "cliches": [],
+    "cliches": ["parallel-planing"],
     "borrowedChords": false
   },
   "rhythm": {
@@ -69,7 +74,19 @@
     "registerShift": { "chorus": 1 }
   },
   "register": {
+    "melody": [63, 82],
     "piano": [50, 74]
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "verse": ["root", "pedal"],
+      "bridge": ["pedal"]
+    },
+    "activity": 0.3, "syncopation": 0.04, "rests": 0.15, "chordToneRatio": 0.95,
+    "approachRatio": 0.15, "diatonicApproachRatio": 0.5, "chromaticApproachRatio": 0.05, "enclosureRatio": 0.04,
+    "resolveLeapRatio": 0.65, "fifthOctaveRatio": 0.3, "fillProbability": 0.05,
+    "range": [36, 55], "maxLeap": 9
   },
   "expected": { "nonChordToneRatio": 0.3, "clashPerBar": 0.05 },
   "structure": {

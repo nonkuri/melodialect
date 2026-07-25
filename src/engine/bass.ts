@@ -285,10 +285,12 @@ function candidateScore(
       if (encloses) score += profile.enclosureRatio * 0.4;
     }
   });
+  // 音数の多い候補ほど平均が薄まるため、比較は 1 音あたりの平均で行う。
+  // 活動量の乖離だけは音数で割らずに平均へ足し引きする。以前はこれも割っていたので、
+  // 音数が増えるほど罰が軽くなり、常に最も疎な候補が勝って activity が効かなかった
   const target = profile.activity * 4;
   const density = notes.length / Math.max(1, chords.at(-1)!.start + chords.at(-1)!.durationBeats) * 4;
-  score -= Math.abs(density - target) * 0.18;
-  return score / notes.length;
+  return score / notes.length - Math.abs(density - target) * 0.18;
 }
 
 export function generateBassLine(options: BassGenerationOptions): BassGenerationResult {
@@ -306,8 +308,15 @@ export function generateBassLine(options: BassGenerationOptions): BassGeneration
   const role = roles[options.rng.int(0, roles.length - 1)]!;
   // Legacy special patterns remain a first-class candidate. This preserves the
   // recognizable bossa anticipation, modal drone and existing custom dialects.
+  const grooveOwnsBass = Boolean(
+    options.dialect.groove?.bassPattern || options.dialect.groove?.anticipation,
+  );
+  // レガシー候補は伴奏パターン由来の 2 拍ルート中心の線で、1 音あたりの平均点が
+  // 高くなりやすい。プロファイルを宣言したダイアレクトでこれを競わせると、
+  // activity をいくつにしても常にレガシーが勝ち、宣言が効かなくなる
+  const useLegacy = grooveOwnsBass || !options.dialect.bass;
   const candidates = [
-    options.legacy,
+    ...(useLegacy ? [options.legacy] : []),
     pathCandidate(options, profile, role, 0),
     pathCandidate(options, profile, role, 1),
     pathCandidate(options, profile, role, 2),
@@ -319,9 +328,14 @@ export function generateBassLine(options: BassGenerationOptions): BassGeneration
   const top = ranked.filter((item) => item.score >= ranked[0]!.score - 0.22);
   // Candidate zero favors compatibility; other whole-song candidates explore
   // the qualified alternatives without allowing an incoherent random pattern.
-  const selected = options.candidateIndex === 0
-    ? ranked.find((item) => item.notes === options.legacy) ?? ranked[0]!
-    : options.rng.pick(top);
+  // グルーヴが先取りやアクセント位置でベースの個性を持つダイアレクト
+  // (ボサの先取り、3-3-2、ドローン) では、その伴奏由来のベースこそが宣言なので
+  // 候補 0 では従来どおり優先する
+  const selected = options.candidateIndex !== 0
+    ? options.rng.pick(top)
+    : useLegacy
+      ? ranked.find((item) => item.notes === options.legacy) ?? ranked[0]!
+      : ranked[0]!;
   const roleLabel: Record<BassRole, string> = {
     root: "コードの輪郭を明確にするルート中心",
     pedal: "調の中心を保つペダル",

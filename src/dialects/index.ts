@@ -172,6 +172,37 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (arrangement.autoArrange !== undefined) boolean("defaults.arrangement.autoArrange", arrangement.autoArrange);
     }
   }
+  const variants = d.defaults?.arrangementVariants;
+  if (variants !== undefined) {
+    if (!Array.isArray(variants) || !variants.length || variants.length > 8) {
+      add("defaults.arrangementVariants", "1〜8個の伴奏バリアントを配列で指定してください");
+    } else {
+      if (!variants.some((variant) => isRecord(variant) && finite(variant.weight) && variant.weight > 0)) {
+        add("defaults.arrangementVariants", "少なくとも1つの重みを0より大きくしてください");
+      }
+      variants.forEach((variant, index) => {
+        const path = `defaults.arrangementVariants[${index}]`;
+        if (!isRecord(variant)) return add(path, "name、weight、arrangement を持つオブジェクトが必要です");
+        if (typeof variant.name !== "string" || !variant.name.trim() || variant.name.length > 40) {
+          add(`${path}.name`, "1〜40文字で指定してください");
+        }
+        range(`${path}.weight`, variant.weight, 0, 100);
+        if (!isRecord(variant.arrangement)) return add(`${path}.arrangement`, "伴奏差分のオブジェクトが必要です");
+        // 差分として意味を持つのは奏法とスウィングだけ。他を書けると
+        // 「設定したのに効かない」項目が生まれるので、ここで弾く
+        const value = variant.arrangement as Record<string, unknown>;
+        for (const key of Object.keys(value)) {
+          if (!["pianoPattern", "guitarPattern", "drumPattern", "swing"].includes(key)) {
+            add(`${path}.arrangement.${key}`, "pianoPattern、guitarPattern、drumPattern、swing のみ指定できます");
+          }
+        }
+        if (value.pianoPattern !== undefined && !PIANO_PATTERNS.includes(value.pianoPattern as typeof PIANO_PATTERNS[number])) add(`${path}.arrangement.pianoPattern`, "利用可能なピアノパターンを指定してください");
+        if (value.guitarPattern !== undefined && !GUITAR_PATTERNS.includes(value.guitarPattern as typeof GUITAR_PATTERNS[number])) add(`${path}.arrangement.guitarPattern`, "利用可能なギターパターンを指定してください");
+        if (value.drumPattern !== undefined && !DRUM_PATTERNS.includes(value.drumPattern as typeof DRUM_PATTERNS[number])) add(`${path}.arrangement.drumPattern`, "利用可能なドラムパターンを指定してください");
+        if (value.swing !== undefined) probability(`${path}.arrangement.swing`, value.swing);
+      });
+    }
+  }
   if (!d.melody || typeof d.melody !== "object") add("melody", "旋律定義が必要です");
   else {
     const probabilities = [

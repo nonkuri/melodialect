@@ -296,7 +296,13 @@ SPA 1 画面構成:
     "arrangement": {
       "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic",
       "swing": 0.05, "humanize": 0.17, "velocityScale": 0.9
-    }
+    },
+    // 伴奏の顔つきをシードで選ぶ (§4.1)。差分に書けるのは奏法と swing だけ。
+    // 自動編曲が有効なときだけ適用され、ダイアレクトの定義的な奏法は消さない
+    "arrangementVariants": [
+      { "name": "ピアノバラード", "weight": 3, "arrangement": { "pianoPattern": "ballad", "guitarPattern": "off", "drumPattern": "basic" } },
+      { "name": "アルペジオ", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "basic" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I△7", "IV△7", "III7", "vi", "ii7", "V7", "♭VII"],
@@ -364,7 +370,9 @@ SPA 1 画面構成:
 }
 ```
 
-新フィールド (`idioms` / `cadences` / `harmonicRhythm` / `rhythm` / `pitchCollection` / `motif` / `nonChordTones` / `finalDegree` / `registerShift` / `register` / `expected` / `groove` / `bass` / `sectionRules` / `modulation` / `defaults.arrangement`) はすべて省略可で、省略時はエンジンの既定値 (マルコフ+V7 カデンツ+内蔵リズムテンプレート+`DEFAULT_REGISTER`+共通伴奏) にフォールバックする。
+新フィールド (`idioms` / `cadences` / `harmonicRhythm` / `rhythm` / `pitchCollection` / `motif` / `nonChordTones` / `finalDegree` / `registerShift` / `register` / `expected` / `groove` / `bass` / `sectionRules` / `modulation` / `defaults.arrangement` / `defaults.arrangementVariants`) はすべて省略可で、省略時はエンジンの既定値 (マルコフ+V7 カデンツ+内蔵リズムテンプレート+`DEFAULT_REGISTER`+共通伴奏) にフォールバックする。
+
+**宣言は実際に使われなければならない。** 内蔵 14 ダイアレクトは全て `cliches` (名前付き技法)、`bass` (BassProfile)、`register.melody`、`defaults.arrangementVariants` を宣言する。宣言したのにエンジンが無視する状態 (例: レガシー経路が常に優先される、活動量が音数へ届かない、宣言した音域から旋律がはみ出す) は仕様違反として扱い、`test/dialect-identity.test.ts` の統計テストで監視する。
 
 `register` と `expected` は「ダイアレクトの個性を守るための例外の置き場」として機能する。ボサのガイドトーンが旋律と重なること、ブルースの ♭5 が和音から外れること、拡張和音が広い窓を要求することは、いずれも一律の絶対値では表現できない。窓と期待値をダイアレクトが宣言することで、エンジンは共通規則を持ちながら例外を許せる。
 
@@ -377,6 +385,8 @@ SPA 1 画面構成:
 | 1. 同梱スタイル | 開発者 | `dialects/` に JSON を追加(エンジン変更不要) | M3(4 スタイル) |
 | 2. ユーザー定義 JSON | 上級ユーザー | 自作の定義ファイルを読み込み | M5 以前でも読み込み機能のみ先行実装可 |
 | 3. GUI エディタ | 一般ユーザー | ダイアレクトエディタでパラメータを編集・保存・共有 | M5 |
+
+**登録済みの名前付き技法 (技法レジストリ):** `descending-bass` (半音階クリシェ) / `orchestral-inversions` (下降転回ベース) / `twelve-bar-blues` / `lament-bass` / `suspension-resolution` (掛留と解決) / `tritone-substitution` (裏コード) / `parallel-planing` (平行移動) / `pedal-shift` (ペダル上の和声変化) / `modal-brightening` (旋法の明暗の入替) / `riff-anchor` (2 小節リフの反復)。技法は終止形 (末尾 2 和音) を書き換えず、コードの被覆に穴を空けない。
 
 **JSON で表現できる範囲の制約:** コード語彙・遷移確率・跳躍確率などのパラメータ調整と、既存の名前付き技法(`cliches` に指定する `descending-bass` 等)の組み合わせは JSON だけで自由に定義できる。一方、**技法アルゴリズム自体**(半音階クリシェや逆ペダルポイントの実装、あるいは対位法的な 2 声生成のような新技法)はエンジン側(`engine/`)のコード実装が必要。新技法を追加する際は、名前を付けて登録し JSON から参照できる形にすること(技法レジストリ方式)。
 

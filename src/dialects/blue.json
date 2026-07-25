@@ -14,7 +14,12 @@
       "swing": 0.72,
       "humanize": 0.14,
       "velocityScale": 1
-    }
+    },
+    "arrangementVariants": [
+      { "name": "シャッフル", "weight": 3, "arrangement": { "pianoPattern": "syncopated", "guitarPattern": "strum", "drumPattern": "shuffle" } },
+      { "name": "ピアノブギ", "weight": 2, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "shuffle" } },
+      { "name": "ギター主体", "weight": 2, "arrangement": { "pianoPattern": "off", "guitarPattern": "strum", "drumPattern": "shuffle" } }
+    ]
   },
   "chord": {
     "vocabulary": ["I7", "IV7", "V7"],
@@ -75,9 +80,20 @@
     "registerShift": { "chorus": 2 }
   },
   "register": {
+    "melody": [60, 80],
     "melodyClearance": 3,
-    "piano": [48, 70],
-    "guitar": [52, 74]
+    "piano": [44, 62],
+    "guitar": [46, 66]
+  },
+  "bass": {
+    "roles": {
+      "default": ["walking"],
+      "chorus": ["walking", "ostinato"]
+    },
+    "activity": 0.85, "syncopation": 0.25, "rests": 0.02, "chordToneRatio": 0.75,
+    "approachRatio": 0.55, "diatonicApproachRatio": 0.45, "chromaticApproachRatio": 0.45, "enclosureRatio": 0.25,
+    "resolveLeapRatio": 0.7, "fifthOctaveRatio": 0.7, "fillProbability": 0.45,
+    "range": [36, 58], "maxLeap": 12
   },
   "expected": { "nonChordToneRatio": 0.38, "clashPerBar": 0.36 },
   "structure": {
