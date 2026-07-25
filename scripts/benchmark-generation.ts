@@ -43,9 +43,18 @@ const regressions = [
   ["maximumMs", result.maximumMs, baseline.maximumMs],
   ["heapDeltaMb", result.heapDeltaMb, baseline.heapDeltaMb],
 ] as const;
+// 基準は開発機での実測値。絶対値はハードウェアに依存し、CI ランナーは
+// 開発機より遅いことが多いので倍率で吸収する。3 倍あればハード差を吸収でき、
+// この検出器が狙う「O(n²) の混入」級の劣化 (通常 5〜50 倍) は確実に捕まる。
+// 基準を実測より小さい値に据え置くと、劣化なしに遅いランナーで失敗する。
+const TOLERANCE_FACTOR = 3;
+const TOLERANCE_MARGIN = 10;
 for (const [name, current, reference] of regressions) {
-  if (current > reference * 4 + 10) {
-    console.error(`${name} regressed: ${current} > baseline ${reference} (4x tolerance + 10)`);
+  const limit = reference * TOLERANCE_FACTOR + TOLERANCE_MARGIN;
+  if (current > limit) {
+    console.error(
+      `${name} regressed: ${current} > ${limit} (baseline ${reference} × ${TOLERANCE_FACTOR} + ${TOLERANCE_MARGIN})`,
+    );
     process.exitCode = 1;
   }
 }
