@@ -12,6 +12,15 @@ import type { Meter } from "./meter.js";
 import type { Rng } from "./rng.js";
 import { chordAtBeat, scaleOf } from "./harmony.js";
 import { registerPlanFor } from "./register.js";
+import { applyMotifOperator, type MotifSlot } from "./motifOps.js";
+
+/** 動機労作の操作子の表示名 (注記用) */
+const MOTIF_OPERATOR_LABELS: Record<string, string> = {
+  fragmentation: "断片化",
+  inversion: "反行",
+  augmentation: "拡大",
+  stretto: "ストレッタ",
+};
 
 /** フレーズ途中の跳躍確率は default に対するこの倍率 (§6.2 の意味付け) */
 const WITHIN_PHRASE_LEAP_FACTOR = 0.35;
@@ -30,6 +39,15 @@ const BUILTIN_TEMPLATES: Record<string, RhythmTemplate[]> = {
     { beats: [2, 2], weight: 1 },
     { beats: [1.5, 0.5, 1, 1], weight: 1 },
     { beats: [1, 0.5, 0.5, 1, 1], weight: 1 },
+  ],
+  // 2/2 は 4/4 と同じ 4 拍だが、2 分音符の拍節に乗る形を厚くする
+  "2/2": [
+    { beats: [2, 2], weight: 1 },
+    { beats: [2, 1, 1], weight: 1 },
+    { beats: [1, 1, 2], weight: 1 },
+    { beats: [4], weight: 1 },
+    { beats: [1, 1, 1, 1], weight: 1 },
+    { beats: [0.5, 0.5, 1, 2], weight: 1 },
   ],
   "3/4": [
     { beats: [1, 1, 1], weight: 1 },
@@ -64,6 +82,7 @@ const BUILTIN_TEMPLATES: Record<string, RhythmTemplate[]> = {
 // 末尾は 1 音で埋めず、譜面で表せる音価に分ける (5 拍・3.5 拍の単音は書けない)
 const BUILTIN_FINAL: Record<string, RhythmTemplate[]> = {
   "4/4": [{ beats: [4], weight: 1 }, { beats: [2, 2], weight: 1 }],
+  "2/2": [{ beats: [4], weight: 1 }, { beats: [2, 2], weight: 1 }],
   "3/4": [{ beats: [3], weight: 1 }, { beats: [2, 1], weight: 1 }],
   "6/8": [{ beats: [3], weight: 1 }, { beats: [1.5, 1.5], weight: 1 }],
   "5/4": [{ beats: [3, 2], weight: 1 }, { beats: [2, 1, 2], weight: 1 }],
@@ -316,13 +335,8 @@ interface PendingIntent {
   deadline: number;
 }
 
-/** モチーフ (§4.1): 最初のフレーズのリズムと輪郭 (頭の音からのスケール度数差) を記憶する */
-interface MotifSlot {
-  offsetInPhrase: number;
-  duration: number;
-  rest: boolean;
-  step: number;
-}
+/** モチーフ (§4.1): 最初のフレーズのリズムと輪郭 (頭の音からのスケール度数差) を記憶する。
+ * MotifSlot は動機労作の操作子と共有するため motifOps.ts が持つ */
 interface Motif {
   bars: number;
   headPitch: number;
@@ -358,6 +372,13 @@ export function generateMelody(
   const suspensionP = nct.suspension ?? 0;
   const chromaticP = nct.chromaticPassing ?? 0;
   const motifP = pedalPoint ? 0 : (dialect.melody.motif?.repeatProbability ?? 0);
+  // 動機労作 (§4.1 v1.9): 反復時に断片化・反行・拡大・ストレッタを施す
+  const development = Object.entries(dialect.melody.motif?.development ?? {})
+    .filter(([, weight]) => weight > 0) as Array<[string, number]>;
+  const developmentP = development.length
+    ? dialect.melody.motif?.developmentProbability?.[plan.type] ??
+      dialect.melody.motif?.developmentProbability?.default ?? 0
+    : 0;
 
   // 音域はダイアレクトが所有する (§4.1)。伴奏側の窓もここを基準に配分される
   const registerPlan = registerPlanFor(dialect);
@@ -470,12 +491,35 @@ export function generateMelody(
       let head = snapToChordTone(prevPitch, headChord);
       head = clampReflect(head, scalePcs, low, high);
       const transposed = head !== motif.headPitch;
+
+      // 動機労作 (§4.1 v1.9)。設計ルール 3 に従い、終止形の乗る最終小節は
+      // 展開の対象から外してモチーフのまま残す。フレーズは 2 本しかない
+      // セクションが普通なので、「最終フレーズを丸ごと除外」にすると
+      // 宣言しても一度も発火しない (実測: 24 シードで 0 回だった)
+      const phraseBeats = phrase.bars * bb;
+      const developBeats = hasNextPhrase ? phraseBeats : Math.max(bb, phraseBeats - bb);
+      let slots = motif.slots;
+      let operator: string | null = null;
+      if (developmentP > 0 && rng.chance(developmentP)) {
+        const name = rng.weighted(development.map(([id, weight]) => [id, weight] as [string, number]));
+        const developed = applyMotifOperator(
+          name, motif.slots.filter((ms) => ms.offsetInPhrase < developBeats - 1e-9), developBeats);
+        if (developed) {
+          slots = [
+            ...developed,
+            ...motif.slots.filter((ms) => ms.offsetInPhrase >= developBeats - 1e-9),
+          ];
+          operator = name;
+        }
+      }
       annotations.push({
         bar: phrase.startBar,
-        ruleId: "motif-repeat",
-        text: `モチーフ反復: 冒頭フレーズのリズムと輪郭を再利用${transposed ? " (移調反復=シークエンス)" : ""}`,
+        ruleId: operator ? "motif-development" : "motif-repeat",
+        text: operator
+          ? `動機労作: 冒頭フレーズのモチーフを${MOTIF_OPERATOR_LABELS[operator] ?? operator}で展開`
+          : `モチーフ反復: 冒頭フレーズのリズムと輪郭を再利用${transposed ? " (移調反復=シークエンス)" : ""}`,
       });
-      for (const ms of motif.slots) {
+      for (const ms of slots) {
         const start = phraseStartBeat + ms.offsetInPhrase;
         if (ms.rest) continue;
         let pitch = stepOnScale(head, ms.step, scalePcs);

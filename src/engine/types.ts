@@ -17,6 +17,7 @@ export type ChordQuality =
   | "maj7"
   | "min7"
   | "dim"
+  | "dim7"
   | "sus2"
   | "sus4"
   | "add9"
@@ -513,6 +514,37 @@ export interface ThemeGrammar {
   finalLift: boolean;
 }
 
+/** 強弱記号。mf を基準 (倍率 1.0) とする */
+export type DynamicLevel = "pp" | "p" | "mp" | "mf" | "f" | "ff";
+
+/**
+ * ダイアレクトが所有する強弱の語彙 (§4.1)。
+ *
+ * v1.8 までは velocity が奏法ごとの定数 + 一律の velocityScale + humanize の
+ * ジッタしかなく、全ダイアレクトが平坦に鳴っていた。セクション対比は編成と
+ * 密度だけが担っていたので、「同じ編成のまま弱く始めて盛り上げる」ができない。
+ *
+ * ここは音を増やさず、生成済みの velocity へ倍率を掛けるだけ。宣言のない
+ * ダイアレクトは倍率 1 で従来どおりの出力になる (dynamics.ts)
+ */
+export interface DynamicsProfile {
+  /** セクションタイプ別の基準強弱。"default" はそれ以外すべて。省略時 mf */
+  sectionLevels: Partial<Record<SectionType | "default", DynamicLevel>>;
+  /** セクション頭から末尾への増減 -1..1。正でクレッシェンド、負でディミヌエンド */
+  sectionArc: number;
+  /** フレーズごとの山の高さ 0..1。0 で平坦 */
+  phraseShape: number;
+  /** アクセント (sf) の強さ 0..1 */
+  accent: number;
+  /**
+   * アクセントを置く小節内の拍位置。省略時は groove.accentPattern を使う。
+   * 拍節上の強拍とずらすと「弱拍の sf」になる
+   */
+  accentBeats: number[];
+  /** フレーズ末尾の小節を急に弱くする確率 0..1 (subito piano) */
+  subitoProbability: number;
+}
+
 export type AccompanimentTexture =
   | "block"
   | "arpeggio"
@@ -659,7 +691,19 @@ export interface Dialect {
      * モチーフ反復: セクション最初のフレーズのリズムと輪郭を記憶し、
      * 以降のフレーズで確率的に再利用する (移調反復 = シークエンスを含む)
      */
-    motif?: { repeatProbability: number };
+    motif?: {
+      repeatProbability: number;
+      /**
+       * v1.9 動機労作 (motifOps.ts)。反復時にそのまま戻す代わりに施す操作子と重み。
+       * 省略時はそのまま戻す (v1.8 と同じ)
+       */
+      development?: Record<string, number>;
+      /**
+       * 操作子を使う確率。セクションタイプ別で、"default" はそれ以外すべて。
+       * 展開部にあたるセクションだけ高くする使い方を想定している
+       */
+      developmentProbability?: Partial<Record<SectionType | "default", number>>;
+    };
     /** 非和声音の傾向。倚音 (強拍の上方隣接音→解決)、掛留、半音階経過音 */
     nonChordTones?: {
       appoggiatura?: number;
@@ -689,6 +733,8 @@ export interface Dialect {
   expected?: Partial<DialectExpectation>;
   /** v1.5: 繰り返すセクションで主題をどう戻すか。省略時はエンジン既定 (DEFAULT_THEME)。 */
   theme?: Partial<ThemeGrammar>;
+  /** v1.9: 強弱の語彙。省略時は平坦 (DEFAULT_DYNAMICS) で v1.8 と同じ出力。 */
+  dynamics?: Partial<DynamicsProfile>;
   /** Intro/Verse/Chorus 等で構成・進行語彙を変える。 */
   sectionRules?: Partial<Record<SectionType, DialectSectionRule>>;
   /**

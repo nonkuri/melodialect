@@ -24,6 +24,7 @@ import {
   prism,
   ryukyu,
   miyakobushi,
+  agitato,
   dialectList,
 } from "../src/dialects/index.js";
 import { scaleOf } from "../src/engine/harmony.js";
@@ -516,10 +517,10 @@ describe("追加ダイアレクト (§4.1 D5〜D9)", () => {
   });
 });
 
-describe("追加ダイアレクト D10〜D20", () => {
-  it("全20ダイアレクトが重複なく推奨伴奏を持つ", () => {
-    expect(dialectList).toHaveLength(20);
-    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(20);
+describe("追加ダイアレクト D10〜D21", () => {
+  it("全21ダイアレクトが重複なく推奨伴奏を持つ", () => {
+    expect(dialectList).toHaveLength(21);
+    expect(new Set(dialectList.map((dialect) => dialect.id)).size).toBe(21);
     for (const dialect of dialectList) {
       expect(dialect.defaults.arrangement).toBeDefined();
       expect(generateSong({ dialect, seed: 1 }).arrangement).toMatchObject(
@@ -714,6 +715,59 @@ describe("日本の音階のダイアレクト D19〜D20", () => {
       .toBeGreaterThan(0.35);
     // ベースは調の中心を保つペダル。コードごとに動き回らない
     expect(song.sections.flatMap((section) => section.bass).length / bars).toBeLessThan(2.2);
+  });
+});
+
+describe("急速短調ソナタのダイアレクト D21 (v1.9)", () => {
+  const FORM = parseForm("i,v,c,b,v,c,o");
+  const build = (seed: number) => generateSong({ dialect: agitato, seed, form: FORM });
+  const chordsOf = (seed: number) => build(seed).sections.flatMap((section) => section.chords);
+
+  it("Agitato: 2/2 のアラブレーヴェで、和声的短音階の導音を持つ", () => {
+    const song = build(1);
+    expect(song.meter.name).toBe("2/2");
+    expect(song.meter.barBeats).toBe(4);
+    expect(song.meter.midiNumerator).toBe(2);
+    expect(song.meter.midiDenominator).toBe(2);
+    expect(song.key.mode).toBe("minor");
+    // 和声的短音階の♮7 (主音 +11 半音)
+    expect(scaleOf(song.key, agitato.melody.pitchCollection)).toContain((song.key.tonic + 11) % 12);
+  });
+
+  it("Agitato: 減七・副属和音・ナポリが実際に鳴る", () => {
+    const chords = [1, 2, 3, 4, 5, 6].flatMap((seed) => chordsOf(seed));
+    const dim7 = chords.filter((chord) => chord.quality === "dim7");
+    expect(dim7.length, "減七が 1 つも出ていない").toBeGreaterThan(0);
+    // 減七は短 3 度の積み重ね。三和音 (dim) に落ちていないことを確かめる
+    for (const chord of dim7.slice(0, 20)) {
+      const intervals = chord.pitches.slice(1).map((pitch, i) => pitch - chord.pitches[i]!);
+      expect(intervals).toEqual([3, 3, 3]);
+    }
+    expect(chords.some((chord) => chord.symbol === "V7/iv" || chord.symbol === "V7/V"),
+      "副属和音が出ていない").toBe(true);
+    expect(chords.some((chord) => chord.symbol === "♭II"), "ナポリが出ていない").toBe(true);
+  });
+
+  it("Agitato: 応用減七の根音が借用先の導音になる", () => {
+    const key = { tonic: 9, mode: "minor" as const }; // A minor
+    // V7/V = B7 (E の属七)、vii°7/V = D#dim7 (E の導音上の減七)。
+    // 数字を無視して常に「借用先の 5 度上」にすると、どちらも B になってしまう
+    expect(chordFromRoman("V7/V", 0, key).rootPc).toBe(11);
+    expect(chordFromRoman("vii°7/V", 0, key).rootPc).toBe(3);
+    expect(chordFromRoman("vii°7/iv", 0, key).rootPc).toBe(1);
+    expect(chordDisplayName(chordFromRoman("♯vii°7", 0, key), false)).toBe("G#dim7");
+  });
+
+  it("Agitato: 二重奏の編成を保ち、走句を刻む", () => {
+    for (const seed of [1, 5, 9]) {
+      const song = build(seed);
+      // 伴奏バリアントはどれも鍵盤だけ。ギターとドラムが入ると二重奏でなくなる
+      expect(song.sections.flatMap((section) => section.guitar), `seed=${seed}`).toHaveLength(0);
+      expect(song.sections.flatMap((section) => section.drums), `seed=${seed}`).toHaveLength(0);
+      const melody = song.sections.flatMap((section) => section.melody);
+      const short = melody.filter((note) => note.duration <= 0.5 + 1e-9);
+      expect(short.length / melody.length, `seed=${seed} の走句`).toBeGreaterThan(0.3);
+    }
   });
 });
 

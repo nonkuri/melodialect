@@ -25,6 +25,19 @@ const rhythm = (notes: NoteEvent[]) =>
   notes.map((note) => `${note.start.toFixed(3)}:${note.duration.toFixed(3)}`).join(",");
 const pitches = (notes: NoteEvent[]) => notes.map((note) => note.pitch).join(",");
 
+/**
+ * 主題が戻っているか。転調していないセクションは絶対音高で一致することを求め、
+ * 転調したセクション (agitato のように modulation.chorus を宣言したもの) は
+ * キーの差だけ移調された音列であることを求める。音域の端では 1 オクターブ
+ * 折り返されるため、移調側はオクターブ差を許す
+ */
+function restatesTheme(a: GeneratedSection, b: GeneratedSection): boolean {
+  if (a.melody.length !== b.melody.length || !a.melody.length) return false;
+  const shift = (((b.key.tonic - a.key.tonic) % 12) + 12) % 12;
+  if (shift === 0) return a.melody.every((note, i) => b.melody[i]!.pitch === note.pitch);
+  return a.melody.every((note, i) => ((b.melody[i]!.pitch - note.pitch - shift) % 12 + 12) % 12 === 0);
+}
+
 function build(dialect: Dialect, seed: number, form = FORM): Song {
   return generateSong({
     dialect,
@@ -70,11 +83,12 @@ describe("主題の再帰 (既定フロー)", () => {
     for (const { dialect, seed, song } of corpus) {
       const choruses = sectionsOf(song, "chorus");
       const first = choruses[0]!;
+      const last = choruses.at(-1)!;
       // finalLift: いちばん記憶に残ってほしい最後の Chorus は主題そのもの
-      expect(pitches(choruses.at(-1)!.melody), `${dialect.id} seed=${seed} の最終 Chorus が主題と違う`)
-        .toBe(pitches(first.melody));
+      expect(restatesTheme(first, last), `${dialect.id} seed=${seed} の最終 Chorus が主題と違う: ` +
+        `${pitches(last.melody)} vs ${pitches(first.melody)}`).toBe(true);
       // 途中の Chorus は「同じ律動・違う歌い回し」。全部が完全コピーだと単調になる
-      if (choruses.slice(1, -1).some((section) => pitches(section.melody) !== pitches(first.melody))) {
+      if (choruses.slice(1, -1).some((section) => !restatesTheme(first, section))) {
         variedSomewhere++;
       }
     }

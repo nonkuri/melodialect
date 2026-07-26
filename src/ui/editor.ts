@@ -651,6 +651,7 @@ function qualitySuffix(chord: ChordEvent): { lower: boolean; suffix: string } {
     case "maj7": return { lower: false, suffix: "△7" };
     case "maj9": return { lower: false, suffix: "△9" };
     case "dim": return { lower: true, suffix: "°" };
+    case "dim7": return { lower: true, suffix: "°7" };
     case "halfDim7": return { lower: true, suffix: "ø7" };
     default: return { lower: false, suffix: chord.quality === "maj" ? "" : chord.quality };
   }

@@ -2,6 +2,7 @@ import type { Dialect } from "../engine/types.js";
 import { parseRoman } from "../engine/harmony.js";
 import { METERS } from "../engine/meter.js";
 import { registeredClicheNames } from "../engine/techniques.js";
+import { registeredMotifOperatorNames } from "../engine/motifOps.js";
 import chromaticJson from "./chromatic.json" with { type: "json" };
 import modalJson from "./modal.json" with { type: "json" };
 import pedalJson from "./pedal.json" with { type: "json" };
@@ -22,6 +23,7 @@ import emberJson from "./ember.json" with { type: "json" };
 import prismJson from "./prism.json" with { type: "json" };
 import ryukyuJson from "./ryukyu.json" with { type: "json" };
 import miyakobushiJson from "./miyakobushi.json" with { type: "json" };
+import agitatoJson from "./agitato.json" with { type: "json" };
 
 export interface DialectValidationIssue {
   path: string;
@@ -44,6 +46,7 @@ export const PIANO_PATTERNS = ["off", "block", "arpeggio", "bossa", "eighth", "b
 export const GUITAR_PATTERNS = ["off", "strum", "arpeggio", "bossa", "syncopated", "interlocking"] as const;
 export const DRUM_PATTERNS = ["off", "basic", "rock", "bossa", "shuffle", "interlock", "drive"] as const;
 export const THEME_RETURNS = ["same", "vary", "new"] as const;
+export const DYNAMIC_LEVELS = ["pp", "p", "mp", "mf", "f", "ff"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -233,7 +236,32 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
     if (d.melody.repeatNoteProbability !== undefined) probability("melody.repeatNoteProbability", d.melody.repeatNoteProbability);
     if (d.melody.motif !== undefined) {
       if (!isRecord(d.melody.motif)) add("melody.motif", "モチーフ設定のオブジェクトが必要です");
-      else probability("melody.motif.repeatProbability", d.melody.motif.repeatProbability);
+      else {
+        probability("melody.motif.repeatProbability", d.melody.motif.repeatProbability);
+        if (d.melody.motif.development !== undefined) {
+          if (!isRecord(d.melody.motif.development)) add("melody.motif.development", "操作子と重みのオブジェクトが必要です");
+          else {
+            const allowed = new Set(registeredMotifOperatorNames());
+            const entries = Object.entries(d.melody.motif.development);
+            if (!entries.length) add("melody.motif.development", "1個以上の操作子が必要です");
+            entries.forEach(([name, weight]) => {
+              if (!allowed.has(name)) add(`melody.motif.development.${name}`, `参照できない操作子です（${[...allowed].join(", ")}）`);
+              range(`melody.motif.development.${name}`, weight, 0, 100);
+            });
+            if (!entries.some(([, weight]) => finite(weight) && weight > 0)) {
+              add("melody.motif.development", "少なくとも1つの重みを0より大きくしてください");
+            }
+          }
+        }
+        if (d.melody.motif.developmentProbability !== undefined) {
+          if (!isRecord(d.melody.motif.developmentProbability)) add("melody.motif.developmentProbability", "セクション別の指定が必要です");
+          else Object.entries(d.melody.motif.developmentProbability).forEach(([section, value]) => {
+            const path = `melody.motif.developmentProbability.${section}`;
+            if (section !== "default" && !SECTION_KEYS.includes(section as typeof SECTION_KEYS[number])) add(path, "未知のセクションです");
+            probability(path, value);
+          });
+        }
+      }
     }
     if (d.melody.nonChordTones !== undefined) {
       if (!isRecord(d.melody.nonChordTones)) add("melody.nonChordTones", "非和声音設定のオブジェクトが必要です");
@@ -384,6 +412,32 @@ export function validateDialectDefinition(data: unknown): DialectValidationIssue
       if (d.theme.finalLift !== undefined) boolean("theme.finalLift", d.theme.finalLift);
     }
   }
+  if (d.dynamics !== undefined) {
+    if (!isRecord(d.dynamics)) add("dynamics", "強弱のオブジェクトが必要です");
+    else {
+      const levelKeys = [...SECTION_KEYS, "default"];
+      if (d.dynamics.sectionLevels !== undefined) {
+        if (!isRecord(d.dynamics.sectionLevels)) add("dynamics.sectionLevels", "セクション別の指定が必要です");
+        else Object.entries(d.dynamics.sectionLevels).forEach(([section, level]) => {
+          const path = `dynamics.sectionLevels.${section}`;
+          if (!levelKeys.includes(section)) add(path, "未知のセクションです");
+          if (!DYNAMIC_LEVELS.includes(level as typeof DYNAMIC_LEVELS[number])) {
+            add(path, `${DYNAMIC_LEVELS.join(" / ")} のいずれかを指定してください`);
+          }
+        });
+      }
+      if (d.dynamics.sectionArc !== undefined) range("dynamics.sectionArc", d.dynamics.sectionArc, -1, 1);
+      if (d.dynamics.phraseShape !== undefined) probability("dynamics.phraseShape", d.dynamics.phraseShape);
+      if (d.dynamics.accent !== undefined) probability("dynamics.accent", d.dynamics.accent);
+      if (d.dynamics.subitoProbability !== undefined) probability("dynamics.subitoProbability", d.dynamics.subitoProbability);
+      if (d.dynamics.accentBeats !== undefined) {
+        if (!Array.isArray(d.dynamics.accentBeats) || d.dynamics.accentBeats.length > 32 ||
+          d.dynamics.accentBeats.some((beat) => !finite(beat) || beat < 0 || beat >= 8)) {
+          add("dynamics.accentBeats", "0以上8未満の拍位置を最大32個で指定してください");
+        }
+      }
+    }
+  }
   if (d.sectionRules !== undefined) {
     if (!isRecord(d.sectionRules)) add("sectionRules", "セクション別規則のオブジェクトが必要です");
     else Object.entries(d.sectionRules).forEach(([section, rule]) => {
@@ -447,6 +501,7 @@ export const ember: Dialect = loadDialect(emberJson);
 export const prism: Dialect = loadDialect(prismJson);
 export const ryukyu: Dialect = loadDialect(ryukyuJson);
 export const miyakobushi: Dialect = loadDialect(miyakobushiJson);
+export const agitato: Dialect = loadDialect(agitatoJson);
 
 /** id と短縮名の両方で引ける */
 export const dialects: Record<string, Dialect> = {
@@ -470,6 +525,7 @@ export const dialects: Record<string, Dialect> = {
   [prism.id]: prism,
   [ryukyu.id]: ryukyu,
   [miyakobushi.id]: miyakobushi,
+  [agitato.id]: agitato,
   chromatic,
   modal,
   pedal,
@@ -490,6 +546,7 @@ export const dialects: Record<string, Dialect> = {
   prism,
   ryukyu,
   miyakobushi,
+  agitato,
 };
 
 /** UI 表示用の重複なしリスト */
@@ -514,6 +571,7 @@ export const dialectList: Dialect[] = [
   prism,
   ryukyu,
   miyakobushi,
+  agitato,
 ];
 
 const USER_DIALECTS_KEY = "melodialect.userDialects.v1";

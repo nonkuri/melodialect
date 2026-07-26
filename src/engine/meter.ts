@@ -27,6 +27,12 @@ export const METERS: Record<string, Meter> = {
     name: "4/4", barBeats: 4, strongBeats: [0, 2],
     midiNumerator: 4, midiDenominator: 4, midiClocks: 24,
   },
+  // アラブレーヴェ。1 小節の長さは 4/4 と同じだが、拍節は 2 分音符 2 つ。
+  // 速い楽章を 4 分音符で数えずに済ませるための拍子なので、強拍は 0 と 2 だけ
+  "2/2": {
+    name: "2/2", barBeats: 4, strongBeats: [0, 2],
+    midiNumerator: 2, midiDenominator: 2, midiClocks: 48,
+  },
   "3/4": {
     name: "3/4", barBeats: 3, strongBeats: [0],
     midiNumerator: 3, midiDenominator: 4, midiClocks: 24,

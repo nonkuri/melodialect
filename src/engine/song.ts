@@ -27,6 +27,7 @@ import {
   halfCadenceLabel,
 } from "./harmony.js";
 import { generateMelody } from "./melody.js";
+import { applySongDynamics } from "./dynamics.js";
 import { generateAccompaniment, renderSustainedChord } from "./accompaniment.js";
 import {
   annotateChordOrigins,
@@ -85,7 +86,7 @@ export interface GenerateOptions {
   /** 例: "C", "F#"。省略時はダイアレクトのデフォルト */
   keyName?: string;
   bpm?: number;
-  /** 拍子 (METERS のキー: "4/4" | "3/4" | "6/8" | "5/4" | "7/8")。省略時は 4/4 */
+  /** 拍子 (METERS のキー: "4/4" | "2/2" | "3/4" | "6/8" | "5/4" | "7/8")。省略時は 4/4 */
   mode?: Mode;
   meterName?: string;
   /**
@@ -527,6 +528,17 @@ function generateSongCandidate(options: GenerateOptions, candidateIndex: number)
       text: "ループ継ぎ目: 半終止のまま曲頭の I へ戻る (リピート用)",
     });
   }
+
+  // 強弱 (§4.1): 全パートの velocity へセクション単位の曲線を掛ける。コーダも
+  // 対象にしたいので、セクション生成のループではなく組み上がった後で通す
+  applySongDynamics(
+    sections, meter,
+    (index) => entries[index]?.dialect ?? mainDialect,
+    (index) => createNamedRng(
+      options.sectionSeeds?.[index] ?? sectionSeed(seed, index),
+      "dynamics", index, candidateIndex,
+    ),
+  );
 
   const song: Song = {
     arrangement: normalizeArrangement({

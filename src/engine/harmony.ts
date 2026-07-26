@@ -50,6 +50,9 @@ const QUALITY_INTERVALS: Record<ChordQuality, number[]> = {
   maj7: [0, 4, 7, 11],
   min7: [0, 3, 7, 10],
   dim: [0, 3, 6],
+  // 減七。短 3 度の積み重ねで、どの構成音からも解決先を選べるため
+  // 古典派の転調と緊張の主要な材料になる
+  dim7: [0, 3, 6, 9],
   sus2: [0, 2, 7],
   sus4: [0, 5, 7],
   add9: [0, 4, 7, 14],
@@ -62,7 +65,7 @@ const QUALITY_INTERVALS: Record<ChordQuality, number[]> = {
 /** Parse extended Roman symbols while keeping parseRoman backward compatible. */
 export function parseChordSymbol(symbol: string): ChordSymbolAst {
   const m = symbol.match(
-    /^(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+)(ø7|°7|°|dim|sus2|sus4|add9|△13|maj13|M13|13|△11|maj11|M11|11|△9|maj9|M9|9|△7|maj7|M7|7|6)?((?:[♭♯#b](?:5|9|11|13))*)(?:\/(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+|[1-7]))?$/,
+    /^(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+)(ø7|°7|°|dim7|dim|sus2|sus4|add9|△13|maj13|M13|13|△11|maj11|M11|11|△9|maj9|M9|9|△7|maj7|M7|7|6)?((?:[♭♯#b](?:5|9|11|13))*)(?:\/(♭♭|bb|♭|b|♯♯|♯|#)?([iIvV]+|[1-7]))?$/,
   );
   if (!m) throw new Error(`invalid roman numeral: ${symbol}`);
   const [, accidentalText = "", numeral, suffix, alterationText = "", slashAccidental = "", slashTarget] = m;
@@ -73,7 +76,9 @@ export function parseChordSymbol(symbol: string): ChordSymbolAst {
   let quality: ChordQuality;
   if (suffix === "ø7") {
     quality = "halfDim7";
-  } else if (suffix === "°" || suffix === "°7" || suffix === "dim") {
+  } else if (suffix === "°7" || suffix === "dim7") {
+    quality = "dim7";
+  } else if (suffix === "°" || suffix === "dim") {
     quality = "dim";
   } else if (suffix === "sus2" || suffix === "sus4" || suffix === "add9") {
     quality = suffix;
@@ -144,7 +149,11 @@ function astRootPc(ast: ChordSymbolAst, key: KeySignature): number {
       flat: ast.secondaryOf.accidental < 0,
       quality: "maj",
     }, key);
-    return (target + 7 + 12) % 12;
+    // 借用先を一時的な主音とみなし、書かれた度数をそこからの長音階で測る。
+    // V7/x は従来どおり +7、♯vii°7/x や vii°7/x は導音 +11 になる
+    // (以前は数字を無視して常に +7 だったため、応用減七が書けなかった)
+    const offset = MAJOR_SCALE[ast.degree - 1]! + ast.accidental;
+    return (((target + offset) % 12) + 12) % 12;
   }
   const base = key.mode === "major" ? MAJOR_SCALE : NATURAL_MINOR_SCALE;
   return (((key.tonic + base[ast.degree - 1]! + ast.accidental) % 12) + 12) % 12;
@@ -204,7 +213,7 @@ const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 const FLAT_NAMES = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"];
 
 const QUALITY_SUFFIX: Record<ChordQuality, string> = {
-  maj: "", min: "m", dom7: "7", maj7: "△7", min7: "m7", dim: "dim",
+  maj: "", min: "m", dom7: "7", maj7: "△7", min7: "m7", dim: "dim", dim7: "dim7",
   sus2: "sus2", sus4: "sus4", add9: "add9", maj9: "△9", min9: "m9",
   dom9: "9", halfDim7: "m7♭5",
 };

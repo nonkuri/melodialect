@@ -1,0 +1,195 @@
+{
+  "id": "agitato-sonata",
+  "name": "Agitato (和声短調の急速アラブレーヴェ+減七)",
+  "stylePrompt": "fast and dramatic classical minor sonata movement in cut time, solo violin and fortepiano duo, harmonic minor with leading-tone diminished sevenths and applied dominants, neapolitan chord, running eighth-note passagework, motivic sequences, sudden dynamic contrasts, no drums",
+  "defaults": {
+    "key": "A",
+    "mode": "minor",
+    "bpm": 152,
+    "meter": "2/2",
+    "arrangement": {
+      "pianoPattern": "eighth",
+      "guitarPattern": "off",
+      "drumPattern": "off",
+      "swing": 0,
+      "humanize": 0.07,
+      "velocityScale": 1
+    },
+    "arrangementVariants": [
+      { "name": "刻む鍵盤", "weight": 3, "arrangement": { "pianoPattern": "eighth", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "分散和音", "weight": 2, "arrangement": { "pianoPattern": "arpeggio", "guitarPattern": "off", "drumPattern": "off" } },
+      { "name": "和音打ち", "weight": 2, "arrangement": { "pianoPattern": "block", "guitarPattern": "off", "drumPattern": "off" } }
+    ]
+  },
+  "chord": {
+    "vocabulary": ["i", "iv", "V7", "VI", "VII", "III", "♭II", "♯vii°7", "V7/iv", "V7/V", "vii°7/V"],
+    "transitions": {
+      "i": { "V7": 0.18, "iv": 0.16, "♯vii°7": 0.13, "V7/V": 0.12, "VII": 0.11, "VI": 0.11, "V7/iv": 0.1, "III": 0.09 },
+      "iv": { "V7": 0.36, "♯vii°7": 0.16, "i": 0.18, "♭II": 0.16, "V7/V": 0.14 },
+      "V7": { "i": 0.58, "VI": 0.2, "iv": 0.12, "III": 0.1 },
+      "VI": { "iv": 0.26, "V7": 0.22, "♭II": 0.18, "♯vii°7": 0.18, "VII": 0.16 },
+      "VII": { "III": 0.4, "i": 0.24, "VI": 0.2, "V7": 0.16 },
+      "III": { "VI": 0.34, "V7/V": 0.22, "iv": 0.22, "VII": 0.22 },
+      "♭II": { "V7": 0.52, "i": 0.26, "♯vii°7": 0.22 },
+      "♯vii°7": { "i": 0.6, "V7": 0.2, "VI": 0.2 },
+      "V7/iv": { "iv": 0.74, "♯vii°7": 0.14, "i": 0.12 },
+      "V7/V": { "V7": 0.66, "vii°7/V": 0.18, "i": 0.16 },
+      "vii°7/V": { "V7": 0.68, "V7/V": 0.16, "i": 0.16 }
+    },
+    "idioms": [
+      { "symbols": ["i", "V7/iv", "iv", "V7"], "weight": 4 },
+      { "symbols": ["i", "♯vii°7", "i", "V7"], "weight": 3 },
+      { "symbols": ["iv", "♭II", "V7", "i"], "weight": 3 },
+      { "symbols": ["i", "VII", "III", "V7/V"], "weight": 3 },
+      { "symbols": ["VI", "V7/V", "V7", "i"], "weight": 2 },
+      { "symbols": ["III", "vii°7/V", "V7", "i"], "weight": 2 }
+    ],
+    "idiomProbability": 0.7,
+    "cadences": {
+      "final": [
+        { "symbols": ["V7", "i"], "weight": 5 },
+        { "symbols": ["♯vii°7", "i"], "weight": 2 },
+        { "symbols": ["iv", "i"], "weight": 1 }
+      ],
+      "half": [
+        { "symbols": ["V7"], "weight": 4 },
+        { "symbols": ["V7/V"], "weight": 2 },
+        { "symbols": ["♭II"], "weight": 1 }
+      ]
+    },
+    "harmonicRhythm": {
+      "default": { "0.5": 0.12, "1": 0.68, "2": 0.2 },
+      "chorus": { "1": 0.6, "2": 0.4 },
+      "bridge": { "1": 0.5, "2": 0.5 },
+      "intro": { "0.5": 0.4, "1": 0.6 }
+    },
+    "cliches": ["suspension-resolution"],
+    "borrowedChords": false
+  },
+  "rhythm": {
+    "breathProbability": 0.14,
+    "templates": {
+      "2/2": [
+        { "beats": [0.5, 0.5, 0.5, 0.5, 1, 1], "weight": 3 },
+        { "beats": [0.5, 0.5, 1, 2], "weight": 3 },
+        { "beats": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], "weight": 2 },
+        { "beats": [1, 1, 2], "weight": 2 },
+        { "beats": [2, 1, 1], "weight": 2 },
+        { "beats": [-0.5, 0.5, 1, 2], "weight": 2 },
+        { "beats": [1.5, 0.5, 2], "weight": 1 },
+        { "beats": [2, 2], "weight": 1 }
+      ]
+    },
+    "finalTemplates": {
+      "2/2": [
+        { "beats": [4], "weight": 2 },
+        { "beats": [2, 2], "weight": 2 },
+        { "beats": [3, 1], "weight": 1 }
+      ]
+    },
+    "anacrusisProbability": 0.4,
+    "chorusDensityBias": 0.3
+  },
+  "melody": {
+    "finalDegree": { "1": 4, "3": 2, "5": 2 },
+    "pitchCollection": "harmonic-minor",
+    "leapProbability": { "default": 0.22, "chorusHead": 0.55 },
+    "leapRangeSemitones": [7, 12],
+    "afterLeapBias": "down",
+    "contour": "leap-then-descend",
+    "pedalPoint": false,
+    "repeatNoteProbability": 0.12,
+    "motif": {
+      "repeatProbability": 0.82,
+      "development": { "fragmentation": 4, "inversion": 3, "stretto": 2, "augmentation": 1 },
+      "developmentProbability": { "bridge": 0.85, "chorus": 0.2, "default": 0.12 }
+    },
+    "nonChordTones": { "appoggiatura": 0.26, "suspension": 0.12, "chromaticPassing": 0.18 },
+    "registerShift": { "chorus": 5, "bridge": -3 }
+  },
+  "bass": {
+    "roles": {
+      "default": ["root"],
+      "intro": ["pedal"],
+      "verse": ["root"],
+      "chorus": ["counterline"],
+      "bridge": ["walking"],
+      "outro": ["root"]
+    },
+    "activity": 0.72, "syncopation": 0.08, "rests": 0.06, "chordToneRatio": 0.88,
+    "approachRatio": 0.36, "diatonicApproachRatio": 0.6, "chromaticApproachRatio": 0.24, "enclosureRatio": 0.08,
+    "resolveLeapRatio": 0.78, "fifthOctaveRatio": 0.34, "fillProbability": 0.14,
+    "range": [36, 57], "maxLeap": 12
+  },
+  "register": {
+    "melody": [62, 86],
+    "piano": [44, 66],
+    "guitar": [52, 73]
+  },
+  "expected": { "nonChordToneRatio": 0.34, "clashPerBar": 0.3 },
+  "structure": {
+    "phraseLengths": [4, 4],
+    "irregularPhraseProbability": 0.15
+  },
+  "groove": {
+    "subdivision": 0.5,
+    "accentPattern": [0, 2],
+    "anticipation": 0
+  },
+  "dynamics": {
+    "sectionLevels": { "intro": "p", "verse": "mf", "chorus": "f", "bridge": "mf", "outro": "ff", "default": "mf" },
+    "sectionArc": 0.34,
+    "phraseShape": 0.26,
+    "accent": 0.8,
+    "accentBeats": [1, 3],
+    "subitoProbability": 0.3
+  },
+  "theme": {
+    "recurrence": { "verse": "same", "chorus": "same", "bridge": "new", "default": "new" },
+    "variation": { "verse": 0.2, "chorus": 0.15 },
+    "finalLift": true
+  },
+  "sectionRules": {
+    "intro": {
+      "phraseLengths": [4],
+      "idiomProbability": 0.3,
+      "cadences": { "half": [{ "symbols": ["V7"], "weight": 3 }] }
+    },
+    "chorus": {
+      "idiomProbability": 0.82,
+      "idioms": [
+        { "symbols": ["i", "V7/iv", "iv", "V7"], "weight": 3 },
+        { "symbols": ["iv", "♭II", "V7", "i"], "weight": 3 },
+        { "symbols": ["VI", "V7/V", "V7", "i"], "weight": 2 }
+      ]
+    },
+    "bridge": {
+      "idiomProbability": 0.9,
+      "idioms": [
+        { "symbols": ["i", "VII", "III", "V7/V"], "weight": 4 },
+        { "symbols": ["III", "vii°7/V", "V7", "i"], "weight": 3 },
+        { "symbols": ["i", "♯vii°7", "i", "V7"], "weight": 2 }
+      ],
+      "cadences": { "half": [{ "symbols": ["V7/V"], "weight": 3 }, { "symbols": ["V7"], "weight": 2 }] }
+    },
+    "outro": { "phraseLengths": [4] }
+  },
+  "modulation": {
+    "chorus": {
+      "probability": 0.5,
+      "intervals": [
+        { "semitones": 7, "weight": 3 },
+        { "semitones": 3, "weight": 2 }
+      ]
+    },
+    "bridge": {
+      "probability": 0.7,
+      "intervals": [
+        { "semitones": 3, "weight": 2 },
+        { "semitones": 5, "weight": 2 },
+        { "semitones": -2, "weight": 1 },
+        { "semitones": 8, "weight": 1 }
+      ]
+    }
+  }
+}
