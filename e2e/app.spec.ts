@@ -145,13 +145,17 @@ test("downloads the optional GeneralUser GS pack only after consent", async ({ p
   expect(packRequests).toBe(1);
 
   await dialog.getByRole("button", { name: "閉じる" }).click();
-  await expect(page.locator(".soundfont-assignment")).toHaveText([
+  // 音源列は実際に鳴っている方だけを選択状態にする。SoundFont を割り当てたら
+  // 内蔵オシレーターの音色名ではなく SoundFont のプリセット名が選ばれる。
+  await expect(page.locator(".part-source option:checked")).toHaveText([
     "Flute",
     "Grand Piano",
     "Nylon Guitar",
     "Finger Bass",
     "Standard 1",
   ]);
+  await expect(page.getByTitle("5 パートの音源割り当てから判定した、いま鳴っている音色セットです"))
+    .toHaveText("標準（GeneralUser GS）");
   await page.waitForTimeout(600);
   await page.goto("./?qa=1");
   await page.getByRole("button", { name: "音源を追加 / 管理" }).click();

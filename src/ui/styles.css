@@ -845,8 +845,12 @@ button:disabled {
 
 .mixer-presets { margin-bottom: 5px; }
 .mixer-presets button { padding: 3px 8px; }
-.mixer-row { grid-template-columns: 62px 28px 28px minmax(90px, 1fr) minmax(90px, 1fr) 92px 130px 85px; }
-.soundfont-assignment { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mixer-presets-label { min-width: 92px; color: #8b93a5; font-size: 10px; }
+.timbre-set-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-sync { padding: 1px 7px; border-radius: 999px; background: #4a3a20; color: #ffd79a; font-size: 10px; }
+.preset-sync.in-sync { background: #24382b; color: #8fd4a6; }
+.mixer-row { grid-template-columns: 62px 28px 28px minmax(90px, 1fr) minmax(90px, 1fr) 150px 85px; }
+.part-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .soundfont-needs-attention { border-color: #a6772a; }
 .soundfont-needs-attention span { margin-left: 6px; padding: 1px 5px; color: #ffe0a3; background: #644614; border-radius: 999px; font-size: 10px; }
 

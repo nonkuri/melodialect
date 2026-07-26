@@ -10,7 +10,13 @@ import { describe, expect, it } from "vitest";
 import { SoundBankLoader } from "spessasynth_core";
 import { normalizeMixer } from "../src/engine/controls.js";
 import { GENERALUSER_SOUNDFONT_ID } from "../src/audio/standardSoundFont.js";
-import { TIMBRE_PRESETS, applyTimbrePreset, findTimbrePreset } from "../src/audio/timbrePresets.js";
+import {
+  TIMBRE_PRESETS,
+  applyTimbrePreset,
+  findTimbrePreset,
+  matchTimbreSet,
+  timbreSetName,
+} from "../src/audio/timbrePresets.js";
 import type { SongPart } from "../src/engine/types.js";
 
 const PARTS: SongPart[] = ["melody", "piano", "guitar", "bass", "drums"];
@@ -57,6 +63,36 @@ describe("内蔵音色セット", () => {
     }
     // 元のミキサーは書き換えない
     expect(mixer.melody.soundfont?.program).toBe(73);
+  });
+
+  it("いま当たっている音色セットをミキサーから逆算できる", () => {
+    const standard = normalizeMixer(undefined);
+    expect(matchTimbreSet(standard)).toEqual({ kind: "standard" });
+    expect(timbreSetName(matchTimbreSet(standard))).toBe("標準（GeneralUser GS）");
+
+    for (const preset of TIMBRE_PRESETS) {
+      const applied = applyTimbrePreset(standard, preset);
+      expect(matchTimbreSet(applied), preset.id).toEqual({ kind: "preset", preset });
+      // 音量やパンを触っても音色セットの判定は変わらない
+      applied.melody.volume = 0.3;
+      applied.piano.pan = -0.8;
+      applied.guitar.mute = true;
+      expect(matchTimbreSet(applied), preset.id).toEqual({ kind: "preset", preset });
+    }
+  });
+
+  it("1 パートでも別音色に差し替えるとカスタム扱いになる", () => {
+    const mixer = applyTimbrePreset(normalizeMixer(undefined), findTimbrePreset("jazz-combo")!);
+    mixer.bass.soundfont = { ...mixer.bass.soundfont!, program: 38, presetName: "Synth Bass 1" };
+    expect(matchTimbreSet(mixer)).toEqual({ kind: "custom" });
+    expect(timbreSetName(matchTimbreSet(mixer))).toBe("カスタム（パートごとに指定）");
+  });
+
+  it("全パートの SoundFont を外すと内蔵オシレーター表示になる", () => {
+    const mixer = normalizeMixer(undefined);
+    for (const part of PARTS) mixer[part].soundfont = undefined;
+    expect(matchTimbreSet(mixer)).toEqual({ kind: "oscillator" });
+    expect(timbreSetName(matchTimbreSet(mixer))).toBe("内蔵オシレーターのみ");
   });
 
   it("全プリセットが付属の GeneralUser GS に実在する", () => {

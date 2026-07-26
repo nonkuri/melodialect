@@ -7,7 +7,8 @@ import type {
   SongPart,
 } from "../engine/types.js";
 import { normalizeMixer } from "../engine/controls.js";
-import { TIMBRE_PRESETS, applyTimbrePreset, findTimbrePreset } from "../audio/timbrePresets.js";
+import { matchTimbreSet, timbreSetName } from "../audio/timbrePresets.js";
+import type { SoundFontLibrarySection } from "./SoundFontLibrary.js";
 
 export interface LevelValue {
   peak: number;
@@ -39,7 +40,7 @@ interface Props {
   onCancel: () => void;
   onReset: () => void;
   onCompare: () => void;
-  onOpenSoundFonts: () => void;
+  onOpenSoundFonts: (focus?: SoundFontLibrarySection) => void;
   onOpenExpressionDesign: () => void;
 }
 
@@ -50,6 +51,15 @@ const PARTS: Array<{ id: SongPart; label: string; timbres: Array<[string, string
   { id: "bass", label: "ベース", timbres: [["fingered", "フィンガー"], ["synthbass", "シンセ"]] },
   { id: "drums", label: "ドラム", timbres: [["electronic", "電子"], ["bright", "ブライト"]] },
 ];
+
+/**
+ * パートの音源は SoundFont と内蔵オシレーターの二択。SoundFont を割り当てている間は
+ * そちらだけが鳴る (soundfontPlayer が担当し、オシレーターの経路からは外れる) ので、
+ * 2 つの操作子を並べず 1 つの選択にまとめて、鳴っている方だけを表示する。
+ */
+const TIMBRE_SOURCE_PREFIX = "timbre:";
+const SOUNDFONT_SOURCE = "soundfont";
+const SOUNDFONT_PICKER = "soundfont-picker";
 
 const HELP: Partial<Record<keyof CompositionControls, string>> = {
   density: "メロディの音数。低くすると間が増え、高くすると音を分割します。",
@@ -146,6 +156,36 @@ export function removeMixerPreset(
   return presets.filter((_, presetIndex) => presetIndex !== index);
 }
 
+/**
+ * 選択中のプリセットが今のミックスと一致しているか。
+ *
+ * 一致・変更ありの表示はここから毎回導き出す。選んだ index を覚えるだけだと、
+ * 読み込んだ後にフェーダーを 1 本動かした時点で表示が嘘になる。
+ * キー順に依存しないよう、比較する項目は明示的に並べる。
+ */
+export function sameMix(
+  a: { mixer: MixerSettings; master: MasterSettings },
+  b: { mixer: MixerSettings; master: MasterSettings },
+): boolean {
+  if (a.master.volume !== b.master.volume || a.master.limiter !== b.master.limiter) return false;
+  return PARTS.every(({ id }) => {
+    const left = a.mixer[id];
+    const right = b.mixer[id];
+    if (!left || !right) return left === right;
+    if (left.mute !== right.mute || left.solo !== right.solo) return false;
+    if (left.volume !== right.volume || left.pan !== right.pan) return false;
+    if (left.timbre !== right.timbre) return false;
+    const leftFont = left.soundfont;
+    const rightFont = right.soundfont;
+    if (!leftFont || !rightFont) return !leftFont && !rightFont;
+    return leftFont.sourceId === rightFont.sourceId &&
+      leftFont.bankMSB === rightFont.bankMSB &&
+      leftFont.bankLSB === rightFont.bankLSB &&
+      leftFont.program === rightFont.program &&
+      Boolean(leftFont.isDrum) === Boolean(rightFont.isDrum);
+  });
+}
+
 export function ArrangementPanel(props: Props) {
   const {
     arrangement,
@@ -164,6 +204,8 @@ export function ArrangementPanel(props: Props) {
   const [presets, setPresets] = useState<StoredMixerPreset[]>(loadMixerPresets);
   const [selectedPresetIndex, setSelectedPresetIndex] = useState("");
   const emptyLevels = useMemo(() => ({ peak: 0, rms: 0 }), []);
+  const selectedPreset = selectedPresetIndex === "" ? undefined : presets[Number(selectedPresetIndex)];
+  const presetMatches = Boolean(selectedPreset && sameMix(selectedPreset, { mixer, master }));
   const updateArrangement = <K extends keyof ArrangementSettings>(key: K, value: ArrangementSettings[K]) =>
     onArrangementChange({ ...arrangement, [key]: value });
   const updateComposition = <K extends keyof CompositionControls>(key: K, value: CompositionControls[K]) =>
@@ -285,7 +327,22 @@ export function ArrangementPanel(props: Props) {
           {levels?.clipping && <span className="clip-warning" role="alert">CLIP</span>}
         </div>
         <div className="mixer-presets">
-          <button onClick={savePreset}>新規保存</button>
+          <span className="mixer-presets-label">音色セット</span>
+          <strong className="timbre-set-name" title="5 パートの音源割り当てから判定した、いま鳴っている音色セットです">
+            {timbreSetName(matchTimbreSet(mixer))}
+          </strong>
+          <button onClick={() => props.onOpenSoundFonts("timbre-sets")}>音色セットを選ぶ…</button>
+          <button
+            className={props.soundFontIssueCount ? "soundfont-needs-attention" : ""}
+            aria-label="音源を追加 / 管理"
+            onClick={() => props.onOpenSoundFonts()}
+          >
+            音源を追加 / 管理
+            {props.soundFontIssueCount ? <span aria-hidden="true">要準備</span> : null}
+          </button>
+        </div>
+        <div className="mixer-presets">
+          <span className="mixer-presets-label">保存したミックス</span>
           <select aria-label="ミキサープリセット" value={selectedPresetIndex} onChange={(event) => {
             const value = event.target.value;
             setSelectedPresetIndex(value);
@@ -298,33 +355,15 @@ export function ArrangementPanel(props: Props) {
               );
             }
           }}>
-            <option value="">プリセットを選択…</option>
+            <option value="">未選択</option>
             {presets.map((preset, index) => <option value={index} key={`${preset.name}-${index}`}>{preset.name}</option>)}
           </select>
-          <select
-            aria-label="内蔵音色セット"
-            value=""
-            title="GeneralUser GS の音色で 5 パートをまとめて着せ替えます"
-            onChange={(event) => {
-              const preset = findTimbrePreset(event.target.value);
-              if (preset) onMixerChange(applyTimbrePreset(mixer, preset), true);
-            }}
-          >
-            <option value="">音色セット…</option>
-            {TIMBRE_PRESETS.map((preset) => (
-              <option value={preset.id} key={preset.id}>{preset.name}</option>
-            ))}
-          </select>
-          <button disabled={selectedPresetIndex === ""} onClick={overwriteSelectedPreset}>上書き</button>
-          <button className="danger" disabled={selectedPresetIndex === ""} onClick={deleteSelectedPreset}>削除</button>
-          <button
-            className={props.soundFontIssueCount ? "soundfont-needs-attention" : ""}
-            aria-label="音源を追加 / 管理"
-            onClick={props.onOpenSoundFonts}
-          >
-            音源を追加 / 管理
-            {props.soundFontIssueCount ? <span aria-hidden="true">要準備</span> : null}
-          </button>
+          <span className={`preset-sync${presetMatches ? " in-sync" : ""}`}>
+            {!selectedPreset ? "—" : presetMatches ? "一致" : "変更あり"}
+          </span>
+          <button disabled={!selectedPreset || presetMatches} onClick={overwriteSelectedPreset}>上書き</button>
+          <button className="danger" disabled={!selectedPreset} onClick={deleteSelectedPreset}>削除</button>
+          <button onClick={savePreset}>現在のミックスを保存</button>
         </div>
         <div className="mixer-table">
           {PARTS.map(({ id, label, timbres }) => {
@@ -342,13 +381,36 @@ export function ArrangementPanel(props: Props) {
                 <label>Pan<input type="range" min="-1" max="1" step="0.05" value={part.pan}
                   onChange={(event) => onMixerChange({ ...mixer, [id]: { ...part, pan: Number(event.target.value) } }, false)}
                   onPointerUp={() => onMixerChange(mixer, true)} /></label>
-                <select aria-label={`${label}の内蔵音色`} value={part.timbre} onChange={(event) =>
-                  onMixerChange({ ...mixer, [id]: { ...part, timbre: event.target.value, soundfont: undefined } }, true)}>
-                  {timbres.map(([value, name]) => <option value={value} key={value}>{name}</option>)}
+                <select
+                  className="part-source"
+                  aria-label={`${label}の音源`}
+                  title="SoundFont を割り当てている間は、その音源だけが鳴ります"
+                  value={part.soundfont ? SOUNDFONT_SOURCE : `${TIMBRE_SOURCE_PREFIX}${part.timbre}`}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === SOUNDFONT_SOURCE) return;
+                    if (value === SOUNDFONT_PICKER) {
+                      props.onOpenSoundFonts();
+                      return;
+                    }
+                    onMixerChange({
+                      ...mixer,
+                      [id]: { ...part, timbre: value.slice(TIMBRE_SOURCE_PREFIX.length), soundfont: undefined },
+                    }, true);
+                  }}
+                >
+                  <optgroup label="内蔵オシレーター">
+                    {timbres.map(([value, name]) => (
+                      <option value={`${TIMBRE_SOURCE_PREFIX}${value}`} key={value}>{name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="SoundFont">
+                    {part.soundfont && (
+                      <option value={SOUNDFONT_SOURCE}>{part.soundfont.presetName ?? "SoundFont"}</option>
+                    )}
+                    <option value={SOUNDFONT_PICKER}>音源ライブラリから選ぶ…</option>
+                  </optgroup>
                 </select>
-                <button className="soundfont-assignment" onClick={props.onOpenSoundFonts} title="SoundFontプリセットを変更">
-                  {part.soundfont?.presetName ?? "内蔵オシレーター"}
-                </button>
                 <Meter value={levels?.parts[id] ?? emptyLevels} />
               </div>
             );

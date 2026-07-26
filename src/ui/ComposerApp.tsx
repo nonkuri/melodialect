@@ -35,7 +35,7 @@ import { ArrangementPanel, type MixerLevels } from "./ArrangementPanel.js";
 import { StructureEditor } from "./StructureEditor.js";
 import { HelpGuide } from "./HelpGuide.js";
 import { ProjectManager } from "./ProjectManager.js";
-import { SoundFontLibrary } from "./SoundFontLibrary.js";
+import { SoundFontLibrary, type SoundFontLibrarySection } from "./SoundFontLibrary.js";
 import { CompositionDesignDialog, type CompositionTool } from "./CompositionDesignDialog.js";
 import { PwaStatusNotice } from "./PwaStatusNotice.js";
 import { createStarterWorkspace } from "./starterPresets.js";
@@ -180,6 +180,7 @@ export function ComposerApp() {
   const [showProjects, setShowProjects] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSoundFonts, setShowSoundFonts] = useState(false);
+  const [soundFontFocus, setSoundFontFocus] = useState<SoundFontLibrarySection | undefined>(undefined);
   const [compositionTool, setCompositionTool] = useState<CompositionTool | null>(null);
   const [soundFontIssues, setSoundFontIssues] = useState<string[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(() =>
@@ -1197,7 +1198,10 @@ export function ComposerApp() {
               }}
               onReset={resetParameterDraft}
               onCompare={toggleComparison}
-              onOpenSoundFonts={() => setShowSoundFonts(true)}
+              onOpenSoundFonts={(focus) => {
+                setSoundFontFocus(focus);
+                setShowSoundFonts(true);
+              }}
               onOpenExpressionDesign={() => setCompositionTool("expression")}
             />
           </div>
@@ -1439,6 +1443,7 @@ export function ComposerApp() {
       {showSoundFonts && (
         <SoundFontLibrary
           issues={soundFontIssues}
+          focusSection={soundFontFocus}
           onClose={() => setShowSoundFonts(false)}
           onUseQualityStandard={(assignments) => {
             const mixer = structuredClone(workspace.mixer!);

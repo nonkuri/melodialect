@@ -1,5 +1,5 @@
 import type { MixerSettings, SongPart, SoundFontAssignment } from "../engine/types.js";
-import { GENERALUSER_SOUNDFONT_ID } from "./standardSoundFont.js";
+import { GENERALUSER_SOUNDFONT_ID, generalUserAssignments } from "./standardSoundFont.js";
 
 /**
  * 内蔵の音色セット。GeneralUser GS (標準高音質音源) の GM プリセットだけで
@@ -128,6 +128,62 @@ export const TIMBRE_PRESETS: readonly TimbrePreset[] = [
 
 export function findTimbrePreset(id: string): TimbrePreset | undefined {
   return TIMBRE_PRESETS.find((preset) => preset.id === id);
+}
+
+const PARTS: readonly SongPart[] = ["melody", "piano", "guitar", "bass", "drums"];
+
+/**
+ * ミキサーが今どの音色セットの状態にあるか。
+ *
+ * 「どれを選んだか」を UI 側で覚えると、その後スライダーを 1 本動かしただけで
+ * 表示が実態とずれる。ミキサーから毎回逆算するので古くならない。
+ * 音量はユーザーが自由に触る前提なので、音色 (音源とプログラム) だけで判定する。
+ */
+export type TimbreSetMatch =
+  | { kind: "preset"; preset: TimbrePreset }
+  /** 既定の GeneralUser GS 5 パート */
+  | { kind: "standard" }
+  /** 全パートが SoundFont を持たず内蔵オシレーターで鳴る */
+  | { kind: "oscillator" }
+  | { kind: "custom" };
+
+function sameTimbre(
+  assignment: SoundFontAssignment | undefined,
+  expected: SoundFontAssignment,
+): boolean {
+  return assignment?.sourceId === expected.sourceId &&
+    assignment.bankMSB === expected.bankMSB &&
+    assignment.bankLSB === expected.bankLSB &&
+    assignment.program === expected.program &&
+    Boolean(assignment.isDrum) === Boolean(expected.isDrum);
+}
+
+function matchesAssignments(
+  mixer: MixerSettings,
+  assignments: Record<SongPart, SoundFontAssignment>,
+): boolean {
+  return PARTS.every((part) => sameTimbre(mixer[part]?.soundfont, assignments[part]));
+}
+
+export function matchTimbreSet(mixer: MixerSettings): TimbreSetMatch {
+  if (PARTS.every((part) => !mixer[part]?.soundfont)) return { kind: "oscillator" };
+  if (matchesAssignments(mixer, generalUserAssignments())) return { kind: "standard" };
+  for (const preset of TIMBRE_PRESETS) {
+    const assignments = Object.fromEntries(
+      PARTS.map((part) => [part, timbrePresetAssignment(preset.parts[part])]),
+    ) as Record<SongPart, SoundFontAssignment>;
+    if (matchesAssignments(mixer, assignments)) return { kind: "preset", preset };
+  }
+  return { kind: "custom" };
+}
+
+export function timbreSetName(match: TimbreSetMatch): string {
+  switch (match.kind) {
+    case "preset": return match.preset.name;
+    case "standard": return "標準（GeneralUser GS）";
+    case "oscillator": return "内蔵オシレーターのみ";
+    default: return "カスタム（パートごとに指定）";
+  }
 }
 
 export function timbrePresetAssignment(part: TimbrePresetPart): SoundFontAssignment {

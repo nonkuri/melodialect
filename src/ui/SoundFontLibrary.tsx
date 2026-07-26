@@ -40,18 +40,23 @@ function bytes(value: number | undefined): string {
     : `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** 開いた直後に見せる節。呼び出し元のボタンごとに行き先を変える */
+export type SoundFontLibrarySection = "timbre-sets";
+
 export function SoundFontLibrary({
   onClose,
   onAssign,
   onUseQualityStandard,
   onApplyTimbrePreset,
   issues = [],
+  focusSection,
 }: {
   onClose: () => void;
   onAssign: (part: SongPart, assignment: SoundFontAssignment) => void;
   onUseQualityStandard: (assignments: Record<SongPart, SoundFontAssignment>) => void;
   onApplyTimbrePreset: (preset: TimbrePreset) => void;
   issues?: string[];
+  focusSection?: SoundFontLibrarySection;
 }) {
   const [fonts, setFonts] = useState<SoundFontMetadata[]>([]);
   const [selectedId, setSelectedId] = useState("standard");
@@ -63,6 +68,7 @@ export function SoundFontLibrary({
   const importRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const timbreSetsRef = useRef<HTMLElement>(null);
 
   const refresh = () => {
     void listSoundFonts().then((items) => {
@@ -74,6 +80,10 @@ export function SoundFontLibrary({
   };
   useEffect(refresh, []);
   useEffect(() => () => abortRef.current?.abort(), []);
+  // ミキサーの「音色セットを選ぶ…」から開いたときは、その節まで送る
+  useEffect(() => {
+    if (focusSection === "timbre-sets") timbreSetsRef.current?.scrollIntoView({ block: "start" });
+  }, [focusSection]);
 
   const selected = fonts.find((font) => font.id === selectedId) ?? fonts[0];
   const presets = useMemo(() => {
@@ -197,7 +207,7 @@ export function SoundFontLibrary({
           </div>
         </div>
 
-        <section className="timbre-presets">
+        <section className="timbre-presets" ref={timbreSetsRef}>
           <header>
             <strong>内蔵の音色セット</strong>
             <span>

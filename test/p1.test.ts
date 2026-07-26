@@ -17,6 +17,7 @@ import {
 import {
   overwriteMixerPreset,
   removeMixerPreset,
+  sameMix,
   type StoredMixerPreset,
 } from "../src/ui/ArrangementPanel.js";
 
@@ -142,5 +143,32 @@ describe("P1 arrangement and controls", () => {
 
     const removed = removeMixerPreset(overwritten, 0);
     expect(removed).toEqual([presets[1]]);
+  });
+
+  it("保存したミックスと現在のミックスの一致を判定できる", () => {
+    const mixer = defaultMixer();
+    const master = { ...DEFAULT_MASTER };
+    const saved: StoredMixerPreset = {
+      name: "ライブ",
+      mixer: structuredClone(mixer),
+      master: { ...master },
+    };
+
+    expect(sameMix(saved, { mixer, master })).toBe(true);
+
+    // フェーダー 1 本、マスター、音源割り当てのどれが動いても「変更あり」になる
+    const louder = structuredClone(mixer);
+    louder.piano.volume = 0.6;
+    expect(sameMix(saved, { mixer: louder, master })).toBe(false);
+    expect(sameMix(saved, { mixer, master: { ...master, limiter: !master.limiter } })).toBe(false);
+
+    const swapped = structuredClone(mixer);
+    swapped.melody.soundfont = undefined;
+    expect(sameMix(saved, { mixer: swapped, master })).toBe(false);
+
+    // presetName だけの違い (音源側の表記ゆれ) は同じ音として扱う
+    const renamed = structuredClone(mixer);
+    renamed.melody.soundfont = { ...renamed.melody.soundfont!, presetName: "Flute (GM)" };
+    expect(sameMix(saved, { mixer: renamed, master })).toBe(true);
   });
 });
